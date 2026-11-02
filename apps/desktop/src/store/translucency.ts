@@ -25,6 +25,7 @@ import {
   defaultTranslucencyValues,
   GLASS_MATERIALS,
   GLASS_SCOPES,
+  glassFadeOpacityFor,
   type GlassMaterial,
   glassMaterialForPicker,
   glassMaterialsFor,
@@ -298,7 +299,9 @@ export function pulseTranslucencyPeek(ms = 900): void {
   window.setTimeout(endTranslucencyPeek, ms)
 }
 
-const applyGlassSurfaces = ({ intensity, mode, scope }: TranslucencyState): void => {
+const applyGlassSurfaces = (state: TranslucencyState): void => {
+  const { intensity, mode, scope } = state
+
   if (typeof document === 'undefined') {
     return
   }
@@ -337,8 +340,10 @@ const applyGlassSurfaces = ({ intensity, mode, scope }: TranslucencyState): void
   }
 
   if (glassOn && scope === 'sidebar') {
+    root.style.setProperty('--translucency-sidebar-opacity', `${glassFadeOpacityFor(state)}`)
     startRailTracking()
   } else {
+    root.style.removeProperty('--translucency-sidebar-opacity')
     stopRailTracking()
   }
 }

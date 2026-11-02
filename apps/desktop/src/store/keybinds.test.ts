@@ -67,20 +67,20 @@ describe('keybinds store persist vs late-registered contributed actions', () => 
     expect(conflictsFor('view.toggleSidebar', 'mod+s')).toEqual([])
   })
 
-  it('keeps an explicitly cleared sidebar binding empty so mod+b can be unbound', async () => {
+  it('keeps an explicitly cleared sidebar binding empty so mod+s can be unbound', async () => {
     const { $comboIndex, bindingsFor, setBinding } = await import('./keybinds')
 
     setBinding('view.toggleSidebar', [])
 
     expect(bindingsFor('view.toggleSidebar')).toEqual([])
-    expect($comboIndex.get().get('mod+b')).toBeUndefined()
+    expect($comboIndex.get().get('mod+s')).toBeUndefined()
     expect(storedDiff()['view.toggleSidebar']).toEqual([])
 
     vi.resetModules()
     const reloaded = await import('./keybinds')
 
     expect(reloaded.bindingsFor('view.toggleSidebar')).toEqual([])
-    expect(reloaded.$comboIndex.get().get('mod+b')).toBeUndefined()
+    expect(reloaded.$comboIndex.get().get('mod+s')).toBeUndefined()
   })
 
   it('indexes every action on a shared chord in order, tab slot ahead of profile switch', async () => {
@@ -111,9 +111,9 @@ describe('keybinds store persist vs late-registered contributed actions', () => 
     const keybinds = await import('./keybinds')
 
     expect(keybinds.captureStep('Backspace', null)).toEqual({ type: 'set', combos: [] })
-    expect(keybinds.captureStep('Delete', 'mod+b')).toEqual({ type: 'set', combos: [] })
+    expect(keybinds.captureStep('Delete', 'mod+s')).toEqual({ type: 'set', combos: [] })
     expect(keybinds.captureStep('Escape', null)).toEqual({ type: 'cancel' })
     expect(keybinds.captureStep('b', null)).toEqual({ type: 'wait' })
-    expect(keybinds.captureStep('b', 'mod+b')).toEqual({ type: 'set', combos: ['mod+b'] })
+    expect(keybinds.captureStep('s', 'mod+s')).toEqual({ type: 'set', combos: ['mod+s'] })
   })
 })

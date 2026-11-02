@@ -65,7 +65,7 @@ const glass = (intensity: number, material: GlassMaterial = DEFAULT_GLASS_MATERI
   fade,
   mode: 'glass',
   material,
-  scope: DEFAULT_GLASS_SCOPE
+  scope: 'window'
 })
 
 describe('clampIntensity', () => {
@@ -121,6 +121,14 @@ describe('normalizeMode', () => {
 })
 
 describe('windowOpacityFor', () => {
+  it('keeps the native window opaque when fade is scoped to the sidebar', () => {
+    const state = { ...glass(60, DEFAULT_GLASS_MATERIAL, 100), scope: 'sidebar' as const }
+
+    expect(windowOpacityFor(state)).toBe(1)
+    expect(windowOpacityOptions(state)).toEqual({})
+    expect(windowOpacityFor({ ...state, scope: 'window' })).toBe(windowOpacityFor(clear(100)))
+  })
+
   it('leaves both endpoints bit-identical to the linear ramp it replaced', () => {
     expect(windowOpacityFor(clear(TRANSLUCENCY_MIN))).toBe(legacyOpacity(0))
     expect(windowOpacityFor(clear(TRANSLUCENCY_MAX))).toBe(legacyOpacity(100))

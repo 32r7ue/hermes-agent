@@ -44,9 +44,8 @@ export const DEFAULT_GLASS_MATERIAL: GlassMaterial = 'under-window'
 
 /**
  * Where the glass field lives. 'window' thins every field surface; 'sidebar'
- * is the Finder shape — glass rail, opaque content column. The scope is a
- * renderer concern (which surfaces thin); the main process only persists and
- * echoes it.
+ * is the Finder shape — glass rail, opaque content column. Both tint and Fade
+ * follow this area; only whole-window Fade may change native window opacity.
  */
 export const GLASS_SCOPES = ['window', 'sidebar'] as const
 
@@ -101,7 +100,7 @@ export const WINDOWS_GLASS_MIN_BUILD = 22621
 export interface TranslucencyState {
   intensity: number
   /**
-   * Glass only: native window opacity, on the same ramp Clear's lever uses.
+   * Glass only: opacity of the selected area, on the ramp Clear's lever uses.
    * Defaults to 0 (no fade) because fading a glass window fades its text too —
    * the very thing Glass exists to avoid. It is offered as a deliberate second
    * lever, never as part of the tint.
@@ -390,21 +389,22 @@ function opacityRamp(lever: number): number {
  * Native window opacity for a state.
  *
  * Under Clear the lever IS the opacity. Under Glass the lever paints the tint
- * and only the separate `fade` reaches the window, so a glass window stays at
- * 1 until the user opts into fading it — which is what keeps a tint drag from
- * touching anything native.
+ * and only a whole-window `fade` reaches native opacity. Sidebar-only fade
+ * is painted by the renderer so the content column and overlays stay opaque.
  *
- * Fade is gated on glass being ACTIVE, not merely selected. The light default
- * carries a single point of it so the window edge reads as glass rather than
- * as paint, and without this gate that point would follow someone who had
- * turned the tint to zero — leaving a window that asked to be opaque sitting
- * at 0.9999. Off has to mean off.
+ * Fade is gated on glass being ACTIVE, not merely selected, so a saved fade
+ * cannot follow someone who turned the tint to zero. Off has to mean off.
  */
 export function windowOpacityFor(state: TranslucencyState): number {
   if (state.mode !== 'glass') {
     return opacityRamp(state.intensity)
   }
 
+  return state.scope === 'window' ? glassFadeOpacityFor(state) : 1
+}
+
+/** The same fade curve for either glass area; native opacity is window-only. */
+export function glassFadeOpacityFor(state: TranslucencyState): number {
   return opacityRamp(glassActive(state) ? state.fade : 0)
 }
 

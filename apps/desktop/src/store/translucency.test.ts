@@ -222,6 +222,31 @@ describe('glass mode', () => {
 })
 
 describe('frost and area', () => {
+  it('publishes sidebar-local fade and clears it when the area changes', () => {
+    setTranslucencyScope('sidebar')
+    setTranslucency(60)
+    setTranslucencyFade(100)
+    setTranslucencyMode('glass')
+
+    const opacity = () => document.documentElement.style.getPropertyValue('--translucency-sidebar-opacity')
+    expect(Number(opacity())).toBeCloseTo(0.3)
+
+    setTranslucencyScope('window')
+    expect(opacity()).toBe('')
+
+    setTranslucencyScope('sidebar')
+    expect(Number(opacity())).toBeCloseTo(0.3)
+
+    setTranslucencyMode('clear')
+    expect(opacity()).toBe('')
+    setTranslucencyMode('glass')
+    expect(Number(opacity())).toBeCloseTo(0.3)
+
+    setTranslucency(0)
+    expect(opacity()).toBe('')
+    setTranslucencyFade(0)
+  })
+
   beforeEach(() => {
     setTranslucencyMode('clear')
     setTranslucency(TRANSLUCENCY_MIN)

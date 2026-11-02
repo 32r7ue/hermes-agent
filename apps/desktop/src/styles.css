@@ -651,9 +651,9 @@
      single painter the field alpha is the same number on every route. Raised
      content (cards, popovers, bubbles, the composer) keeps its own opaque
      fills over full-contrast text; regions still read distinct through their
-     borders and the material itself. Unlike Clear, nothing on the page fades
-     — the separate Fade lever does that natively, at the window level, and
-     defaults to off.
+     borders and the material itself. With Fade off, page content stays sharp.
+     Fade follows the area: native opacity for the whole
+     window, renderer-local opacity for the sidebar.
 
      The boot script in index.html pins an opaque inline background on <html>
      before first paint; it has to go transparent here or it sits behind the
@@ -684,7 +684,11 @@
   :root[data-hermes-glass][data-hermes-glass-scope='sidebar'] body {
     background: linear-gradient(
       to right,
-      color-mix(in srgb, var(--ui-bg-chrome) var(--translucency-glass-keep, 100%), transparent)
+      color-mix(
+        in srgb,
+        var(--ui-bg-chrome) calc(var(--translucency-glass-keep, 100%) * var(--translucency-sidebar-opacity, 1)),
+        transparent
+      )
         var(--glass-rail-edge, 0px),
       var(--ui-bg-chrome) var(--glass-rail-edge, 0px)
     );
@@ -693,10 +697,20 @@
   :root[data-hermes-glass][data-hermes-glass-scope='sidebar'][dir='rtl'] body {
     background: linear-gradient(
       to left,
-      color-mix(in srgb, var(--ui-bg-chrome) var(--translucency-glass-keep, 100%), transparent)
+      color-mix(
+        in srgb,
+        var(--ui-bg-chrome) calc(var(--translucency-glass-keep, 100%) * var(--translucency-sidebar-opacity, 1)),
+        transparent
+      )
         var(--glass-rail-edge, 0px),
       var(--ui-bg-chrome) var(--glass-rail-edge, 0px)
     );
+  }
+
+  /* Sidebar Fade is local: never lower native opacity for this scope. The
+     body gradient fades its field tint; this group fades sidebar content. */
+  :root[data-hermes-glass][data-hermes-glass-scope='sidebar'] [data-slot='sidebar'] {
+    opacity: var(--translucency-sidebar-opacity, 1) !important;
   }
 
   /* The app shell's two full-window opaque painters (the contrib controller

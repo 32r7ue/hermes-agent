@@ -1557,8 +1557,8 @@ function applyWindowOpacity(win) {
 // tick restarts its 150ms animation before macOS can settle the material,
 // which reads as jank and flattens the frost levels into each other. Windows
 // setBackgroundMaterial is instantaneous but still skipped on tint-only ticks.
-// The glass Fade lever is the one glass drag that does reach main, and it
-// costs exactly what a Clear drag costs: one setOpacity.
+// Whole-window glass Fade reaches native opacity, at the same cost as Clear:
+// one setOpacity. Sidebar-only Fade stays entirely in the renderer.
 //
 // CAUTION (measured, macOS 26 / Electron 40): a runtime
 // setBackgroundColor('#00000000') is silently LOST on a window whose
