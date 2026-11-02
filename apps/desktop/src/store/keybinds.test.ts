@@ -59,6 +59,14 @@ describe('keybinds store persist vs late-registered contributed actions', () => 
     expect(bindingsFor('demo.late')).toEqual(['mod+alt+l'])
   })
 
+  it('binds the sidebar toggle to mod+s without another action claiming it', async () => {
+    const { $comboIndex, bindingsFor, conflictsFor } = await import('./keybinds')
+
+    expect(bindingsFor('view.toggleSidebar')).toEqual(['mod+s'])
+    expect($comboIndex.get().get('mod+s')).toEqual(['view.toggleSidebar'])
+    expect(conflictsFor('view.toggleSidebar', 'mod+s')).toEqual([])
+  })
+
   it('keeps an explicitly cleared sidebar binding empty so mod+b can be unbound', async () => {
     const { $comboIndex, bindingsFor, setBinding } = await import('./keybinds')
 

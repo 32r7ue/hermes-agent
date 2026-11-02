@@ -155,7 +155,7 @@ export const KEYBIND_ACTIONS: readonly KeybindActionMeta[] = [
   { id: 'nav.agents', category: 'navigation', defaults: [] },
 
   // ── View (layout + appearance + the shortcuts panel itself) ───────────────
-  { id: 'view.toggleSidebar', category: 'view', defaults: ['mod+b'] },
+  { id: 'view.toggleSidebar', category: 'view', defaults: ['mod+s'] },
   // Expose the sidebar's mouse-only grouping control to keyboard-first users.
   // Ships unbound so it is opt-in and cannot claim another global chord.
   { id: 'view.cycleSidebarGrouping', category: 'view', defaults: [] },
