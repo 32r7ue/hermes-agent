@@ -14,8 +14,8 @@ import { defineLocale, type TranslationOverrides } from './define-locale'
 
 export const arOverrides = {
   conversationUi: {
+    runCommand: "تشغيل الأمر",
     reply: "الرد على التحديد",
-    activity: "تفاصيل العمل",
     working: "جارٍ العمل",
     usage: "الاستخدام",
     session: "هذه الجلسة",

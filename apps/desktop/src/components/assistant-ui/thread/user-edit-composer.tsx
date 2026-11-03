@@ -60,11 +60,11 @@ import {
 import { uploadComposerAttachment } from '@/app/session/hooks/use-prompt-actions'
 import { hermesDirectiveFormatter } from '@/components/assistant-ui/directive-text'
 import {
-  StickyHumanMessageContainer,
   StopGlyph,
   USER_ACTION_ICON_BUTTON_CLASS,
   USER_ACTION_ICON_SIZE,
-  USER_BUBBLE_BASE_CLASS
+  USER_BUBBLE_BASE_CLASS,
+  UserMessageContainer
 } from '@/components/assistant-ui/thread/user-message'
 import { Codicon } from '@/components/ui/codicon'
 import type { HermesGateway } from '@/hermes'
@@ -841,7 +841,7 @@ export const UserEditComposer: FC<UserEditComposerProps> = ({ cwd, gateway, sess
 
   return (
     <ComposerPrimitive.Root className="contents" data-slot="aui_edit-composer-root">
-      <StickyHumanMessageContainer>
+      <UserMessageContainer>
         <div
           className="composer-human-message-container human-execution-message-top relative flex w-full items-start rounded-md bg-(--ui-chat-surface-background)"
           // A raised box over the transcript field: under window glass it keeps
@@ -963,7 +963,7 @@ export const UserEditComposer: FC<UserEditComposerProps> = ({ cwd, gateway, sess
             </button>
           </div>
         </div>
-      </StickyHumanMessageContainer>
+      </UserMessageContainer>
     </ComposerPrimitive.Root>
   )
 }

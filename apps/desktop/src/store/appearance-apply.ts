@@ -18,12 +18,16 @@ import type { ThemeMode } from '@/themes/context'
 import { persistAccent } from '@/themes/persist-accent'
 import { requestMode } from '@/themes/request'
 
+import { applyAppSettings, inspectAppSettings, validateAppSettings } from './app-settings'
 import { $interfaceMode, setInterfaceMode } from './interface-mode'
 import { applyDesktopLayoutPreset, openLayoutPickPanes } from './pane-focus'
+import { setAppearance } from './translucency'
 
 export const THEME_MODES: readonly ThemeMode[] = ['light', 'dark', 'system']
 
 export interface AppearanceValues {
+  settings?: Record<string, unknown>
+  inspect?: boolean
   accent?: string
   layout?: string
   mode?: ThemeMode
@@ -31,6 +35,7 @@ export interface AppearanceValues {
 
 /** What was applied, in the ids the agent reads: `accent` is a swatch id, `custom:#rrggbb`, or null for the theme's own. */
 export interface AppliedAppearance {
+  settings?: Record<string, unknown>
   accent?: null | string
   layout?: string
   mode?: ThemeMode
@@ -78,6 +83,10 @@ function applyLayout(id: string): void {
 }
 
 export function applyAppearance(values: AppearanceValues): AppearanceAnswer {
+  const settingsError = values.settings && validateAppSettings(values.settings)
+
+  if (settingsError) {return { available: Object.keys(inspectAppSettings()), error: settingsError, success: false }}
+
   if (values.mode !== undefined && !THEME_MODES.includes(values.mode)) {
     return { available: [...THEME_MODES], error: `Unknown mode "${values.mode}".`, success: false }
   }
@@ -112,6 +121,13 @@ export function applyAppearance(values: AppearanceValues): AppearanceAnswer {
     applyLayout(values.layout)
     applied.layout = values.layout
   }
+
+  if (values.settings) {
+    if (values.mode) {setAppearance(paintsDark(values.mode) ? 'dark' : 'light')}
+    applied.settings = applyAppSettings(values.settings)
+  }
+
+  if (values.inspect) {applied.settings = inspectAppSettings()}
 
   return { applied, success: true }
 }

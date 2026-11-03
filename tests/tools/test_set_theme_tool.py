@@ -37,3 +37,17 @@ def test_the_renderer_answer_is_the_result_for_values_and_pickers():
     assert sent == [{"layout": "cockpit", "accent": "#8A2BE2"}, {"picker": "layout"}]
     assert applied == {"success": False, "error": "Unknown layout", "available": ["sidebar-left"]}
     assert picked == {"success": True, "picked": {"layout": "terminal-deck"}}
+
+
+def test_app_preferences_and_read_only_inspection_use_the_same_session_bridge():
+    sent = []
+
+    def renderer(payload):
+        sent.append(payload)
+        return {"success": True, "applied": {"settings": {"text_scale": 125}}}
+
+    answer = _dispatch({"settings": {"text_scale": 125}, "inspect": True}, renderer)
+    assert sent == [{"settings": {"text_scale": 125}, "inspect": True}]
+    assert answer["applied"]["settings"]["text_scale"] == 125
+    assert _dispatch({"settings": "wrong"}, renderer)["error"]
+    assert len(sent) == 1

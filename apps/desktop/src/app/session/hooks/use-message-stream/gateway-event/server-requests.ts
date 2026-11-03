@@ -700,7 +700,10 @@ const appearanceValues = ({ params }: ScopedServerRequest): AppearanceValues => 
   return {
     ...(str(params.accent) && { accent: str(params.accent) }),
     ...(str(params.layout) && { layout: str(params.layout) }),
-    ...(mode && { mode })
+    ...(mode && { mode }),
+    ...(params.inspect === true && { inspect: true }),
+    ...(params.settings && typeof params.settings === 'object' && !Array.isArray(params.settings)
+      ? { settings: params.settings as Record<string, unknown> } : {})
   }
 }
 

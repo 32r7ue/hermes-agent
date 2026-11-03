@@ -30,8 +30,8 @@ import type { Translations } from './types'
 
 export const en: Translations = {
   conversationUi: {
+    runCommand: "Run command",
     reply: "Reply to selection",
-    activity: "Work details",
     working: "Working",
     usage: "Usage",
     session: "This session",

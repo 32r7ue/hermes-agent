@@ -95,7 +95,7 @@ const KEY = 'hermes.desktop.translucency.v2'
 const LEGACY_KEY = 'hermes.desktop.translucency.v1'
 
 const read = (): TranslucencyBook =>
-  normalizeBook(readJson<unknown>(KEY) ?? readJson<unknown>(LEGACY_KEY), GLASS_SUPPORTED)
+  normalizeBook(readJson<unknown>(KEY) ?? readJson<unknown>(LEGACY_KEY) ?? window.hermesDesktop?.initialTranslucency, GLASS_SUPPORTED)
 
 /** The persisted book. Settings edits it; everything else reads `$translucency`. */
 export const $translucencyBook = atom<TranslucencyBook>(
@@ -382,12 +382,15 @@ if (typeof window !== 'undefined') {
   })
 
   // A window closing mid-drag must not lose the setting.
-  window.addEventListener('pagehide', () => {
+  const flush = () => {
     if (storageTimer !== null) {
       window.clearTimeout(storageTimer)
       persist()
     }
-  })
+  }
+
+  window.addEventListener('beforeunload', flush)
+  window.addEventListener('pagehide', flush)
 
   // Cross-window sync (same pattern as themes/context and store/session):
   // under glass an intensity change is painted entirely by each renderer —

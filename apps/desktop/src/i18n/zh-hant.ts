@@ -15,8 +15,8 @@ import { zhHantSettings } from './zh-hant_settings'
 
 export const zhHantOverrides = {
   conversationUi: {
+    runCommand: "執行命令",
     reply: "回覆選取內容",
-    activity: "工作詳細資訊",
     working: "處理中",
     usage: "用量",
     session: "本次對話",

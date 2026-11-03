@@ -204,7 +204,6 @@ const rpc = (
  */
 const DESKTOP_COMMAND_SPECS: readonly DesktopCommandSpec[] = [
   // Local client actions
-  { name: '/settings', description: 'Open desktop settings', surface: action('settings') },
   { name: '/upload', description: 'Upload files to this chat', surface: action('upload') },
   {
     name: '/usage',
@@ -1013,8 +1012,6 @@ export function nativeDesktopSlashItems<T extends { text: string }>(items: reado
 
   const native = [
     { text: '/upload', meta: copy.upload, action: 'upload-files' },
-    { text: '/settings', meta: copy.settings, action: 'open-settings' },
-    { text: '/model', meta: copy.model, action: 'model-picker' },
     { text: '/usage', meta: copy.usage, action: 'usage-panel' }
   ]
     .filter(item => item.text.slice(1).startsWith(query.toLowerCase()))

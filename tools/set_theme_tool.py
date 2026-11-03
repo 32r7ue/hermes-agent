@@ -33,12 +33,18 @@ def _accent_error(accent: str) -> Optional[str]:
 
 
 def set_theme_tool(accent: Optional[str] = None, mode: Optional[str] = None, layout: Optional[str] = None,
-                   picker: Optional[str] = None, callback: Optional[Callable[[dict], dict]] = None) -> str:
+                   picker: Optional[str] = None, settings: Optional[dict] = None, inspect: bool = False, callback: Optional[Callable[[dict], dict]] = None) -> str:
     """Apply the given appearance values, or show one picker card and wait for the pick."""
     if callback is None:
         return tool_error("set_theme is only available in the Hermes desktop app.")
     values = {key: value.strip() for key, value in (("accent", accent), ("mode", mode), ("layout", layout))
               if isinstance(value, str) and value.strip()}
+    if settings is not None:
+        if not isinstance(settings, dict):
+            return tool_error("settings must be an object. Use inspect=true to list app preferences.")
+        values["settings"] = settings
+    if inspect:
+        values["inspect"] = True
     if picker is not None:
         if picker not in PICKERS:
             return tool_error(f"picker must be one of: {', '.join(PICKERS)}.")
@@ -46,7 +52,7 @@ def set_theme_tool(accent: Optional[str] = None, mode: Optional[str] = None, lay
             return tool_error("picker shows a card for the user to choose; pass picker alone, without values.")
         return json.dumps(callback({"picker": picker}), ensure_ascii=False)
     if not values:
-        return tool_error("Pass at least one of accent, mode or layout, or picker to let the user choose.")
+        return tool_error("Pass appearance values, settings, inspect=true, or picker to let the user choose.")
     if "mode" in values and values["mode"] not in MODES:
         return json.dumps({"success": False, "error": f"Unknown mode {values['mode']!r}.", "available": list(MODES)},
                           ensure_ascii=False)
@@ -58,7 +64,12 @@ def set_theme_tool(accent: Optional[str] = None, mode: Optional[str] = None, lay
 SET_THEME_SCHEMA = {
     "name": "set_theme",
     "description": (
-        "Change how the Hermes desktop app looks: accent colour, light/dark mode, layout. Pass the values "
+        "Inspect or change Hermes Desktop settings without computer use. inspect=true lists current app preferences. "
+        "settings accepts backdrop (bool), text_scale (90/100/110/125/150/175), interface_mode (simple/advanced), "
+        "reasoning_collapsed/statusbar_visible (bool), translucency/translucency_fade (0-100), "
+        "translucency_mode (clear/glass), glass_material (under-window/popover/titlebar/header), glass_scope (sidebar/window). "
+        "For backend/runtime preferences use hermes config get/set through the terminal tool. "
+        "Also change accent colour, light/dark mode and layout. Pass the values "
         "to apply them now; the result says what was applied. Pass picker instead to show the user an "
         "accent or layout picker card in the chat and wait for their pick. To reveal ONE pane, use "
         "focus_pane instead."
@@ -66,6 +77,8 @@ SET_THEME_SCHEMA = {
     "parameters": {
         "type": "object",
         "properties": {
+            "inspect": {"type": "boolean", "description": "Read current app preferences without changing them."},
+            "settings": {"type": "object", "description": "Patch app preferences listed above. Unknown keys are rejected before any changes apply."},
             "accent": {
                 "type": "string",
                 "description": (f"A swatch id ({', '.join(ACCENT_SWATCHES)}), 'theme' for the theme's own "
@@ -92,6 +105,6 @@ registry.register(
     toolset="desktop_ui",
     schema=SET_THEME_SCHEMA,
     handler=lambda args, **kw: set_theme_tool(
-        callback=kw.get("callback"), **{k: args.get(k) for k in ("accent", "mode", "layout", "picker")}),
+        callback=kw.get("callback"), **{k: args.get(k) for k in ("accent", "mode", "layout", "picker", "settings", "inspect")}),
     emoji="🎨",
 )

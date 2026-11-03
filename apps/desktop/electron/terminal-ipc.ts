@@ -314,6 +314,12 @@ export function registerTerminalIpc({
 
     const sshTarget = await resolveTerminalConnectionForSender(event.sender.id, activeSshTerminalTarget, ensureBackend)
 
+    // Inline command fences run a single process with a real TTY, not a shell prompt.
+    // Never execute a remote chat's command silently on this Mac.
+    if (payload?.command && sshTarget) {
+      throw new Error('Inline commands require a local terminal connection')
+    }
+
     const remote = Boolean(sshTarget)
     const remoteState = remote ? getSshConnectionState(sshTarget.scope) : null
 
@@ -328,7 +334,15 @@ export function registerTerminalIpc({
           buildInteractiveSshArgs(sshTarget.ssh, String(payload?.cwd || '').trim(), undefined, remoteCommand),
           { cols, cwd: app.getPath('home'), env: terminalShellEnv(), name: 'xterm-256color', rows }
         )
-      : nodePty.spawn(command, args, { cols, cwd, env: terminalShellEnv(), name: 'xterm-256color', rows })
+      : nodePty.spawn(
+          payload?.command ? (isWindows ? command : '/bin/sh') : command,
+          payload?.command
+            ? isWindows
+              ? ['-NoLogo', '-Command', String(payload.command)]
+              : ['-c', String(payload.command)]
+            : args,
+          { cols, cwd, env: terminalShellEnv(), name: 'xterm-256color', rows }
+        )
 
     const send = (suffix, payload) => {
       if (event.sender.isDestroyed()) {

@@ -38,4 +38,15 @@ describe('applyAppearance', () => {
     expect(!answer.success && answer.available).toEqual(expect.arrayContaining(['sidebar-left', 'terminal-deck']))
     expect($pendingSkinApply.get()).toBeNull()
   })
+  it('validates app preferences atomically and can inspect them without UI automation', () => {
+    const before = applyAppearance({ inspect: true })
+    expect(before.success && before.applied.settings).toHaveProperty('text_scale')
+    const bad = applyAppearance({ mode: 'light', settings: { text_scale: 125, backdrop: 'yes' } })
+    expect(bad.success).toBe(false)
+    expect(applyAppearance({ inspect: true })).toEqual(before)
+    expect(applyAppearance({ settings: { text_scale: 125, backdrop: true } })).toMatchObject({
+      success: true, applied: { settings: { text_scale: 125, backdrop: true } }
+    })
+  })
+
 })

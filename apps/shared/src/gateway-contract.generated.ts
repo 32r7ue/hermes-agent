@@ -5522,6 +5522,8 @@ export type TourPreset = 'quick' | 'full'
 /** ``tools/set_theme_tool.py`` values; accent is a swatch id, ``theme`` or ``#rrggbb``. */
 export interface ThemeApplyRequestParams {
   session_id: string
+  settings?: Record<string, unknown> | null
+  inspect?: boolean
   accent?: string | null
   mode?: ThemeMode | null
   layout?: string | null

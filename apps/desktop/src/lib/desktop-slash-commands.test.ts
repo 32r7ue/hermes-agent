@@ -16,6 +16,7 @@ import {
   isDesktopSlashSuggestionWithOptions,
   isModelPickerCommand,
   isPickerCommand,
+  nativeDesktopSlashItems,
   rankSkillCommands,
   rememberDesktopCommandsCatalog,
   resolveDesktopCommand,
@@ -460,4 +461,11 @@ describe('registry-derived block-list (contract with hermes_cli/commands.py)', (
       }
     }
   })
+})
+
+
+it('offers only upload and usage as extra native slash commands, preserving skills', () => {
+  expect(nativeDesktopSlashItems([{ text: '/my-skill' }], '').map(item => item.text)).toEqual(['/upload', '/usage', '/my-skill'])
+  expect(nativeDesktopSlashItems([], 'mod')).toEqual([])
+  expect(nativeDesktopSlashItems([], 'sett')).toEqual([])
 })

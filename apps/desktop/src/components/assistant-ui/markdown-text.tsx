@@ -1,17 +1,20 @@
 'use client'
 
-import { TextMessagePartProvider, useMessagePartText } from '@assistant-ui/react'
+import { TextMessagePartProvider, useAuiState, useMessagePartText } from '@assistant-ui/react'
 import {
   type StreamdownTextComponents,
   StreamdownTextPrimitive,
   type SyntaxHighlighterProps,
   tailBoundedRemend
 } from '@assistant-ui/react-streamdown'
+import { useStore } from '@nanostores/react'
 import type { code as streamdownCode } from '@streamdown/code'
 import { type ComponentProps, isValidElement, memo, type ReactNode, useEffect, useMemo, useState } from 'react'
 import { defaultRemarkPlugins } from 'streamdown'
 
+import { useSessionView } from '@/app/chat/session-view'
 import { ExpandableBlock } from '@/components/chat/expandable-block'
+import type { InlineCommandOwner } from '@/components/chat/inline-command'
 import { PreviewAttachment } from '@/components/chat/preview-attachment'
 import { chunkByLines, SyntaxHighlighter } from '@/components/chat/shiki-highlighter'
 import { TranscriptVideo } from '@/components/chat/transcript-video'
@@ -482,6 +485,7 @@ function MarkdownImageContent({
 }
 
 interface MarkdownTextSurfaceProps {
+  commandOwner?: InlineCommandOwner
   containerClassName?: string
   containerProps?: ComponentProps<'div'>
   defer?: boolean
@@ -606,6 +610,7 @@ function MarkdownParagraph({
 }
 
 function MarkdownTextSurface({
+  commandOwner,
   containerClassName,
   containerProps,
   decorateText,
@@ -742,14 +747,14 @@ function MarkdownTextSurface({
           return (
             <RichCodeBlock
               code={props.code}
-              fallback={<SyntaxHighlighter {...props} defer={isStreaming} />}
+              fallback={<SyntaxHighlighter {...props} commandOwner={commandOwner} defer={isStreaming} />}
               language={props.language}
               streaming={isStreaming}
             />
           )
         }
       }) as StreamdownTextComponents,
-    [boxDir, decorateText, disableArtifacts, isStreaming, previewOnly, scratchpad]
+    [boxDir, commandOwner, decorateText, disableArtifacts, isStreaming, previewOnly, scratchpad]
   )
 
   if (text.length > MAX_MARKDOWN_CHARS) {
@@ -845,9 +850,15 @@ export function MarkdownTextContent({ isRunning, text, ...surfaceProps }: Markdo
 }
 
 const MarkdownTextImpl = () => {
+  const view = useSessionView()
+  const runtimeId = useStore(view.$runtimeId)
+  const storedId = useStore(view.$storedId)
+  const sessionId = runtimeId ?? storedId
+  const messageId = useAuiState(s => s.message.id)
+  const commandOwner = useMemo(() => sessionId ? { sessionId, messageId } : undefined, [sessionId, messageId])
   const textDirection = useForcedTextDirection()
 
-  return <MarkdownTextSurface defer textDirection={textDirection} />
+  return <MarkdownTextSurface commandOwner={commandOwner} defer textDirection={textDirection} />
 }
 
 export const MarkdownText = memo(MarkdownTextImpl)

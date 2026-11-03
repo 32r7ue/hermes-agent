@@ -21,9 +21,9 @@ async function readSessionUsage(
 ): Promise<Partial<UsageStats>> {
   try {
     const stats = await request<UsageTickPayload>('session.stats', { session_id: sessionId })
-    const usage = usageFromTick<Partial<UsageStats>>(stats)
+    const usage = usageFromTick(stats)
 
-    return { input: usage?.input, output: usage?.output, calls: usage?.calls, total: usage?.total }
+    return { input: usage?.input ?? undefined, output: usage?.output ?? undefined, calls: usage?.calls ?? undefined, total: usage?.total ?? undefined }
   } catch (error) {
     if (!isMissingRpcMethod(error)) {throw error}
 

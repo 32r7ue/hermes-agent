@@ -326,6 +326,8 @@ class ThemePicker(WireEnum):
 class ThemeApplyRequestParams(ServerRequestParams):
     """``tools/set_theme_tool.py`` values; accent is a swatch id, ``theme`` or ``#rrggbb``."""
 
+    settings: dict[str, JsonValue] | None = None
+    inspect: bool = False
     accent: str | None = None
     mode: ThemeMode | None = None
     layout: str | None = None

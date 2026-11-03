@@ -1,8 +1,5 @@
 import { ThreadPrimitive, useAuiState } from '@assistant-ui/react'
-import { type ComponentProps, createContext, useEffect, useMemo, useState } from 'react'
-
-import { DisclosureRow } from '@/components/chat/disclosure-row'
-import { useI18n } from '@/i18n'
+import { type ComponentProps, createContext, useMemo } from 'react'
 
 import { contentHasVisibleText, messageContentText, PROCESS_NOTIFICATION_RE } from './content'
 
@@ -23,8 +20,6 @@ export function responseMessageRole(message: GroupMessage): string {
 
   return background ? 'background' : message.role
 }
-
-export const ResponseActivityDisclosure = createContext<{ expanded: boolean; ownsDisclosure: boolean } | null>(null)
 
 export const ResponseMessageIds = createContext<readonly string[]>([])
 
@@ -97,56 +92,14 @@ export function ResponseMessages({ components, indices }: ResponseMessagesProps)
   return sections.map(section =>
     section.response ? (
       <ResponseMessageIds.Provider key={section.key} value={section.assistantIds}>
-        <div className="group flex min-w-0 flex-col gap-(--scaffold-block-gap)" data-slot="aui_response-group">
-          <ResponseSectionMessages components={components} section={section} />
+        <div className="group flex min-w-0 flex-col gap-(--turn-block-gap)" data-slot="aui_response-group">
+          {section.indices.map(index => (
+            <ThreadPrimitive.MessageByIndex components={components} index={index} key={index} />
+          ))}
         </div>
       </ResponseMessageIds.Provider>
     ) : (
       <ThreadPrimitive.MessageByIndex components={components} index={section.indices[0]!} key={section.key} />
     )
-  )
-}
-
-/** Keep live status paragraphs visible, then fold the completed work above the answer. */
-function ResponseSectionMessages({
-  section,
-  components
-}: {
-  section: ResponseSection
-  components: ResponseMessagesProps['components']
-}) {
-  const { t } = useI18n()
-
-  const running = useAuiState(
-    s =>
-      section.indices.some(index => s.thread.messages[index]?.status?.type === 'running') ||
-      (s.thread.isRunning && section.indices.includes(s.thread.messages.length - 1))
-  )
-
-  const [expanded, setExpanded] = useState(false)
-  useEffect(() => {
-    if (!running) {
-      setExpanded(false)
-    }
-  }, [running])
-  const tail = section.assistantIds.at(-1)
-  const tailIndex = useAuiState(s => section.indices.find(index => s.thread.messages[index]?.id === tail))
-  const history = tailIndex === undefined ? [] : section.indices.filter(index => index < tailIndex)
-
-  const disclosure = useMemo(() => ({ expanded, ownsDisclosure: history.length > 0 }), [expanded, history.length])
-
-  return (
-    <ResponseActivityDisclosure.Provider value={disclosure}>
-      {history.length > 0 && !running && (
-        <DisclosureRow onToggle={() => setExpanded(value => !value)} open={expanded}>
-          {t.conversationUi.activity}
-        </DisclosureRow>
-      )}
-      {section.indices.map(index => (
-        <div className="min-w-0" hidden={!running && !expanded && history.includes(index)} key={index}>
-          <ThreadPrimitive.MessageByIndex components={components} index={index} />
-        </div>
-      ))}
-    </ResponseActivityDisclosure.Provider>
   )
 }

@@ -8,11 +8,12 @@ import { ProfileSwitcher } from '@/app/chat/sidebar/profile-dropdown-switcher'
 import type { CommandCenterSection } from '@/app/command-center'
 import { toggleTerminalPane } from '@/app/right-sidebar/terminal/reveal-focus'
 import { useApprovalModeStatusbarItem } from '@/app/shell/approval-mode-menu'
-import { ContextMeterDetail, ContextUsagePanel } from '@/app/shell/context-usage-panel'
+import { ContextUsagePanel } from '@/app/shell/context-usage-panel'
 import { GatewayMenuPanel } from '@/app/shell/gateway-menu-panel'
 import { useChangeWorkspaceItem } from '@/app/shell/hooks/use-change-workspace'
 import { useContextBreakdown } from '@/app/shell/hooks/use-context-breakdown'
 import { useFocusedSessionRow } from '@/app/shell/hooks/use-focused-session-row'
+import { ProviderUsageIndicator } from '@/app/shell/provider-usage-indicator'
 import { useSystemResourcesStatusbarItem } from '@/app/shell/system-resources-statusbar'
 import { $paneVisible } from '@/components/pane-shell/tree/store'
 import { Badge } from '@/components/ui/badge'
@@ -36,7 +37,7 @@ import {
 } from '@/lib/icons'
 import { type RuntimeReadinessResult } from '@/lib/runtime-readiness'
 import { resolveSessionTimerSince } from '@/lib/session-timer-since'
-import { cacheHitLabel, contextBarLabel, LiveDuration, tokensPerSecondLabel, usageContextLabel } from '@/lib/statusbar'
+import { cacheHitLabel, LiveDuration, tokensPerSecondLabel, usageContextLabel } from '@/lib/statusbar'
 import { rollbackSentence } from '@/lib/update-copy'
 import { formatPercentUsed, formatResetsIn } from '@/lib/usage-percent'
 import { useStoreSelector } from '@/lib/use-session-slice'
@@ -65,6 +66,7 @@ import {
   idsShareLineage
 } from '@/store/session'
 import { $focusedStoredSessionId } from '@/store/session-focus'
+import { requestForOwnedSession } from '@/store/session-states'
 import { $focusedRuntimeId, $focusedSessionState, $sessionTiles, isSessionRemote } from '@/store/session-states'
 import { $statusbarHiddenIds } from '@/store/statusbar-prefs'
 import { $subagentsBySession, activeSubagentCount, failedSubagentCount } from '@/store/subagents'
@@ -159,6 +161,7 @@ export function useStatusbarItems({
   // own cwd in `$sessionStates` and must not paint the primary's workspace.
   const primaryCwd = useStore($currentCwd)
   const primaryUsage = useStore($currentUsage)
+  const focusedProvider = useStoreSelector($focusedSessionState, state => state?.provider ?? '')
   const gatewayRestarting = useStore($gatewayRestarting)
   const primarySessionStartedAt = useStore($sessionStartedAt)
   const tileSessionFocusStartedAt = useStore($tileSessionFocusStartedAt)
@@ -311,11 +314,17 @@ export function useStatusbarItems({
   // toggled off, so this covers the rest.
   const contextItemHidden = useStore($statusbarHiddenIds).includes('context-usage')
 
+  const usageSessionId = activeSessionId ?? (primaryFocused ? selectedStoredSessionId : focusedStoredSessionId)
+
+  const contextRequest = useCallback(<T,>(method: string, params?: Record<string, unknown>) =>
+    usageSessionId ? requestForOwnedSession<T>(usageSessionId, requestGateway, method, params) : requestGateway<T>(method, params),
+    [usageSessionId, requestGateway])
+
   const { breakdown: contextBreakdown, loading: contextBreakdownLoading } = useContextBreakdown({
     busy,
     enabled: !contextItemHidden,
-    requestGateway,
-    sessionId: activeSessionId
+    requestGateway: contextRequest,
+    sessionId: usageSessionId
   })
 
   // The breakdown wins whenever we have one, for two reasons: it reports the
@@ -341,7 +350,6 @@ export function useStatusbarItems({
   )
 
   const contextUsage = useMemo(() => usageContextLabel(gaugeUsage), [gaugeUsage])
-  const contextBar = useMemo(() => contextBarLabel(gaugeUsage), [gaugeUsage])
   // Both ride the same usage payload the context meter does (session.usage
   // ticks mid-turn, message.complete after) — no extra RPC, no polling.
   const cacheHit = cacheHitLabel(currentUsage)
@@ -677,15 +685,8 @@ export function useStatusbarItems({
         variant: 'text'
       },
       {
-        detail: contextBar ? (
-          <ContextMeterDetail bar={contextBar} compressions={currentUsage.compressions} />
-        ) : undefined,
-        // Never self-hide: the user opted this item in (it's hidden-by-
-        // default), so an empty label must render as a waiting placeholder,
-        // not a vanished item — an enabled-but-invisible toggle reads as
-        // "another item took its spot".
         id: 'context-usage',
-        label: contextUsage || '—',
+        label: gaugeUsage.context_max ? contextUsage : '—',
         menuAlign: 'end',
         menuClassName: 'w-auto border-(--ui-stroke-secondary) p-0',
         menuContent: (
@@ -693,6 +694,10 @@ export function useStatusbarItems({
         ),
         toggleLabel: copy.toggleContextUsage,
         variant: 'menu'
+      },
+      {
+        id: 'provider-usage',
+        render: () => <ProviderUsageIndicator provider={focusedProvider} request={requestGateway} sessionId={usageSessionId} />
       },
       {
         icon: <Layers3 className="size-3" />,
@@ -770,12 +775,13 @@ export function useStatusbarItems({
       cacheHit,
       chatOpen,
       clientVersionItem,
-      contextBar,
+      usageSessionId,
+      focusedProvider,
+      requestGateway,
       contextBreakdown,
       contextBreakdownLoading,
       contextUsage,
       copy,
-      currentUsage.compressions,
       gaugeUsage,
       sessionStartedAt,
       gatewayState,

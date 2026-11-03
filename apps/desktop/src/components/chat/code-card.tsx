@@ -13,7 +13,7 @@ function CodeCard({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
       className={cn(
-        'group/code relative min-w-0 max-w-full overflow-hidden rounded-[0.625rem] bg-(--ui-bg-editor) [--expandable-fade-from:var(--ui-bg-editor)] text-[length:var(--conversation-tool-font-size)] text-muted-foreground',
+        'group/code relative min-w-0 max-w-full overflow-hidden rounded-[0.625rem] border border-(--ui-stroke-tertiary) bg-(--ui-bg-elevated) [--expandable-fade-from:var(--ui-bg-editor)] text-[length:var(--conversation-tool-font-size)] text-muted-foreground',
         className
       )}
       data-slot="code-card"
@@ -36,7 +36,7 @@ function CodeCardBody({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
       className={cn(
-        'font-mono text-[length:calc(0.7rem*var(--conversation-text-scale,1))] leading-relaxed text-foreground/90 [&_pre]:m-0 [&_pre]:overflow-x-auto [&_pre]:scrollbar-overlay [&_pre]:bg-transparent! [&_pre]:px-2 [&_pre]:py-1.5 [&_pre]:font-mono [&_pre]:leading-relaxed',
+        'font-mono text-[length:var(--conversation-tool-font-size)] leading-relaxed text-foreground/90 [&_pre]:m-0 [&_pre]:overflow-x-auto [&_pre]:scrollbar-overlay [&_pre]:bg-transparent! [&_pre]:px-2 [&_pre]:py-1.5 [&_pre]:font-mono [&_pre]:leading-relaxed',
         className
       )}
       data-slot="code-card-body"

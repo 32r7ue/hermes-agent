@@ -23,8 +23,8 @@ import { jaUpdateChannel } from './ja_update_channel'
 
 export const jaOverrides = {
   conversationUi: {
+    runCommand: "コマンドを実行",
     reply: "選択箇所に返信",
-    activity: "作業の詳細",
     working: "作業中",
     usage: "使用状況",
     session: "このセッション",

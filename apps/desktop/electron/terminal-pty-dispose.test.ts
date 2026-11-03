@@ -59,7 +59,7 @@ function makeSender(id: number) {
   }
 }
 
-async function startSession() {
+async function startSession(payload: Record<string, unknown> = {}) {
   registerTerminalIpc({
     isWindows: false,
     findOnPath: () => null,
@@ -80,7 +80,7 @@ async function startSession() {
     payload: Record<string, unknown>
   ) => Promise<{ cwd: string | null; id: string; shell: string }>
 
-  const session = await start({ sender }, {})
+  const session = await start({ sender }, payload)
 
   assert.ok(session?.id)
 
@@ -133,4 +133,11 @@ test('explicit dispose kills the PTY and drops the session', async () => {
 
   assert.equal(write({}, session.id, 'echo hi'), false)
   assert.equal(dispose({}, session.id), false)
+})
+
+test('inline commands spawn a single shell process with a TTY rather than typing into a login shell', async () => {
+  await startSession({ command: "printf 'safe output'" })
+  const call = spawnMock.fn.mock.calls.at(-1)!
+  assert.equal(call[0], '/bin/sh')
+  assert.deepEqual(call[1], ['-c', "printf 'safe output'"])
 })

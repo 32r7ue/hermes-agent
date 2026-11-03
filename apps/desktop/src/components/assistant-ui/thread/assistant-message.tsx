@@ -1164,10 +1164,10 @@ const AssistantActionBar: FC<MessageActionProps & { durationS?: number }> = ({
   )
 
   return (
-    <div className="relative flex w-full shrink-0 items-center justify-end gap-1.5">
+    <div className="relative flex w-full shrink-0 items-center justify-start gap-1.5">
       {durationS !== undefined && (
         <span
-          className="mr-auto select-none px-0.5 text-[0.6875rem] leading-5 tabular-nums text-muted-foreground"
+          className="select-none px-0.5 text-[0.6875rem] leading-5 tabular-nums text-muted-foreground"
           data-slot="aui_turn-duration"
           title={t.assistant.thread.turnDuration(formatElapsed(durationS))}
         >
@@ -1183,7 +1183,7 @@ const AssistantActionBar: FC<MessageActionProps & { durationS?: number }> = ({
           // invisible by default (opacity-0 + pointer-events-none, reveals on
           // hover), so keeping it mounted reserves stable layout height with
           // no visual change during streaming.
-          'relative flex flex-row items-center justify-end gap-1.5 py-1.5 opacity-0 pointer-events-none group-hover:pointer-events-auto group-hover:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100'
+          'relative flex flex-row items-center justify-start gap-1.5 py-1.5 opacity-0 pointer-events-none group-hover:pointer-events-auto group-hover:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100'
         }
         data-slot="aui_msg-actions"
       >
@@ -1333,7 +1333,7 @@ const ReadAloudButton: FC<{
 
 const AssistantFooter: FC<MessageActionProps & { durationS?: number }> = ({ durationS, ...props }) => {
   return (
-    <div className="flex min-h-6 flex-col items-end gap-1 pr-(--message-text-indent) pl-(--message-text-indent)">
+    <div className="flex min-h-6 flex-col items-start gap-1 pr-(--message-text-indent) pl-(--message-text-indent)">
       <BranchPickerPrimitive.Root
         className="inline-flex h-6 items-center gap-1 text-xs text-muted-foreground"
         hideWhenSingleBranch

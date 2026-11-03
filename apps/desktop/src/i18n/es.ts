@@ -23,8 +23,8 @@ import { introEs } from './intro-es'
 
 export const esOverrides = {
   conversationUi: {
+    runCommand: "Ejecutar comando",
     reply: "Responder a la selección",
-    activity: "Detalles del trabajo",
     working: "En curso",
     usage: "Uso",
     session: "Esta sesión",

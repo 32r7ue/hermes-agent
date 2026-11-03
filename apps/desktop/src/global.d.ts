@@ -378,6 +378,7 @@ declare global {
       setTitleBarTheme?: (payload: HermesTitleBarTheme) => void
       setNativeTheme?: (mode: 'dark' | 'light' | 'system') => void
       /** Main-process fact: this OS can back glass with a native material. */
+      initialTranslucency?: TranslucencyState
       glassSupported?: boolean
       /** Main-process fact: this OS can do any translucency at all (not Linux). */
       translucencySupported?: boolean
@@ -571,7 +572,7 @@ declare global {
         onData: (id: string, callback: (payload: string) => void) => () => void
         onExit: (id: string, callback: (payload: HermesTerminalExit) => void) => () => void
         resize: (id: string, size: { cols: number; rows: number }) => Promise<boolean>
-        start: (options?: { cols?: number; cwd?: string; rows?: number }) => Promise<HermesTerminalSession>
+        start: (options?: { cols?: number; cwd?: string; rows?: number; command?: string }) => Promise<HermesTerminalSession>
         write: (id: string, data: string) => Promise<boolean>
       }
       reachPreviewUrl?: (url: string) => Promise<string>

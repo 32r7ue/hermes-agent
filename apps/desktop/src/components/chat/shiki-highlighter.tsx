@@ -7,6 +7,7 @@ import { hasHttpUrlHost } from '@/app/chat/composer/url-refs'
 import { referenceRe, unquoteReferenceValue } from '@/components/assistant-ui/reference-kinds'
 import { CodeCard, CodeCardBody } from '@/components/chat/code-card'
 import { ExpandableBlock } from '@/components/chat/expandable-block'
+import { InlineCommand, type InlineCommandOwner, isExecutableFence } from '@/components/chat/inline-command'
 // Theme constants live in shiki-config (dependency-free) so the lazy shiki
 // chunk can import them without pulling this module into the shiki bundle.
 import { SHIKI_COLOR_REPLACEMENTS } from '@/components/chat/shiki-config'
@@ -41,6 +42,7 @@ export { SHIKI_COLOR_REPLACEMENTS, SHIKI_THEME } from '@/components/chat/shiki-c
  */
 interface HermesSyntaxHighlighterProps extends SyntaxHighlighterProps {
   defer?: boolean
+  commandOwner?: InlineCommandOwner
 }
 
 const MAX_HIGHLIGHT_CHARS = 150_000
@@ -168,7 +170,8 @@ export const SyntaxHighlighter: FC<HermesSyntaxHighlighterProps> = ({
   components: { Pre },
   language,
   code,
-  defer = false
+  defer = false,
+  commandOwner
 }) => {
   const { t } = useI18n()
   // Preserve the parser payload for both display and copy, including whitespace.
@@ -190,13 +193,13 @@ export const SyntaxHighlighter: FC<HermesSyntaxHighlighterProps> = ({
     <CodeCard data-streaming={defer ? 'true' : undefined}>
       <CopyButton
         appearance="inline"
-        className="absolute right-4 top-1.5 z-10 h-5 gap-0 rounded-md px-1 opacity-0 transition-opacity group-hover/code:opacity-100 focus-visible:opacity-100"
+        className="absolute right-3 top-2 z-10 h-7 gap-0 rounded-md px-1 opacity-80 transition-opacity hover:opacity-100 focus-visible:opacity-100"
         iconClassName="size-3"
         label={t.assistant.tool.copyCode}
         showLabel={false}
         text={() => copyableCodeText(content)}
       />
-      <CodeCardBody className="[&_pre]:px-3 [&_pre]:py-2.5">
+      <CodeCardBody className="[&_pre]:px-3 [&_pre]:py-3 [&_pre]:pr-20">
         <ExpandableBlock>
           <Pre className="aui-shiki m-0 overflow-hidden bg-transparent p-0">
             {plain ? (
@@ -207,6 +210,7 @@ export const SyntaxHighlighter: FC<HermesSyntaxHighlighterProps> = ({
           </Pre>
         </ExpandableBlock>
       </CodeCardBody>
+      {!defer && commandOwner && isExecutableFence(language) && <InlineCommand command={copyableCodeText(content)} owner={commandOwner} />}
     </CodeCard>
   )
 }

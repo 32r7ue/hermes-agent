@@ -121,6 +121,19 @@ describe('window translucency lever', () => {
     }
   })
 
+  it('flushes the latest glass settings when Electron closes before the debounce fires', () => {
+    vi.useFakeTimers()
+
+    try {
+      setTranslucencyMode('glass')
+      setTranslucencyScope('sidebar')
+      setTranslucency(47)
+      window.dispatchEvent(new Event('beforeunload'))
+      expect(JSON.parse(window.localStorage.getItem(KEY)!)).toEqual($translucencyBook.get())
+      expect(JSON.parse(window.localStorage.getItem(KEY)!).dark.intensity).toBe(47)
+    } finally {vi.useRealTimers()}
+  })
+
   // Flipped from an earlier version that asserted the bridge was debounced:
   // in clear mode the native window fade IS the effect, and main can only
   // move it when told — a debounced send froze the fade mid-drag. Main diffs
@@ -584,6 +597,18 @@ describe('v1 → v2 migration', () => {
 
     expect(fresh.$translucency.get().mode).toBe('clear')
     expect(fresh.$translucency.get().intensity).toBe(25)
+  })
+
+  it('recovers the native glass mirror when renderer storage is absent', async () => {
+    window.localStorage.clear()
+    const original = window.hermesDesktop
+    window.hermesDesktop = { ...original, initialTranslucency: { intensity: 42, fade: 3, mode: 'glass', material: 'popover', scope: 'sidebar' } } as never
+
+    try {
+      vi.resetModules()
+      const fresh = await import('./translucency')
+      expect(fresh.$translucency.get()).toMatchObject({ intensity: 42, fade: 3, mode: 'glass', scope: 'sidebar' })
+    } finally {window.hermesDesktop = original}
   })
 
   it('prefers a v2 book over a stale v1 state', async () => {

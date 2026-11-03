@@ -23,8 +23,8 @@ import { introDe } from './intro-de'
 
 export const deOverrides = {
   conversationUi: {
+    runCommand: "Befehl ausführen",
     reply: "Auf Auswahl antworten",
-    activity: "Arbeitsdetails",
     working: "In Arbeit",
     usage: "Nutzung",
     session: "Diese Sitzung",

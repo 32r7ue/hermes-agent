@@ -583,20 +583,21 @@ The detailed state contract lives in the scoped
 
 ## Conversation reading and disclosure
 
-The transcript and docked composer share a 52rem maximum column. Human prompts
+The transcript and docked composer share a 60rem maximum column. Human prompts
 align right and leave a left gutter; assistant prose fills the reading column.
 The composer and command drawers paint opaque theme-token fills. Theme selection,
-black mode and existing typography are preserved. The optional statue backdrop
+black mode and existing fonts and sizes are preserved. The optional statue backdrop
 belongs only to the empty intro screen.
 
 Selecting text in one message offers Reply to selection. It appends a Markdown
 quote and a blank comment line to that surface's existing draft. It never edits
-the source message. Completed reasoning, commands and interim commentary collapse
-behind Work details, including after history hydration. Final prose stays visible;
-interactive requests remain available while the turn is running. The existing
+the source message. Narration stays visible in chronological order, including after history hydration. Only adjacent tool calls and reasoning fold into meaningful one-line summaries, with a permanently visible caret and room before the next paragraph. Explicitly opened work remains open. Interactive requests remain available while the turn is running. The existing
 scroll owner follows streaming content until the reader scrolls up.
 
-The slash palette offers native upload, settings and model controls as well as
-backend commands and skills. `/usage` opens an account-limit card with reported
+The slash palette adds only native upload and usage beside existing backend commands and skills; settings/model actions remain in Cmd-K. Human prompts scroll normally, show all their text, and place attachment previews above their right-aligned bubble. Metadata and actions sit below the bubble. The existing panel mechanism remains: Cmd-J opens the side panel and terminal, links open the browser, and Cmd-W closes the focused auxiliary pane. `/usage` opens an account-limit card with reported
 provider windows, reset times and session counters. Unknown limits stay unknown;
 separate credential-pool accounts never share a fabricated aggregate percentage.
+
+The bottom statusbar shows context occupancy followed by a provider-limit ring. Its compact popover uses reported windows and reset times; missing data never paints as zero. Inline shell fences in assistant answers offer an explicit Run action on the owning session, using a PTY for inline password/confirmation input and sending completed output as a hidden continuation to the same agent; streaming fences, reasoning and foreign previews cannot execute.
+
+Glass settings flush on Electron beforeunload as well as pagehide. The native persisted mirror seeds renderer recovery when localStorage is absent. The session-scoped set_theme bridge can inspect and patch app preferences through the same setters as Settings. Backend preferences remain available through hermes config get/set. A connected gateway dismisses the loading screen immediately; the old 1.18-second decorative exit runs only in the development preview.

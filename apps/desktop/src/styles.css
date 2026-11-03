@@ -240,10 +240,10 @@
     --ui-accent: var(--theme-midground);
     --ui-accent-secondary: var(--theme-primary);
     --ui-warm: var(--theme-warm);
-    --ui-red: #cf2d56;
+    --ui-red: #c62828;
     --ui-orange: #db704b;
     --ui-yellow: #c08532;
-    --ui-green: #1f8a65;
+    --ui-green: #178138;
     --ui-cyan: #4c7f8c;
     --ui-blue: #0053fd;
     --ui-purple: #9e94d5;
@@ -370,7 +370,7 @@
        between the secondary and tertiary greys those lines used to pick
        individually, and dimmed once more by the fade rule below so the prose
        reading column stays primary. */
-    --conversation-scaffold-text: color-mix(in srgb, var(--ui-base) 64%, transparent);
+    --conversation-scaffold-text: color-mix(in srgb, var(--ui-base) 76%, transparent);
     --conversation-scaffold-meta: color-mix(in srgb, var(--ui-base) 44%, transparent);
     --ui-stroke-primary: color-mix(
       in srgb,
@@ -416,7 +416,7 @@
     --ui-chat-bubble-opaque-background: var(--ui-bg-editor);
     --ui-inline-code-background: color-mix(in srgb, #141414 5%, transparent);
     --ui-inline-code-foreground: color-mix(in srgb, #141414 88%, transparent);
-    --ui-selection-background: color-mix(in srgb, #ffd24a 55%, transparent);
+    --ui-selection-background: var(--ui-blue);
 
     --dt-background: var(--ui-bg-chrome);
     --dt-foreground: var(--ui-text-primary);
@@ -509,7 +509,7 @@
     --composer-shell-pad-block-end: 0.625rem;
     --message-text-indent: 0.75rem;
     --conversation-text-base-size: 0.8125rem;
-    --conversation-tool-base-size: 0.6875rem;
+    --conversation-tool-base-size: 0.8125rem;
     --conversation-caption-base-size: 0.75rem;
     --conversation-base-line-height: 1.125rem;
     --conversation-caption-base-line-height: 1rem;
@@ -521,7 +521,7 @@
     --conversation-turn-gap: 0.375rem;
     /* Gap between top-level turn blocks (prose ↔ tools ↔ thinking) — enough air
        that scaffolding reads as separate from the reply, not crammed into it. */
-    --turn-block-gap: 0.75rem;
+    --turn-block-gap: 1.25rem;
     /* Between adjacent scaffolding, though: a back-to-back run of thinking
        headers and tool rows is one sequence, not blocks to hold apart. Derived
        so retuning the block gap carries it along. */
@@ -531,7 +531,7 @@
     --tool-row-gap: 0.375rem;
     /* Resting opacity of a disclosure caret — invisible until hover, except
        where a surface opts into a faint hint of the affordance. */
-    --disclosure-caret-rest: 0;
+    --disclosure-caret-rest: 0.8;
     /* Paragraph spacing — vertical gap between prose paragraphs, both inside a
        markdown block and between consecutive prose parts. Single knob; tweak
        freely. */
@@ -539,7 +539,7 @@
     --sticky-human-top: 0.23rem;
     --file-tree-row-height: 1.375rem;
 
-    --composer-width: 52rem;
+    --composer-width: 60rem;
     --composer-control-size: 1.5rem;
     --composer-control-primary-size: 1.625rem;
     --composer-control-gap: 0.25rem;
@@ -609,11 +609,11 @@
     --theme-neutral-card: #161618;
 
     /* Dark-only accent palette overrides. */
-    --ui-red: #e75e78;
-    --ui-green: #55a583;
+    --ui-red: #ff5252;
+    --ui-green: #36d653;
     --ui-cyan: #6f9ba6;
-    --ui-diff-add-foreground: color-mix(in srgb, var(--ui-green) 62%, #fff);
-    --ui-diff-remove-foreground: color-mix(in srgb, var(--ui-red) 62%, #fff);
+    --ui-diff-add-foreground: var(--ui-green);
+    --ui-diff-remove-foreground: var(--ui-red);
 
     --sidebar-edge-border: color-mix(in srgb, var(--ui-base) 12%, transparent);
     --composer-ring-strength: 1.3;
@@ -626,7 +626,7 @@
 
     --ui-inline-code-background: color-mix(in srgb, #ffffff 7%, transparent);
     --ui-inline-code-foreground: color-mix(in srgb, #ffffff 88%, transparent);
-    --ui-selection-background: color-mix(in srgb, #ffd24a 38%, transparent);
+    --ui-selection-background: var(--ui-blue);
     /* A dark card sits ABOVE the chrome (#161618 over #0d0d0e), so an inline
        widget wearing the raw card fill reads as a lit panel. Take it down a
        touch — still clearly a surface, no longer the brightest thing in the
@@ -854,7 +854,7 @@
 
   *::selection {
     background: var(--ui-selection-background);
-    color: inherit;
+    color: #fff;
   }
 }
 
@@ -1874,17 +1874,6 @@ body.guest-pointer-lock :is(webview, iframe) {
   text-align: left;
 }
 
-[data-slot='aui_user-message-root'] {
-  --sticky-human-offset: calc(var(--sticky-human-top) + 1px);
-  top: var(--sticky-human-offset);
-}
-
-/* The sticky prompt owns no field paint. Clip only the scrolling siblings
-   behind it, including the top gap, so bubble transparency still works. */
-[data-sticky-prompt-clip] {
-  clip-path: inset(var(--sticky-prompt-clip) 0 0);
-}
-
 [data-slot='aui_user-message-root'],
 [data-slot='aui_edit-composer-root'] {
   --human-msg-line-height: 1.3;
@@ -1897,21 +1886,6 @@ body.guest-pointer-lock :is(webview, iframe) {
 
 [data-slot='aui_edit-composer-root'] [data-slot='composer-rich-input'] {
   line-height: var(--human-msg-line-height);
-}
-
-/* Sticky human bubbles clamp to ~2 lines with a soft bottom fade so a long
-   prompt doesn't dominate the viewport. The clamp lifts only in the edit
-   composer; expanding on read-only :focus-within ran on mousedown (before the
-   swap) and fought stick-to-bottom when parked at the bottom. */
-.sticky-human-clamp {
-  cursor: pointer;
-  max-height: calc(4 * var(--human-msg-line-height) * var(--conversation-text-font-size) + 0.15rem);
-  overflow: hidden;
-}
-
-.sticky-human-clamp[data-clamped='true'] {
-  -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent);
-  mask-image: linear-gradient(to bottom, #000 55%, transparent);
 }
 
 /* Stick-to-bottom owns scrollTop while following. Once escaped, native anchoring
@@ -1928,7 +1902,7 @@ body.guest-pointer-lock :is(webview, iframe) {
 
 [data-slot='aui_thread-content'] {
   max-width: var(--composer-width);
-  padding-inline: 1.25rem;
+  padding-inline: 0.75rem;
 }
 
 /* Human prompts leave breathing room on the left of the shared reading column. */
@@ -2278,7 +2252,7 @@ body.guest-pointer-lock :is(webview, iframe) {
 [data-slot='aui_assistant-message-content'] [data-conversation-scaffold],
 [data-slot='aui_background-result'] [data-conversation-scaffold],
 [data-slot='aui_background-resume'] {
-  opacity: 0.67;
+  opacity: 1;
   transition: opacity 120ms ease-out;
 }
 
@@ -2403,7 +2377,7 @@ body.guest-pointer-lock :is(webview, iframe) {
    a row you're already reaching for. The scaffold fade multiplies this, so the
    painted value lands well under the number here. */
 [data-slot='aui_thinking-disclosure'] {
-  --disclosure-caret-rest: 0.4;
+  --disclosure-caret-rest: 0.8;
 }
 
 /* A streaming turn is sealed into several assistant bubbles as it goes
@@ -3903,7 +3877,20 @@ html[data-hud-window] [data-slot='popover-content'] {
   visibility: inherit !important;
 }
 
-/* Keep the final prose visible while completed reasoning, tools and commentary rest folded. */
-[data-slot='aui_message-parts'][data-activity-collapsed] > :not([data-response-final]) {
-  display: none;
+/* Narration and activity alternate as separate reading blocks, also after hydration. */
+[data-slot='aui_message-parts'] > * + * {
+  margin-block-start: var(--turn-block-gap);
+}
+[data-slot='aui_message-parts'] > :is([data-slot='tool-block'], [data-slot='aui_thinking-disclosure']) + :is([data-slot='tool-block'], [data-slot='aui_thinking-disclosure']) {
+  margin-block-start: var(--scaffold-block-gap);
+}
+
+[data-slot='aui_user-attachments'] [data-slot='aui_directive-text'] {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+}
+[data-slot='aui_user-attachments'] [data-slot='aui_embedded-images'] {
+  justify-content: flex-end;
 }

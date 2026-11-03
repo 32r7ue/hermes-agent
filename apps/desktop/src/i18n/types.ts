@@ -85,8 +85,8 @@ interface ModeOptionCopy {
 
 export interface Translations extends NoticeTranslations {
   conversationUi: {
+    runCommand: string
     reply: string
-    activity: string
     working: string
     usage: string
     session: string

@@ -23,8 +23,8 @@ import { introFr } from './intro-fr'
 
 export const frOverrides = {
   conversationUi: {
+    runCommand: "Exécuter la commande",
     reply: "Répondre à la sélection",
-    activity: "Détails du travail",
     working: "En cours",
     usage: "Utilisation",
     session: "Cette session",

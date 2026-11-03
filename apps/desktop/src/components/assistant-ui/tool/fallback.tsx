@@ -656,10 +656,10 @@ function ToolEntry({ part }: ToolEntryProps) {
             {showDiffStats && diffStats && (
               <span className="flex shrink-0 items-center gap-1 font-mono text-[0.625rem] tabular-nums">
                 {diffStats.added > 0 && (
-                  <span className="text-emerald-600 dark:text-emerald-400">+{diffStats.added}</span>
+                  <span className="text-(--ui-green)">+{diffStats.added}</span>
                 )}
                 {diffStats.removed > 0 && (
-                  <span className="text-rose-600 dark:text-rose-400">−{diffStats.removed}</span>
+                  <span className="text-(--ui-red)">−{diffStats.removed}</span>
                 )}
               </span>
             )}
@@ -808,7 +808,7 @@ function TerminalTranscript({ command, exitCode }: TerminalTranscriptProps) {
         <span
           className={cn(
             'shrink-0 rounded bg-(--ui-bg-tertiary) px-1 py-px text-[0.6rem] tabular-nums',
-            exitCode === 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'
+            exitCode === 0 ? 'text-(--ui-green)' : 'text-(--ui-red)'
           )}
         >
           exit {exitCode}
@@ -1032,14 +1032,6 @@ const ToolRun: FC<PropsWithChildren<{ endIndex: number; startIndex: number }>> =
   const collapsed = representedByApproval && !rowOpen && !persistedOpen
   const reduced = useReducedMotion()
 
-  useEffect(() => {
-    if (!messageRunning) {
-      setToolDisclosureOpen(disclosureId, false)
-
-      for (const id of entryIds) {setToolDisclosureOpen(id, false)}
-    }
-  }, [messageRunning, disclosureId, entryIds])
-
   // The original runtime stays mounted while its summary owns the activity.
   // Reveal its footprint gradually when the last approval clears, instead of
   // inserting all represented rows in the outgoing card's first exit frame.
@@ -1066,7 +1058,7 @@ const ToolRun: FC<PropsWithChildren<{ endIndex: number; startIndex: number }>> =
             summary={summary}
           />
         )}
-        {expanded && <div className="grid min-w-0 max-w-full gap-(--tool-row-gap)">{children}</div>}
+        {expanded && <div className="grid min-w-0 max-w-full gap-(--tool-row-gap) rounded-xl border border-(--ui-stroke-tertiary) bg-(--ui-bg-elevated) px-3 py-2">{children}</div>}
       </motion.div>
     </ToolRunDisclosureContext.Provider>
   )

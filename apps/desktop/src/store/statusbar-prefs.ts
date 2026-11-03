@@ -6,7 +6,7 @@ import { modeBound } from '@/store/interface-mode'
 // hidden, so every existing store carries an `approval-mode` the user never
 // chose. v2 seeds from v1 minus that id: other customizations survive, the
 // pill appears once on update, and hiding it again persists here.
-const STATUSBAR_HIDDEN_STORAGE_KEY = 'hermes.desktop.statusbarHidden.v2'
+const STATUSBAR_HIDDEN_STORAGE_KEY = 'hermes.desktop.statusbarHidden.v3'
 const LEGACY_HIDDEN_STORAGE_KEY = 'hermes.desktop.statusbarHidden'
 // v1 (`hermes.desktop.statusbarVisible`) shipped a stretch where the bar was
 // opt-in, so many stores hold a `false` the user never chose. v2 is read fresh
@@ -40,7 +40,6 @@ export function toggleStatusbarVisible() {
 export const STATUSBAR_HIDDEN_BY_DEFAULT: readonly string[] = [
   'agents',
   'cache-hit-rate',
-  'context-usage',
   'cron',
   'running-timer',
   'session-timer',
@@ -59,14 +58,14 @@ const sanitizeHiddenIds = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string' && id.length > 0) : []
 
 function legacyHiddenSeed(): string[] {
-  const raw = readKey(LEGACY_HIDDEN_STORAGE_KEY)
+  const raw = readKey('hermes.desktop.statusbarHidden.v2') ?? readKey(LEGACY_HIDDEN_STORAGE_KEY)
 
   if (raw === null) {
     return [...STATUSBAR_HIDDEN_BY_DEFAULT]
   }
 
   try {
-    return sanitizeHiddenIds(JSON.parse(raw)).filter(id => id !== 'approval-mode')
+    return sanitizeHiddenIds(JSON.parse(raw)).filter(id => id !== 'approval-mode' && id !== 'context-usage')
   } catch {
     return [...STATUSBAR_HIDDEN_BY_DEFAULT]
   }

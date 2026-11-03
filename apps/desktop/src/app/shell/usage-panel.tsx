@@ -56,7 +56,7 @@ export function providerUsageSections(
   ]
 }
 
-function UsageBar({ label, percent, reset }: UsageWindow) {
+export function UsageBar({ label, percent, reset }: UsageWindow) {
   const { t, locale } = useI18n()
   const value = Math.round(Math.max(0, Math.min(100, percent)))
   const date = reset ? new Date(reset) : null

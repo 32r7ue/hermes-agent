@@ -1,3 +1,4 @@
+import { closeFocusedAuxiliaryPane } from '@/app/chat/close-focused-pane'
 import { mainChatOccupied } from '@/app/open-session'
 import { closeActiveTerminal } from '@/app/right-sidebar/terminal/terminals'
 import { $workspaceIsPage } from '@/app/routes'
@@ -78,6 +79,8 @@ export function closeActiveTab(loadSessionIntoWorkspace?: (storedSessionId: stri
 
     return true
   }
+
+  if (closeFocusedAuxiliaryPane()) {return true}
 
   // A closeable tab in the focused chat zone (a session tile that's the active
   // tab) closes outright; the uncloseable workspace tab falls through.

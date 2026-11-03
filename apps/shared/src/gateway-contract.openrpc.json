@@ -43731,6 +43731,24 @@
             "title": "Session Id",
             "type": "string"
           },
+          "settings": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Settings"
+          },
+          "inspect": {
+            "default": false,
+            "title": "Inspect",
+            "type": "boolean"
+          },
           "accent": {
             "anyOf": [
               {

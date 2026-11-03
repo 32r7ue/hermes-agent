@@ -50,7 +50,6 @@ import { responseMessageRole, ResponseMessages } from './response-group'
 import { holdSessionSwitching } from './session-switching'
 import { resolveShowEarlierAction, shouldAutoShowEarlier, useTranscriptWindow } from './transcript-window'
 import { useMessagesBelow } from './use-messages-below'
-import { useStickyPromptClip } from './use-sticky-prompt-clip'
 import { useTimelineReveal } from './use-timeline-reveal'
 
 type ThreadMessageComponents = ComponentProps<typeof ThreadPrimitive.MessageByIndex>['components']
@@ -276,9 +275,7 @@ interface ThreadMessageListProps {
   scrollProfile?: string
 }
 
-// Group each user message with the assistant turn(s) that follow it so the
-// human bubble can `position: sticky` against the scroller across its whole
-// turn (see StickyHumanMessageContainer in thread.tsx).
+// Group each user message with its following assistant response for scroll restoration.
 export function buildGroups(signature: string): MessageGroup[] {
   if (!signature) {
     return []
@@ -1560,7 +1557,6 @@ const ThreadMessageListInner: FC<ThreadMessageListProps> = ({
   )
 
   useMessagesBelow({ contentRef, scrollRef, isAtBottom, paneVisible, rows, sessionKey, sessionId: scrollSessionId })
-  useStickyPromptClip({ contentRef, scrollRef, paneVisible, rows })
 
   return (
     <div

@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { DecodeText } from '@/components/ui/decode-text'
-import { prefersReducedMotion } from '@/hooks/use-media-query'
 import { useI18n } from '@/i18n'
 import { cn } from '@/lib/utils'
 import { $desktopBoot, type DesktopBootState } from '@/store/boot'
@@ -143,11 +142,6 @@ export function GatewayConnectingOverlay() {
   const gatewaySwitching = useStore($gatewaySwitching)
   const [previewing] = useState(forcedPreview)
   const { holds: onboardingHolds, introStarting, onExit } = useOnboardingHold(previewing)
-  const reduce = prefersReducedMotion()
-  // Under reduced motion, skip the multi-phase exit choreography (text-out →
-  // hold → overlay fade) and jump straight to gone so the overlay unmounts
-  // the instant the gateway opens. E2E screenshots rely on this to avoid
-  // catching the overlay mid-fade.
   const [phase, setPhase] = useState<Phase>('live')
   // Once cold boot has completed once, never resurrect the fullscreen overlay
   // — soft gateway switches keep the shell and reskeleton the sidebar instead.
@@ -188,13 +182,10 @@ export function GatewayConnectingOverlay() {
     }
 
     if (gatewayState === 'open' && shownRef.current && !onboardingHolds) {
-      // Under reduced motion, skip the multi-phase exit choreography
-      // (text-out → hold → overlay fade) and jump straight to gone so the
-      // overlay unmounts the instant the gateway opens. E2E screenshots
-      // rely on this to avoid catching the overlay mid-fade.
-      setPhase(reduce ? 'gone' : 'text-out')
+      // A connected app is ready to use; decorative hold/fade stays in the dev preview only.
+      setPhase('gone')
     }
-  }, [phase, previewing, gatewayState, onboardingHolds, reduce])
+  }, [phase, previewing, gatewayState, onboardingHolds])
 
   // Advance the exit choreography: text-out -> overlay-out -> gone.
   useEffect(() => {
@@ -224,7 +215,7 @@ export function GatewayConnectingOverlay() {
   }
 
   // Real connect: once the fade finishes, get out of the way for good.
-  if (phase === 'gone' && !previewing) {
+  if (!previewing && (phase === 'gone' || (gatewayState === 'open' && !onboardingHolds))) {
     return null
   }
 

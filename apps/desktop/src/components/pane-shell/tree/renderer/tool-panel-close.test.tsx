@@ -31,6 +31,8 @@ const disposers: (() => void)[] = []
 
 beforeEach(async () => {
   window.localStorage.clear()
+  $layoutTree.set(null)
+  noteActiveTreeGroup(null)
 
   // Per-test isolation: earlier cases dismiss / hide panes, and both records
   // live in module state that survives into the next test.
@@ -147,6 +149,28 @@ describe('zone menu shortcut', () => {
 })
 
 describe('⌘W over a focused tool panel', () => {
+  it('closes focused files before a chat tile or hovered chat can claim Cmd-W', async () => {
+    const { closeActiveTab } = await import('@/app/chat/close-tab')
+    const { allPaneIds } = await import('../model')
+    const { noteHoveredTreeGroup } = await import('../store')
+    disposers.push(registry.register({ area: 'panes', data: { placement: 'right' }, id: 'files', render: () => null, title: 'Files' }))
+    disposers.push(registry.register({ area: 'panes', data: { placement: 'main' }, id: 'session-tile:test', render: () => null, title: 'Chat' }))
+    $layoutTree.set(split('row', [
+      group(['workspace', 'session-tile:test'], { active: 'session-tile:test', id: 'grp-chat' }),
+      group(['files'], { active: 'files', id: 'grp-files' })
+    ]))
+    let open = true
+    registerPaneCloser('files', () => {open = false})
+    noteActiveTreeGroup('grp-files')
+    noteHoveredTreeGroup('grp-chat')
+    expect(closeActiveTab()).toBe(true)
+    expect(open).toBe(false)
+    expect(allPaneIds($layoutTree.get()!)).toContain('session-tile:test')
+    expect(allPaneIds($layoutTree.get()!)).not.toContain('files')
+    registerPaneCloser('files')
+    noteHoveredTreeGroup(null)
+  })
+
   it('closes the logs tab and the toggle brings it back', async () => {
     const { closeActiveTab } = await import('@/app/chat/close-tab')
     const { allPaneIds } = await import('../model')

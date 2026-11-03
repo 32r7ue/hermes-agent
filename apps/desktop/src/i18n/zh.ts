@@ -21,8 +21,8 @@ import { zhUpdateChannel } from './zh_update_channel'
 
 export const zhOverrides = {
   conversationUi: {
+    runCommand: "运行命令",
     reply: "回复选中内容",
-    activity: "工作详情",
     working: "正在处理",
     usage: "用量",
     session: "本次会话",

@@ -42,8 +42,8 @@ const RU_NOUN = (count: number | string, one: string, few: string, many: string)
 
 export const ruOverrides = {
   conversationUi: {
+    runCommand: "Выполнить команду",
     reply: "Ответить на выделение",
-    activity: "Подробности работы",
     working: "В работе",
     usage: "Использование",
     session: "Этот сеанс",

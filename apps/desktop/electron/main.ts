@@ -16791,7 +16791,7 @@ app.on('quit', () => {
 // renderer's first script — see the note there on why it cannot decide this
 // itself. Registered at module scope, which runs long before any window.
 ipcMain.on('hermes:translucency:support', event => {
-  event.returnValue = { glass: GLASS_SUPPORTED, translucency: TRANSLUCENCY_SUPPORTED }
+  event.returnValue = { glass: GLASS_SUPPORTED, translucency: TRANSLUCENCY_SUPPORTED, state: translucencyState }
 })
 
 // Feature-flag facts the renderer needs before first paint (same sendSync
