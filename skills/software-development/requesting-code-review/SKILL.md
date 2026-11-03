@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 name: requesting-code-review
 description: "Pre-commit review pipeline (security scan, quality gates, reviewer subagent, auto-fix). Use ONLY when the user explicitly asks for a review or verification pass; never on your own before commits."
 version: 2.1.0

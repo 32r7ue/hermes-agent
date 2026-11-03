@@ -2,6 +2,7 @@ import { skillInvocationText } from '@hermes/shared'
 import { mergeUsage, parseCommandDispatch, parseSlashCommand } from '@hermes/shared'
 import { type MutableRefObject, useCallback, useRef } from 'react'
 
+import { requestComposerUpload } from '@/app/chat/composer/focus'
 import { mergeOlderTranscriptPage } from '@/app/chat/transcript-backfill'
 import { prepareDefaultNewSession } from '@/app/session/new-session-route'
 import { invalidateContextBreakdown } from '@/app/shell/hooks/use-context-breakdown'
@@ -37,6 +38,7 @@ import {
   ensureGatewayProfile,
   normalizeProfileKey
 } from '@/store/profile'
+import { requestRoute } from '@/store/recovery-requests'
 import {
   $connection,
   $sessions,
@@ -51,6 +53,7 @@ import {
   setYoloActive
 } from '@/store/session'
 import { $sessionStates } from '@/store/session-states'
+import { openUsagePanel } from '@/store/usage-panel'
 import {
   applyWakeStartResult,
   applyWakeStatus,
@@ -633,6 +636,14 @@ export function useSlashCommand(deps: SlashCommandDeps) {
       // registry row in desktop-slash-commands.ts plus an entry here — never a
       // new branch in a dispatch ladder.
       const actionHandlers: Record<DesktopActionId, (ctx: SlashActionCtx) => Promise<void>> = {
+        settings: async () => { requestRoute('/settings') },
+        upload: async () => { requestComposerUpload() },
+        usage: async ctx => {
+          if (ctx.arg.trim()) {return runExec(ctx)}
+          const sessionId = await ensureSessionId(ctx.sessionHint)
+
+          if (sessionId) {await openUsagePanel(sessionId, requestGateway)}
+        },
         ...sessionCommandHandlers<SlashActionCtx>({
           activeSessionIdRef,
           busyRef,

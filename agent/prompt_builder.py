@@ -697,7 +697,11 @@ PLATFORM_HINTS = {
         # Every claim verified against the shipping renderer (inline-preview-directive.tsx). Widget text is
         # recipe-first: HOW (an inline widget IS a ::preview'd HTML file) and WHY (the frame injects the theme
         # prelude first; width adopts the first measured span). setup_mcp is taught by its own tool schema.
-        "You are chatting inside the Hermes desktop app, a graphical chat surface. Markdown renders with full GitHub "
+        "You are chatting inside the Hermes desktop app, a graphical chat surface. "
+        "For multi-step work, give a short user-facing status before starting and at meaningful milestones or about "
+        "once a minute during longer work. State findings and the next action; do not narrate each tool call. "
+        "Keep progress separate from the final answer: completed activity collapses in the desktop transcript. "
+        "Markdown renders with full GitHub "
         "flavor (tables, syntax-highlighted code, math via $...$, task lists, callouts). Deliver files by writing "
         "MEDIA:/absolute/path/to/file — any file type: images/audio/video render inline, everything else becomes a "
         "card with Download and preview buttons. Remote image URLs render via ![alt](url); local files ONLY via MEDIA: "
@@ -1089,8 +1093,8 @@ _SKILLS_PROMPT_CACHE_MAX = 32
 _SKILLS_PROMPT_CACHE: OrderedDict[tuple, str] = OrderedDict()
 _SKILLS_PROMPT_CACHE_LOCK = threading.Lock()
 # v2 added org provenance fields (org_id/org_author); v4 adds ``rel`` (SKILL.md path relative to its root) for
-# duplicate-name resolution. Older snapshots are rebuilt.
-_SKILLS_SNAPSHOT_VERSION = 4
+# duplicate-name resolution; v5 retains manual-only invocation policy. Older snapshots are rebuilt.
+_SKILLS_SNAPSHOT_VERSION = 5
 
 
 def _skills_prompt_snapshot_path() -> Path:
@@ -1158,6 +1162,7 @@ def _build_snapshot_entry(skill_file: Path, skills_dir: Path, frontmatter: dict,
         "description": description, "platforms": [str(p).strip() for p in platforms if str(p).strip()],
         "conditions": extract_skill_conditions(frontmatter),
         "requires_apps": _requires_apps_list(frontmatter),
+        "disable_model_invocation": frontmatter.get("disable-model-invocation") is True,
     }
     return entry
 
@@ -1216,6 +1221,8 @@ def _plugin_skill_prompt_rows(
             if not name or name in disabled:
                 continue
             frontmatter = meta.get("frontmatter") or {}
+            if frontmatter.get("disable-model-invocation") is True:
+                continue
             if not (skill_matches_platform(frontmatter) and skill_matches_environment(frontmatter)
                     and skill_matches_apps(frontmatter)):
                 continue
@@ -1454,7 +1461,7 @@ def _build_skills_system_prompt_inner(
             category_descriptions.setdefault(cat, cat_desc)
     resolved = resolve_skill_catalog([
         {**entry, "name": _entry_name(entry), "path": entry["root"] / entry["rel"],
-         "visible": ok and not hides(entry.get("skill_name") or "", entry.get("conditions") or {})}
+         "visible": ok and not entry.get("disable_model_invocation", False) and not hides(entry.get("skill_name") or "", entry.get("conditions") or {})}
         for entry, ok in rows])
     visible_entries = [e for e in resolved
                        if e["visible"] and e["status"] != "shadowed" and not is_disabled_entry(e, disabled)]

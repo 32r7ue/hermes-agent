@@ -14,6 +14,23 @@ import { zhHantFirstRun } from './zh-hant_first_run'
 import { zhHantSettings } from './zh-hant_settings'
 
 export const zhHantOverrides = {
+  conversationUi: {
+    reply: "回覆選取內容",
+    activity: "工作詳細資訊",
+    working: "處理中",
+    usage: "用量",
+    session: "本次對話",
+    input: "輸入",
+    output: "輸出",
+    cost: "費用",
+    calls: "API 呼叫",
+    noQuota: "此提供者未回報帳戶限額。",
+    resets: "重設時間",
+    upload: "上傳檔案",
+    settings: "開啟設定",
+    model: "切換模型",
+    loadError: "無法載入用量",
+  },
 
   catalog: {
     add: '新增',

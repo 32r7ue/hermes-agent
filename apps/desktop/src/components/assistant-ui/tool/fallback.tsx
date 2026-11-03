@@ -82,7 +82,6 @@ import {
   type ToolTitleAction
 } from './fallback-model'
 import { isToolCallPart, summarizeToolRun } from './run-summary'
-import { ToolRunTicker } from './run-ticker'
 
 // `true` when a ToolEntry is rendered inside an embedding wrapper that owns
 // the per-row chrome (timer / preview). The flat ToolGroupSlot sets this
@@ -1029,9 +1028,17 @@ const ToolRun: FC<PropsWithChildren<{ endIndex: number; startIndex: number }>> =
   const rowOpen = useStore(useMemo(() => $anyToolDisclosureOpen(entryIds), [entryIds]))
   const enterRef = useEnterAnimation(messageRunning, `tool-run:${key}`)
   const representedByApproval = !!approval && currentTurn && approvalActivity
-  const expanded = count < 2 || (persistedOpen ?? rowOpen)
+  const expanded = persistedOpen ?? rowOpen
   const collapsed = representedByApproval && !rowOpen && !persistedOpen
   const reduced = useReducedMotion()
+
+  useEffect(() => {
+    if (!messageRunning) {
+      setToolDisclosureOpen(disclosureId, false)
+
+      for (const id of entryIds) {setToolDisclosureOpen(id, false)}
+    }
+  }, [messageRunning, disclosureId, entryIds])
 
   // The original runtime stays mounted while its summary owns the activity.
   // Reveal its footprint gradually when the last approval clears, instead of
@@ -1049,7 +1056,7 @@ const ToolRun: FC<PropsWithChildren<{ endIndex: number; startIndex: number }>> =
         ref={enterRef}
         transition={{ duration: reduced ? 0 : 0.22, ease: 'easeInOut' }}
       >
-        {count > 1 && !representedByApproval && (
+        {count > 0 && !representedByApproval && (
           <ToolRunHeader
             completedAt={completedAt}
             live={live}
@@ -1059,7 +1066,6 @@ const ToolRun: FC<PropsWithChildren<{ endIndex: number; startIndex: number }>> =
             summary={summary}
           />
         )}
-        {count > 1 && live && !expanded && <ToolRunTicker>{children}</ToolRunTicker>}
         {expanded && <div className="grid min-w-0 max-w-full gap-(--tool-row-gap)">{children}</div>}
       </motion.div>
     </ToolRunDisclosureContext.Provider>

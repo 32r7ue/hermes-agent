@@ -41,6 +41,23 @@ const RU_NOUN = (count: number | string, one: string, few: string, many: string)
 }
 
 export const ruOverrides = {
+  conversationUi: {
+    reply: "Ответить на выделение",
+    activity: "Подробности работы",
+    working: "В работе",
+    usage: "Использование",
+    session: "Этот сеанс",
+    input: "Ввод",
+    output: "Вывод",
+    cost: "Стоимость",
+    calls: "Вызовы API",
+    noQuota: "Провайдер не сообщает лимиты аккаунта.",
+    resets: "Сброс",
+    upload: "Загрузить файлы",
+    settings: "Открыть настройки",
+    model: "Сменить модель",
+    loadError: "Не удалось загрузить данные",
+  },
   catalog: ruCatalog,
   connectors: ruConnectors.connectors,
   sharedMetrics: ruSharedMetrics,

@@ -1,4 +1,4 @@
-import { translateNow } from '@/i18n/runtime'
+import { runtimeTranslations, translateNow } from '@/i18n/runtime'
 import { peekCachedSlashCompletion } from '@/lib/slash-completion-cache'
 
 import desktopSlashRegistry from './desktop-slash-registry.json'
@@ -58,6 +58,9 @@ export interface DesktopThemeCommandOption {
  * keyed by the id.
  */
 export type DesktopActionId =
+  | 'settings'
+  | 'upload'
+  | 'usage'
   | 'agents'
   | 'background'
   | 'branch'
@@ -201,6 +204,14 @@ const rpc = (
  */
 const DESKTOP_COMMAND_SPECS: readonly DesktopCommandSpec[] = [
   // Local client actions
+  { name: '/settings', description: 'Open desktop settings', surface: action('settings') },
+  { name: '/upload', description: 'Upload files to this chat', surface: action('upload') },
+  {
+    name: '/usage',
+    description: 'Show provider limits and session usage',
+    surface: action('usage'),
+    argumentMode: 'mixed'
+  },
   { name: '/new', description: 'Start a new desktop chat', aliases: ['/reset', '/clear'], surface: action('new') },
   {
     name: '/stop',
@@ -255,7 +266,7 @@ const DESKTOP_COMMAND_SPECS: readonly DesktopCommandSpec[] = [
   },
 
   // Overlay pickers
-  { name: '/model', description: 'Switch the model for this session', surface: picker('model'), hidden: true },
+  { name: '/model', description: 'Switch the model for this session', surface: picker('model') },
   {
     name: '/resume',
     description: 'Resume a saved session',
@@ -994,4 +1005,22 @@ export function filterDesktopCommandsCatalog(catalog: CommandsCatalogLike): Comm
     ...(pairs ? { pairs } : {}),
     ...(hasSkillCount ? { skill_count: skillCount } : {})
   }
+}
+
+/** Native controls remain discoverable even when an older gateway omits them. */
+export function nativeDesktopSlashItems<T extends { text: string }>(items: readonly T[], query: string) {
+  const copy = runtimeTranslations().conversationUi
+
+  const native = [
+    { text: '/upload', meta: copy.upload, action: 'upload-files' },
+    { text: '/settings', meta: copy.settings, action: 'open-settings' },
+    { text: '/model', meta: copy.model, action: 'model-picker' },
+    { text: '/usage', meta: copy.usage, action: 'usage-panel' }
+  ]
+    .filter(item => item.text.slice(1).startsWith(query.toLowerCase()))
+    .map(item => ({ ...item, display: item.text, group: 'Commands' }))
+
+  const names = new Set(native.map(item => item.text))
+
+  return [...native, ...items.filter(item => !names.has(item.text))]
 }

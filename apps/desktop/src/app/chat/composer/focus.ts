@@ -22,7 +22,7 @@ import { RICH_INPUT_SLOT } from './rich-editor'
 /** Composer routing key. The main chat is `'main'`, the edit composer
  *  `'edit'`; scoped composers (session tiles) use `'tile:<id>'`. */
 export type ComposerTarget = 'edit' | 'main' | (string & {})
-export type ComposerInsertMode = 'block' | 'inline' | 'prefix'
+export type ComposerInsertMode = 'block' | 'inline' | 'prefix' | 'quote'
 
 export interface FocusDetail {
   target: ComposerTarget
@@ -778,4 +778,20 @@ export const blurComposerInput = () => {
   if (el && document.activeElement === el) {
     el.blur()
   }
+}
+
+const UPLOAD_EVENT = 'hermes:composer-upload'
+
+export const requestComposerUpload = (target: ComposerTarget | 'active' = 'active') => {
+  dispatch<FocusDetail>(UPLOAD_EVENT, { target: resolve(target) })
+}
+
+export function onComposerUpload(callback: () => void, target: ComposerTarget) {
+  const listener = (event: Event) => {
+    if ((event as CustomEvent<FocusDetail>).detail.target === target) {callback()}
+  }
+
+  window.addEventListener(UPLOAD_EVENT, listener)
+
+  return () => window.removeEventListener(UPLOAD_EVENT, listener)
 }

@@ -438,3 +438,28 @@ Hermes can now consume third-party skills from multiple external discovery model
 - well-known endpoints served from `/.well-known/skills/index.json`
 
 If you want your skills to be discoverable without a GitHub-specific installer, consider serving them from a well-known endpoint in addition to publishing them in a repo or marketplace.
+
+
+## Manual-only skills
+
+Add `disable-model-invocation: true` to a skill's YAML frontmatter to keep its
+name and description out of the model's startup skill index and `skills_list`.
+The skill remains in user-facing catalogs and can be loaded explicitly with
+`/skill-name`, including its arguments and supporting files. This works for
+profile, project, external-directory, and plugin skills. Cached indexes retain
+the flag. Existing conversations keep their cached system prompt; start a new
+conversation to pick up a changed policy.
+
+Unlike `skills.disabled`, this setting does not disable loading. It controls
+model discovery, not filesystem access or permission to call tools.
+
+Claude Code uses the same frontmatter field and also blocks unapproved automatic
+Skill-tool invocations. Its `user-invocable: false` provides the opposite policy
+(model only); Hermes does not implement that field. Claude-specific skill tool
+permission grants and `context: fork` execution are also not enabled by this
+change. See [Claude Code skill invocation controls](https://code.claude.com/docs/en/skills#control-who-invokes-a-skill).
+
+Codex configures the corresponding policy in `agents/openai.yaml` as
+`policy.allow_implicit_invocation: false`; explicit `$skill` invocation remains
+available. Hermes reads the `SKILL.md` frontmatter field above, not that Codex
+sidecar policy. See [OpenAI skill configuration](https://learn.chatgpt.com/docs/build-skills).

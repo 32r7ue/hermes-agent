@@ -14,6 +14,7 @@ import {
   filterDesktopSubcommandCompletions,
   isDesktopSlashExtensionCommand,
   isDesktopSlashSuggestionWithOptions,
+  nativeDesktopSlashItems,
   rankSkillCommands,
   slashCompletionGroup
 } from '@/lib/desktop-slash-commands'
@@ -76,7 +77,7 @@ export function useSlashCompletions(options: {
 } {
   const { gateway, sessionId, profile, skinThemes, activeSkin } = options
   const { locale } = useI18n()
-  const enabled = Boolean(gateway)
+  const enabled = true
   const epoch = useStore($slashCompletionsEpoch)
 
   const sessionParams = useMemo(
@@ -116,7 +117,7 @@ export function useSlashCompletions(options: {
   const fetcher = useCallback(
     async (query: string): Promise<CompletionPayload> => {
       if (!gateway) {
-        return { items: [], query }
+        return { items: nativeDesktopSlashItems([], query), query }
       }
 
       const text = `/${query}`
@@ -224,7 +225,7 @@ export function useSlashCompletions(options: {
           // query takes the other branch, where nothing is hidden.
           items.push(...rankSkillCommands(skillRows, catalog.skills, { pruneUnusedBuiltins: true }))
 
-          return { items, query }
+          return { items: nativeDesktopSlashItems(items, query), query }
         }
 
         const result = await cachedSlashCompletion(`slash:${scopeKey}:${text.toLowerCase()}`, () =>
@@ -296,9 +297,9 @@ export function useSlashCompletions(options: {
           (a, b) => groupOrder.indexOf(a.group ?? '') - groupOrder.indexOf(b.group ?? '')
         )
 
-        return { items, query }
+        return { items: nativeDesktopSlashItems(items, query), query }
       } catch {
-        return { items: [], query }
+        return { items: nativeDesktopSlashItems([], query), query }
       }
     },
     [gateway, skinThemes, activeSkin, keysFor, sessionParams]

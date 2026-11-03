@@ -258,6 +258,7 @@ def _skill_catalog(*, skip_disabled: bool = False, include_hidden: bool = False)
                 scanned.append({
                     "name": frontmatter.get("name", skill_md.parent.name)[:MAX_NAME_LENGTH],
                     "description": _truncate_description(description),
+                    "disable_model_invocation": frontmatter.get("disable-model-invocation") is True,
                     "category": _get_category_from_path(skill_md), "tier": tier, "root": scan_dir,
                     "path": skill_md, "visible": bool(skill_matches_platform(frontmatter)
                                                       and skill_matches_environment(frontmatter)
@@ -274,12 +275,14 @@ def _skill_catalog(*, skip_disabled: bool = False, include_hidden: bool = False)
     return [dict(s) for s in skills]
 
 
-def find_all_skills(*, skip_disabled: bool = False) -> list[dict[str, Any]]:
+def find_all_skills(*, skip_disabled: bool = False, for_model: bool = False) -> list[dict[str, Any]]:
     """Loadable skills (name, description, category): ``name`` is what skill_view() accepts —
     the declared name, or the exact relative path for a same-tier duplicate. Shadowed and
-    unloadable copies are left out. ``skip_disabled=True`` ignores disabled state (config UI)."""
+    unloadable copies are left out. ``skip_disabled=True`` ignores disabled state (config UI).
+    ``for_model=True`` omits manual-only skills; user-facing catalogs keep them."""
     return [{"name": s["load_name"], "description": s["description"], "category": s["category"]}
-            for s in _skill_catalog(skip_disabled=skip_disabled) if s["load_name"]]
+            for s in _skill_catalog(skip_disabled=skip_disabled)
+            if s["load_name"] and not (for_model and s.get("disable_model_invocation"))]
 
 
 def sort_skills(skills: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -291,13 +294,14 @@ def skills_list(category: str | None = None, task_id: str | None = None) -> str:
     """Tier 1 listing: name + description (+ category) only; ``task_id`` is handler parity."""
     try:
         _skills_dir().mkdir(parents=True, exist_ok=True)
-        all_skills = find_all_skills()
+        all_skills = find_all_skills(for_model=True)
         try:
             from hermes_cli.plugins import discover_plugins, get_plugin_manager
             discover_plugins()
             for plugin_skill in get_plugin_manager().list_plugin_skill_metadata():
                 frontmatter = plugin_skill.pop("frontmatter", {})
-                if not skill_matches_platform(frontmatter) or _is_skill_disabled(plugin_skill["name"]):
+                if (frontmatter.get("disable-model-invocation") is True
+                        or not skill_matches_platform(frontmatter) or _is_skill_disabled(plugin_skill["name"])):
                     continue
                 all_skills.append(plugin_skill)
         except Exception:

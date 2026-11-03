@@ -400,6 +400,15 @@ describe('list session-scroll restore', () => {
     }
   })
 
+  it('keeps bottom-follow after downward overscroll at the bottom', async () => {
+    const { container } = render(<ScrollHarness isRunning messages={sessionMessages('follow')} sessionKey="follow" />)
+    const vp = viewportEl(container)
+    act(() => vp.dispatchEvent(new WheelEvent('wheel', { deltaY: 200, bubbles: true })))
+    await settleScroll(10)
+    expect(vp.dataset.following).toBe('true')
+    expect(vp.scrollTop).toBe(SCROLL_H - CLIENT_H)
+  })
+
   it('pages the requested conversation by exactly one viewport in either direction', async () => {
     expect(keybindAction('conversation.scrollPageUp')?.defaults).toEqual(['pageup'])
     expect(keybindAction('conversation.scrollPageDown')?.defaults).toEqual(['pagedown'])

@@ -4,10 +4,10 @@ import { $backdrop } from '@/store/backdrop'
 
 const assetPath = (path: string) => `${import.meta.env.BASE_URL}${path.replace(/^\/+/, '')}`
 
-export function Backdrop() {
+export function Backdrop({ visible = true }: { visible?: boolean }) {
   const on = useStore($backdrop)
 
-  if (!on) {
+  if (!on || !visible) {
     return null
   }
 

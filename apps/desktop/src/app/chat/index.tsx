@@ -757,7 +757,7 @@ const ChatViewContent = memo(function ChatViewContent({
       data-session-anchor={sessionAnchor}
       data-setup-chat={setupChat ? '' : undefined}
     >
-      <Backdrop />
+      <Backdrop visible={showIntro} />
       {/* Tiles get their chrome from the layout zone (chip strip); the modal
           prompt overlays stay active-session-scoped in the primary surface. */}
       {isPrimary && (

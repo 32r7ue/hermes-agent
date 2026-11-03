@@ -225,7 +225,7 @@ export function useComposerDraft({
       const base = mode === 'inline' ? draftRef.current.trimEnd() : draftRef.current
       const sep = mode === 'inline' ? (base ? ' ' : '') : base && !base.endsWith('\n') ? '\n\n' : ''
 
-      paintDraft(`${base}${sep}${value}`)
+      paintDraft(`${base}${sep}${value}${mode === 'quote' ? '\n\n' : ''}`)
 
       return true
     },

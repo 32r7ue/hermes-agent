@@ -3,8 +3,10 @@ import type { ConnectionState } from '@hermes/shared'
 
 import type { SlashChipKind } from '@/components/assistant-ui/directive-text'
 import type { ComposerAttachment } from '@/store/composer'
+import { requestRoute } from '@/store/recovery-requests'
 import { setSessionPickerOpen } from '@/store/session'
 
+import { requestComposerSubmit, requestComposerUpload, requestModelMenuToggle } from './focus'
 import { composerPlainText } from './rich-editor'
 import type { TriggerState } from './text-utils'
 
@@ -86,7 +88,11 @@ export function composerInputWidthClass(stacked: boolean): string {
  *  picker's "Browse all…" entry opens the overlay. Table-driven so new action
  *  items are a registry row, not a composer branch. */
 export const COMPLETION_ACTIONS: Record<string, () => void> = {
-  'session-picker': () => setSessionPickerOpen(true)
+  'session-picker': () => setSessionPickerOpen(true),
+  'model-picker': () => requestModelMenuToggle(),
+  'open-settings': () => requestRoute('/settings'),
+  'upload-files': () => requestComposerUpload(),
+  'usage-panel': () => { requestComposerSubmit('/usage') }
 }
 
 /** Map a picked `/` completion to its pill accent. Driven by the completion

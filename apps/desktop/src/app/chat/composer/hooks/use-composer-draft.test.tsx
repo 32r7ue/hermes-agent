@@ -21,7 +21,7 @@ import { $connection } from '@/store/session'
 
 import { useComposerActions } from '../../hooks/use-composer-actions'
 import type { QueueEditState } from '../composer-utils'
-import { type ComposerTarget, getActiveComposer, markActiveComposer } from '../focus'
+import { type ComposerTarget, getActiveComposer, markActiveComposer, requestComposerInsert } from '../focus'
 import { caretOffsetInEditor, composerPlainText } from '../rich-editor'
 import { type ComposerScope, ComposerScopeProvider, MAIN_COMPOSER_SCOPE } from '../scope'
 
@@ -517,6 +517,13 @@ describe('useComposerDraft — same-draft scope rekey preserves only the focused
       rerender: (activeScope: string) => rendered.rerender(<DraftHarness activeScope={activeScope} />)
     }
   }
+
+  it('appends a selected quote without replacing the draft and leaves a blank line for a comment', async () => {
+    stashSessionDraft('lineage-root', 'My existing draft', [])
+    const view = renderDraft('lineage-root')
+    act(() => requestComposerInsert('> Selected passage', { mode: 'quote', target: 'main' }))
+    await waitFor(() => expect(composerPlainText(view.draft.editorRef.current!)).toBe('My existing draft\n\n> Selected passage\n\n'))
+  })
 
   it('keeps the caret when reconciliation rekeys an unchanged focused draft', () => {
     stashSessionDraft('lineage-root', 'alpha beta', [])

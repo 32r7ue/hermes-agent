@@ -114,3 +114,20 @@ it('ends the response at a real user prompt or unrelated system event', () => {
   expect(container.querySelectorAll('[data-slot="aui_turn-pair"]')).toHaveLength(2)
   expect(container.querySelectorAll('[data-slot="aui_msg-actions"]')).toHaveLength(3)
 })
+
+it('collapses a hydrated tool turn to one work disclosure and keeps its final answer visible', async () => {
+  const messages = toChatMessages([
+    { role: 'user', content: 'Check the project', timestamp: 1 },
+    { role: 'assistant', content: 'Checking the files.', timestamp: 2, tool_calls: [{ id: 'cmd', type: 'function', function: { name: 'terminal', arguments: '{"command":"pwd"}' } }] },
+    { role: 'tool', tool_call_id: 'cmd', content: '{"output":"project","exit_code":0}', timestamp: 3 },
+    { role: 'assistant', content: 'Everything is ready.', timestamp: 4 }
+  ] as SessionMessage[]).map(toRuntimeMessage)
+
+  const { container } = render(<ThreadRuntime messages={messages}><Thread /></ThreadRuntime>)
+  expect(within(container).getAllByRole('button', { name: 'Work details' })).toHaveLength(1)
+  const parts = container.querySelector('[data-slot="aui_message-parts"]')!
+  expect(parts.hasAttribute('data-activity-collapsed')).toBe(true)
+  expect(parts.querySelector('[data-response-final]')?.textContent).toBe('Everything is ready.')
+  fireEvent.click(within(container).getByRole('button', { name: 'Work details' }))
+  expect(parts.hasAttribute('data-activity-collapsed')).toBe(false)
+})

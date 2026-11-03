@@ -22,6 +22,23 @@ import { jaThemePicker } from './ja_theme_picker'
 import { jaUpdateChannel } from './ja_update_channel'
 
 export const jaOverrides = {
+  conversationUi: {
+    reply: "選択箇所に返信",
+    activity: "作業の詳細",
+    working: "作業中",
+    usage: "使用状況",
+    session: "このセッション",
+    input: "入力",
+    output: "出力",
+    cost: "費用",
+    calls: "API 呼び出し",
+    noQuota: "このプロバイダーはアカウントの上限を報告していません。",
+    resets: "リセット",
+    upload: "ファイルをアップロード",
+    settings: "設定を開く",
+    model: "モデルを切り替え",
+    loadError: "使用状況を読み込めませんでした",
+  },
   catalog: jaCatalog,
   connectors: jaConnectors.connectors,
   externalOpenFailed: {

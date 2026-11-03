@@ -6,6 +6,7 @@ import { SessionDraftTitle } from '@/app/chat/session-draft-title'
 import { SessionStatusDot } from '@/app/chat/session-status-dot'
 import { PALETTE_AREA, type PaletteContribution, paletteToggle } from '@/app/command-palette/contrib'
 import { type StatusbarItem } from '@/app/shell/statusbar-controls'
+import { UsagePanel } from '@/app/shell/usage-panel'
 import { InlinePreviewDirective } from '@/components/assistant-ui/inline-preview-directive'
 import { IdleMount } from '@/components/idle-mount'
 import { $layoutEditMode, toggleLayoutEditMode } from '@/components/pane-shell/edit-mode'
@@ -789,6 +790,7 @@ export function ContribController() {
     return (
       <ContribWiring>
         <AppContextMenu />
+        <UsagePanel />
         <HudShell />
       </ContribWiring>
     )
@@ -811,6 +813,7 @@ export function ContribController() {
     >
       <ContribWiring>
         <AppContextMenu />
+        <UsagePanel />
         <div
           className="flex h-screen min-h-0 w-screen flex-col bg-(--ui-bg-chrome) text-(--ui-text-primary)"
           // Window-glass hook: this div and the sidebar-wrapper above it are

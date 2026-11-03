@@ -647,7 +647,7 @@ describe('assistant-ui streaming renderer', () => {
     expect(body.scrollTop).toBe(height - body.clientHeight)
   })
 
-  it('does not collapse a live thinking preview when the turn settles', async () => {
+  it('collapses a live thinking preview when the turn settles', async () => {
     const { container, settle } = renderSettlingReasoning()
     const toggle = within(container).getByRole('button', { name: /thinking/i })
 
@@ -661,9 +661,9 @@ describe('assistant-ui streaming renderer', () => {
         within(container)
           .getByRole('button', { name: /thought/i })
           .getAttribute('aria-expanded')
-      ).toBe('true')
+      ).toBe('false')
     })
-    expect(container.querySelector('[data-slot="aui_reasoning-text"]')).toBeTruthy()
+    expect(container.querySelector('[data-slot="aui_reasoning-text"]')).toBeNull()
   })
 
   it('leaves a settling turn collapsed when the collapsed-by-default preference is enabled', async () => {
@@ -793,6 +793,7 @@ describe('assistant-ui streaming renderer', () => {
   it('shows the command prompt and exit code for terminal calls', async () => {
     const { container } = render(<MessageHarness message={assistantTerminalMessage()} />)
 
+    fireEvent.click(container.querySelector('[data-tool-group] button')!)
     fireEvent.click(container.querySelector('[data-tool-row] button')!)
 
     await waitFor(() => {

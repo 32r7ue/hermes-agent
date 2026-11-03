@@ -13,6 +13,23 @@ import { arSettings } from './ar_settings'
 import { defineLocale, type TranslationOverrides } from './define-locale'
 
 export const arOverrides = {
+  conversationUi: {
+    reply: "الرد على التحديد",
+    activity: "تفاصيل العمل",
+    working: "جارٍ العمل",
+    usage: "الاستخدام",
+    session: "هذه الجلسة",
+    input: "الإدخال",
+    output: "الإخراج",
+    cost: "التكلفة",
+    calls: "استدعاءات API",
+    noQuota: "لا يبلّغ هذا المزوّد عن حدود الحساب.",
+    resets: "إعادة التعيين",
+    upload: "رفع ملفات",
+    settings: "فتح الإعدادات",
+    model: "تبديل النموذج",
+    loadError: "تعذّر تحميل الاستخدام",
+  },
 
   catalog: {
     add: 'إضافة',

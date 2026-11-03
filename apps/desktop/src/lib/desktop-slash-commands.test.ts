@@ -272,6 +272,7 @@ describe('desktop slash command curation', () => {
     ])
     expect(filtered.pairs).toEqual([
       ['/new', 'Start a new desktop chat'],
+      ['/model', 'Switch the model for this session'],
       ['/ship-it', 'Run release checklist']
     ])
     // skill_count is recomputed from the filtered output (only /ship-it is an
@@ -344,7 +345,7 @@ describe('desktop slash command curation', () => {
     expect(resolveDesktopCommand('/reset')?.surface).toEqual({ kind: 'action', action: 'new' })
     expect(resolveDesktopCommand('/clear')?.surface).toEqual({ kind: 'action', action: 'new' })
     expect(resolveDesktopCommand('/resume')?.surface).toEqual({ kind: 'picker', picker: 'session' })
-    expect(resolveDesktopCommand('/usage')?.surface).toEqual({ kind: 'exec' })
+    expect(resolveDesktopCommand('/usage')?.surface).toEqual({ kind: 'action', action: 'usage' })
     expect(desktopSlashUnavailableMessage('/clear')).toBeNull()
     // Skill / quick commands aren't in the registry.
     expect(resolveDesktopCommand('/gif-search')).toBeNull()
@@ -428,7 +429,7 @@ describe('registry-derived block-list (contract with hermes_cli/commands.py)', (
     for (const name of ['/approve', '/deny']) {
       expect(desktopSlashRegistry[name as keyof typeof desktopSlashRegistry]).toBeNull()
       expect(isDesktopSlashCommand(name, 'all')).toBe(true)
-      expect(resolveDesktopCommand(name)?.surface.kind).toBe('exec')
+      expect(resolveDesktopCommand(name)?.surface.kind).toBe(name === '/usage' ? 'action' : 'exec')
       expect(desktopSlashUnavailableMessage(name)).toBeNull()
     }
   })
@@ -443,7 +444,7 @@ describe('registry-derived block-list (contract with hermes_cli/commands.py)', (
       expect(isDesktopSlashExtensionCommand(name)).toBe(false)
       expect(slashCompletionGroup(name)).toBe('Commands')
       expect(isDesktopSlashCommand(name)).toBe(true)
-      expect(resolveDesktopCommand(name)?.surface.kind).toBe('exec')
+      expect(resolveDesktopCommand(name)?.surface.kind).toBe(name === '/usage' ? 'action' : 'exec')
     }
 
     // Control: an unknown skill command still groups as a skill offline.

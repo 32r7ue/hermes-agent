@@ -29,6 +29,23 @@ import { enUpdateChannel } from './en_update_channel'
 import type { Translations } from './types'
 
 export const en: Translations = {
+  conversationUi: {
+    reply: "Reply to selection",
+    activity: "Work details",
+    working: "Working",
+    usage: "Usage",
+    session: "This session",
+    input: "Input",
+    output: "Output",
+    cost: "Cost",
+    calls: "API calls",
+    noQuota: "This provider does not report account limits.",
+    resets: "Resets",
+    upload: "Upload files",
+    settings: "Open settings",
+    model: "Switch model",
+    loadError: "Could not load usage",
+  },
   externalOpenFailed: enExternalOpenFailed,
   sharedMetrics: enSharedMetrics,
   appTour: enAppTour,

@@ -84,6 +84,23 @@ interface ModeOptionCopy {
 }
 
 export interface Translations extends NoticeTranslations {
+  conversationUi: {
+    reply: string
+    activity: string
+    working: string
+    usage: string
+    session: string
+    input: string
+    output: string
+    cost: string
+    calls: string
+    noQuota: string
+    resets: string
+    upload: string
+    settings: string
+    model: string
+    loadError: string
+  }
   /** Shared-metrics consent: first-run dialog + Settings › Safety toggles. */
   sharedMetrics: SharedMetricsTranslations
   appTour: AppTourTranslations

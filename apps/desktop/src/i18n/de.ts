@@ -22,6 +22,23 @@ import { defineLocale, type TranslationOverrides } from './define-locale'
 import { introDe } from './intro-de'
 
 export const deOverrides = {
+  conversationUi: {
+    reply: "Auf Auswahl antworten",
+    activity: "Arbeitsdetails",
+    working: "In Arbeit",
+    usage: "Nutzung",
+    session: "Diese Sitzung",
+    input: "Eingabe",
+    output: "Ausgabe",
+    cost: "Kosten",
+    calls: "API-Aufrufe",
+    noQuota: "Dieser Anbieter meldet keine Kontolimits.",
+    resets: "Zurückgesetzt",
+    upload: "Dateien hochladen",
+    settings: "Einstellungen öffnen",
+    model: "Modell wechseln",
+    loadError: "Nutzung konnte nicht geladen werden",
+  },
   sharedMetrics: deSharedMetrics,
   firstRun: deFirstRun,
   intro: introDe,

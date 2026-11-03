@@ -22,6 +22,23 @@ import { esUpdateChannel } from './es_update_channel'
 import { introEs } from './intro-es'
 
 export const esOverrides = {
+  conversationUi: {
+    reply: "Responder a la selección",
+    activity: "Detalles del trabajo",
+    working: "En curso",
+    usage: "Uso",
+    session: "Esta sesión",
+    input: "Entrada",
+    output: "Salida",
+    cost: "Coste",
+    calls: "Llamadas API",
+    noQuota: "Este proveedor no informa de los límites de la cuenta.",
+    resets: "Se restablece",
+    upload: "Subir archivos",
+    settings: "Abrir ajustes",
+    model: "Cambiar modelo",
+    loadError: "No se pudo cargar el uso",
+  },
   sharedMetrics: esSharedMetrics,
   firstRun: esFirstRun,
   intro: introEs,

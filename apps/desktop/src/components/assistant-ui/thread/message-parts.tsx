@@ -1,13 +1,15 @@
 import {
+  MessagePrimitive,
   type ReasoningMessagePartComponent,
   type TextMessagePartProps,
   type ToolCallMessagePartProps,
   useAuiState,
   useMessagePartReasoning,
+  useMessagePartRuntime,
   useMessagePartText
 } from '@assistant-ui/react'
 import { useStore } from '@nanostores/react'
-import { type ComponentProps, type FC, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { type ComponentProps, type FC, type ReactNode, useContext, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useSessionView } from '@/app/chat/session-view'
 import { CatalogInstallTool } from '@/components/assistant-ui/catalog-install-tool'
@@ -20,11 +22,13 @@ import { setThemeCall } from '@/components/assistant-ui/theme-picker/args'
 import { ThemeTool } from '@/components/assistant-ui/theme-picker/theme-tool'
 import { AgentDeliveryNotice, deliveryTargetFromCommand } from '@/components/assistant-ui/thread/agent-delivery'
 import { TimelineTimestamp } from '@/components/assistant-ui/thread/timeline-timestamp'
+import { isCurrentTurnMessage } from '@/components/assistant-ui/tool/approval-activity'
 import { DelegateTool } from '@/components/assistant-ui/tool/delegate'
 import { ToolFallback, ToolGroupSlot } from '@/components/assistant-ui/tool/fallback'
 import { parseMaybeObject, toolCallFailed } from '@/components/assistant-ui/tool/fallback-model'
 import { formatElapsed, useElapsedSeconds, useMeasuredDuration } from '@/components/chat/activity-timer'
 import { ActivityTimerText } from '@/components/chat/activity-timer-text'
+import { DisclosureRow } from '@/components/chat/disclosure-row'
 import { GeneratedImage } from '@/components/chat/generated-image-result'
 import { SCAFFOLD_LABEL_CLASS, SCAFFOLD_META_CLASS, ScaffoldRow } from '@/components/chat/scaffold-row'
 import { useI18n } from '@/i18n'
@@ -39,6 +43,8 @@ import { onboardingChatStore } from '@/store/onboarding-session'
 import { $reasoningCollapsedByDefault, $showReasoning } from '@/store/reasoning-disclosure'
 import { useForcedTextDirection } from '@/store/text-direction'
 import { $showToolActivity } from '@/store/tool-activity'
+
+import { ResponseActivityDisclosure } from './response-group'
 
 type TimelineToolCallProps = ToolCallMessagePartProps & { completedAt?: number; timestamp?: number }
 
@@ -201,6 +207,13 @@ type TimelineTextPartProps = TextMessagePartProps & { completedAt?: number; time
 
 const TimelineMarkdownText: FC<TimelineTextPartProps> = ({ completedAt, timestamp }) => {
   const { text } = useMessagePartText()
+  const selector = useMessagePartRuntime({ optional: true })?.path.messagePartSelector
+
+  const final = useAuiState(
+    s =>
+      selector?.type === 'index' &&
+      selector.index === s.message.content.findLastIndex(part => part.type === 'text' && part.text.trim().length > 0)
+  )
 
   // assistant-ui adds an empty continuation after a tool starts. It is not
   // prose yet and must not create paragraph spacing above pending approvals.
@@ -209,10 +222,10 @@ const TimelineMarkdownText: FC<TimelineTextPartProps> = ({ completedAt, timestam
   }
 
   return (
-    <>
+    <div className="contents" data-response-final={final ? '' : undefined}>
       <TimelineTimestamp className="mb-0.5 block" completedAt={completedAt} timestamp={timestamp} />
       <MarkdownText />
-    </>
+    </div>
   )
 }
 
@@ -239,22 +252,15 @@ const ThinkingDisclosure: FC<{
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const contentRef = useRef<HTMLDivElement | null>(null)
   const enterRef = useEnterAnimation(messageRunning, timerKey)
-  // A live preview that later settles must not unmount its body — that is the
-  // "turn settled and everything jumped" shift. Latch that we showed one so
-  // the clip stays. Groups that mount already complete (earlier thoughts in
-  // a still-running turn) never latch, so they stay collapsed.
-  const [sawLivePreview, setSawLivePreview] = useState(false)
-
-  // Not while collapsed: a block that never showed a preview must not open when the preference lifts.
-  if (pending && !sawLivePreview && !reasoningCollapsedByDefault) {
-    setSawLivePreview(true)
-  }
-
-  // The collapsed-by-default preference outranks the latch: it opts out of
-  // live previews entirely, so there is nothing to hold open.
-  const showPreview = !reasoningCollapsedByDefault && (pending || sawLivePreview)
+  const showPreview = !reasoningCollapsedByDefault && pending
   const open = userOpen ?? showPreview
   const isPreview = userOpen === null && showPreview
+
+  useEffect(() => {
+    if (!pending) {
+      setUserOpen(null)
+    }
+  }, [pending])
 
   // Three ways a finished block can report itself. With a measured duration it
   // says so, unless the timer's whole seconds round it to "0s" — accurate and
@@ -475,3 +481,56 @@ export const MESSAGE_PARTS_COMPONENTS = {
   ToolGroup: ToolGroupSlot,
   tools: { Fallback: ChainToolFallback }
 } as const
+
+/** Rehydrated turns contain all their parts in one message; collapse those without rewriting history. */
+export function AssistantMessageParts() {
+  const { t } = useI18n()
+  const responseDisclosure = useContext(ResponseActivityDisclosure)
+
+  const running = useAuiState(
+    s =>
+      s.message.status?.type === 'running' ||
+      (s.thread.isRunning && isCurrentTurnMessage(s.thread.messages, s.message.id))
+  )
+
+  const hasActivity = useAuiState(s => {
+    const last = s.message.content.findLastIndex(part => part.type === 'text' && part.text.trim().length > 0)
+
+    return (
+      last > 0 &&
+      s.message.content
+        .slice(0, last)
+        .some(
+          part =>
+            part.type === 'tool-call' ||
+            part.type === 'reasoning' ||
+            (part.type === 'text' && part.text.trim().length > 0)
+        )
+    )
+  })
+
+  const [expanded, setExpanded] = useState(false)
+  useEffect(() => {
+    if (!running) {
+      setExpanded(false)
+    }
+  }, [running])
+
+  const activityOpen = responseDisclosure?.ownsDisclosure ? responseDisclosure.expanded : expanded
+
+  return (
+    <>
+      {!running && hasActivity && !responseDisclosure?.ownsDisclosure && (
+        <DisclosureRow onToggle={() => setExpanded(value => !value)} open={expanded}>
+          {t.conversationUi.activity}
+        </DisclosureRow>
+      )}
+      <div
+        data-activity-collapsed={!running && hasActivity && !activityOpen ? '' : undefined}
+        data-slot="aui_message-parts"
+      >
+        <MessagePrimitive.Parts components={MESSAGE_PARTS_COMPONENTS} />
+      </div>
+    </>
+  )
+}

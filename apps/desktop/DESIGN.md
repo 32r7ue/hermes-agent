@@ -579,3 +579,24 @@ The detailed state contract lives in the scoped
 - [ ] `cursor-pointer`, focus ring, and `Esc`-to-close behave?
 - [ ] Touched a primitive, token, or variant? Its named-contract entry in this
       file is updated in the same change.
+
+
+## Conversation reading and disclosure
+
+The transcript and docked composer share a 52rem maximum column. Human prompts
+align right and leave a left gutter; assistant prose fills the reading column.
+The composer and command drawers paint opaque theme-token fills. Theme selection,
+black mode and existing typography are preserved. The optional statue backdrop
+belongs only to the empty intro screen.
+
+Selecting text in one message offers Reply to selection. It appends a Markdown
+quote and a blank comment line to that surface's existing draft. It never edits
+the source message. Completed reasoning, commands and interim commentary collapse
+behind Work details, including after history hydration. Final prose stays visible;
+interactive requests remain available while the turn is running. The existing
+scroll owner follows streaming content until the reader scrolls up.
+
+The slash palette offers native upload, settings and model controls as well as
+backend commands and skills. `/usage` opens an account-limit card with reported
+provider windows, reset times and session counters. Unknown limits stay unknown;
+separate credential-pool accounts never share a fabricated aggregate percentage.

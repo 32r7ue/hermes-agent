@@ -16,6 +16,8 @@ import type { HermesGateway } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { notifyError } from '@/store/notifications'
 
+import { SelectionReply } from './selection-reply'
+
 type ThreadLoadingState = 'response' | 'session'
 
 interface ThreadEditContextValue {
@@ -196,6 +198,7 @@ export const Thread = memo(function Thread({
         />
         {loading === 'session' && <CenteredThreadSpinner />}
         <ThreadTimeline />
+        <SelectionReply key={sessionKey ?? sessionId ?? "draft"} />
         <ConfirmDialog
           confirmLabel={copy.restoreConfirm}
           description={copy.restoreBody}

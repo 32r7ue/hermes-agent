@@ -44,7 +44,7 @@ function rowKind(item: Unstable_TriggerItem, isSlash: boolean): string {
 }
 
 const ROW_CLASS = [
-  'relative flex w-full cursor-default select-none items-center gap-2 rounded-md px-2 py-1 text-left',
+  'relative flex w-full cursor-default select-none items-center gap-2 rounded-md px-3 py-2 text-left',
   'outline-hidden transition-colors hover:bg-(--ui-bg-tertiary)',
   'data-[highlighted]:bg-(--ui-bg-tertiary) data-[highlighted]:text-foreground'
 ].join(' ')
@@ -224,7 +224,7 @@ export function ComposerTriggerPopover({
                       </span>
                       <span className="min-w-0 shrink truncate font-medium leading-5 text-foreground">{display}</span>
                       {description && (
-                        <span className="min-w-0 flex-1 truncate leading-5 text-(--ui-text-tertiary)">
+                        <span className="min-w-0 flex-1 line-clamp-2 leading-5 text-(--ui-text-secondary)">
                           {description}
                         </span>
                       )}

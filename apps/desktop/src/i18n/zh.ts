@@ -20,6 +20,23 @@ import { zhThemePicker } from './zh_theme_picker'
 import { zhUpdateChannel } from './zh_update_channel'
 
 export const zhOverrides = {
+  conversationUi: {
+    reply: "回复选中内容",
+    activity: "工作详情",
+    working: "正在处理",
+    usage: "用量",
+    session: "本次会话",
+    input: "输入",
+    output: "输出",
+    cost: "费用",
+    calls: "API 调用",
+    noQuota: "此提供商不报告账户限额。",
+    resets: "重置时间",
+    upload: "上传文件",
+    settings: "打开设置",
+    model: "切换模型",
+    loadError: "无法加载用量",
+  },
   catalog: zhCatalog,
   externalOpenFailed: {
     title: '无法打开此链接',

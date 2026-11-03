@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 name: test-driven-development
 description: "TDD: RED-GREEN-REFACTOR, tests before code. Use ONLY when the user explicitly asks for TDD or test-first work; never on your own."
 version: 1.1.0

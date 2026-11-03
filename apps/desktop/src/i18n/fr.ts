@@ -22,6 +22,23 @@ import { frUpdateChannel } from './fr_update_channel'
 import { introFr } from './intro-fr'
 
 export const frOverrides = {
+  conversationUi: {
+    reply: "Répondre à la sélection",
+    activity: "Détails du travail",
+    working: "En cours",
+    usage: "Utilisation",
+    session: "Cette session",
+    input: "Entrée",
+    output: "Sortie",
+    cost: "Coût",
+    calls: "Appels API",
+    noQuota: "Ce fournisseur ne communique pas les limites du compte.",
+    resets: "Réinitialisation",
+    upload: "Importer des fichiers",
+    settings: "Ouvrir les paramètres",
+    model: "Changer de modèle",
+    loadError: "Impossible de charger l’utilisation",
+  },
   sharedMetrics: frSharedMetrics,
   firstRun: frFirstRun,
   intro: introFr,

@@ -1190,7 +1190,7 @@ const ThreadMessageListInner: FC<ThreadMessageListProps> = ({
         stopScroll()
       }
 
-      if (event.deltaY !== 0) {
+      if (event.deltaY !== 0 && (event.deltaY < 0 || target.kind === 'offset')) {
         cancelRestore()
       }
     }

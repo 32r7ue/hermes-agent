@@ -62,6 +62,7 @@ import { COMPOSER_AREAS } from './contrib'
 import { ComposerControls } from './controls'
 import { ComposerDirectiveActions } from './directive-actions'
 import { COMPOSER_DROP_ACTIVE_CLASS, COMPOSER_DROP_FADE_CLASS } from './drop-affordance'
+import { onComposerUpload } from './focus'
 import { markActiveComposer, onComposerAttachImagesRequest } from './focus'
 import { HelpHint } from './help-hint'
 import { useAtCompletions } from './hooks/use-at-completions'
@@ -161,6 +162,7 @@ export function ChatBar({
   // Which live composer this instance IS (main | tile) — its attachment set,
   // focus-bus key, and awaiting-input edge. Main scope = the legacy globals.
   const scope = useComposerScope()
+  useEffect(() => onComposerUpload(() => onPickFiles?.(), scope.target), [onPickFiles, scope.target])
   const attachments = useStore(scope.attachments.$attachments)
   const compacting = useStore(useMemo(() => sessionCompacting(sessionId ?? null), [sessionId]))
   const surfaceId = useComposerSurfaceId()

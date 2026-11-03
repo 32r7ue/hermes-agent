@@ -45,7 +45,7 @@ export const composerDockCard = (edge: 'bottom' | 'top' = 'top') =>
  *  of it. Visual skin only — consumers add their own size/position/padding. */
 export const composerPanelCard = cn(
   'rounded-2xl border border-border/65 shadow-nous text-[length:var(--conversation-tool-font-size)]',
-  'bg-[color-mix(in_srgb,var(--dt-card)_72%,transparent)]',
+  'bg-[color-mix(in_srgb,var(--dt-card)_90%,var(--dt-background))]',
   composerSurfaceGlass
 )
 

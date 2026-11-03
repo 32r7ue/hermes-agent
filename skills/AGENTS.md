@@ -21,6 +21,10 @@ Reviewing a skill PR: check the target directory — heavy-dep or niche skills g
 stored under `skills.config.<key>`, prompted during setup, injected at load). Top-level `tags:` /
 `category:` are accepted and mirrored from `metadata.hermes.*` by the loader.
 
+`disable-model-invocation: true` hides a skill from the model's startup index and `skills_list`
+while retaining explicit `/skill-name` invocation and user-facing catalogs. `skills.disabled`
+continues to remove a skill entirely. This controls discovery; direct file access is unchanged.
+
 ## Authoring standards (HARDLINE — enforced by `tests/skills/test_authoring_standards.py`)
 
 Every new or modernised skill — bundled, optional, or contributed — meets all of these before merge:
