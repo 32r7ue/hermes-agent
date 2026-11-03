@@ -1,6 +1,6 @@
 ---
 name: requesting-code-review
-description: "Pre-commit review: security scan, quality gates, auto-fix."
+description: "Pre-commit review pipeline (security scan, quality gates, reviewer subagent, auto-fix). Use ONLY when the user explicitly asks for a review or verification pass; never on your own before commits."
 version: 2.1.0
 author: Hermes Agent (adapted from obra/superpowers + MorAlekss)
 license: MIT
