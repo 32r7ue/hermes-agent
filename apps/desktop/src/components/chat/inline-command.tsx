@@ -1,3 +1,4 @@
+import { randomUuid } from '@hermes/shared'
 import { stripAnsi } from '@hermes/shared/ansi'
 import { useStore } from '@nanostores/react'
 import { useEffect, useRef, useState } from 'react'
@@ -134,7 +135,7 @@ export function InlineCommand({ command, owner }: { command: string; owner: Inli
           // Capture the original session and dispatcher; changing chat cannot retarget this result.
           void requestForOwnedSession(ownerSessionId, ambient, 'prompt.submit', {
             session_id: targetId,
-            submission_id: crypto.randomUUID(),
+            submission_id: randomUuid(),
             display_kind: 'hidden',
             queued: true,
             text: `The user ran this command from your answer:\n\n${command}\n\nExit code: ${code}\nOutput:\n${output}\n\nContinue from this result. Do not repeat the command output unless it is needed to answer the user.`
@@ -161,7 +162,6 @@ export function InlineCommand({ command, owner }: { command: string; owner: Inli
         className="absolute right-11 top-2 z-10 grid size-7 place-items-center rounded-md text-(--ui-text-secondary) hover:bg-accent hover:text-foreground disabled:opacity-40"
         disabled={running || busy || !sessionId || sessionId !== owner.sessionId}
         onClick={() => void execute()}
-        title={t.conversationUi.runCommand}
         type="button"
       >
         <Codicon className={running ? 'animate-spin' : undefined} name={running ? 'loading' : 'play'} size="1rem" />

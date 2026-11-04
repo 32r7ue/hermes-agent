@@ -1,5 +1,5 @@
 import { type ThreadMessage } from '@assistant-ui/react'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { $activeSessionId } from '@/store/session'
@@ -80,6 +80,8 @@ describe('tool parts sealed without a result', () => {
     const command = 'hermes -p turqoise chat --in ~ -c "Bot Chat" -Q -q "Message from 🤖 Hermes (@hermes): hi"'
     const { container } = render(<Harness message={sealedMessage('terminal', { command })} />)
 
+    // This fork collapses every tool run into a one-line header; open it first.
+    fireEvent.click(await screen.findByRole('button', { expanded: false }))
     expect(await screen.findByText('Result unavailable')).toBeTruthy()
     expect(container.querySelector('[data-slot="aui_agent-delivery-notice"]')).toBeNull()
   })
@@ -87,6 +89,7 @@ describe('tool parts sealed without a result', () => {
   it('renders a call the user interrupted as Interrupted, not as a lost result', async () => {
     render(<Harness message={sealedMessage('terminal', { command: 'ls' }, { interrupted: true })} />)
 
+    fireEvent.click(await screen.findByRole('button', { expanded: false }))
     expect(await screen.findByText('Interrupted')).toBeTruthy()
     expect(screen.queryByText('Result unavailable')).toBeNull()
   })

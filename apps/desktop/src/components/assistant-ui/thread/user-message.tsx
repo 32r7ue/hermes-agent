@@ -1,4 +1,5 @@
 import { ActionBarPrimitive, BranchPickerPrimitive, MessagePrimitive, useAuiState } from '@assistant-ui/react'
+import { useStore } from '@nanostores/react'
 import { type FC, type ReactNode, useCallback, useEffect, useState } from 'react'
 
 import { DirectiveContent } from '@/components/assistant-ui/directive-text'
@@ -16,12 +17,14 @@ import { MessageTimelineTimestamp } from '@/components/assistant-ui/thread/timel
 import { type RestoreMessageTarget } from '@/components/assistant-ui/thread/types'
 import { useMessageReactions } from '@/components/assistant-ui/thread/use-message-reactions'
 import { UserMessageText } from '@/components/assistant-ui/thread/user-message-text'
+import { Button } from '@/components/ui/button'
 import { Codicon } from '@/components/ui/codicon'
 import { Tip } from '@/components/ui/tooltip'
 import { useI18n } from '@/i18n'
 import { triggerHaptic } from '@/lib/haptics'
 import { StopFilled } from '@/lib/icons'
 import { LruCache } from '@/lib/lru-cache'
+import { $touchPointer, isTouchInteraction } from '@/lib/touch-interaction'
 import { cn } from '@/lib/utils'
 import { $gateway } from '@/store/gateway'
 import { notifyThreadEditOpen } from '@/store/thread-scroll'
@@ -243,8 +246,12 @@ interface UserBubbleActionsProps {
   runtimeUserOrdinal: RestoreMessageTarget['userOrdinal']
   showRestore: boolean
   showStop: boolean
+  touch: boolean
 }
 
+/** Bottom-right cluster: when it was sent, then Stop or Restore. Its fill
+ *  masks the last line's tail while shown. Touch has no hover, so Stop/Restore
+ *  stay visible there and a cluster with neither is not rendered. */
 const UserBubbleActions: FC<UserBubbleActionsProps> = ({
   fullText,
   messageId,
@@ -252,17 +259,29 @@ const UserBubbleActions: FC<UserBubbleActionsProps> = ({
   onRequestRestoreConfirm,
   runtimeUserOrdinal,
   showRestore,
-  showStop
+  showStop,
+  touch
 }) => {
   const copy = useI18n().t.assistant.thread
 
+  if (touch && !showStop && !showRestore) {
+    return null
+  }
+
   return (
-    <>
-      <MessageHoverTime className={cn(!showStop && !showRestore && 'pr-0.5')} />
+    <div
+      className={cn(
+        'pointer-events-none absolute right-2 bottom-2 z-10 flex items-center gap-1 rounded-md bg-(--dt-user-bubble) pl-1 transition-opacity',
+        touch
+          ? 'opacity-100'
+          : 'opacity-0 group-hover/user-message:opacity-100 group-hover/user-message:transition-none group-focus-within/user-message:opacity-100'
+      )}
+    >
+      {!touch && <MessageHoverTime className={cn(!showStop && !showRestore && 'pr-0.5')} />}
       {showStop ? (
         <button
           aria-label={copy.stop}
-          className={cn('pointer-events-auto size-5', USER_ACTION_ICON_BUTTON_CLASS)}
+          className={cn('pointer-events-auto', touch ? 'size-11' : 'size-5', USER_ACTION_ICON_BUTTON_CLASS)}
           onClick={event => {
             event.preventDefault()
             event.stopPropagation()
@@ -276,7 +295,7 @@ const UserBubbleActions: FC<UserBubbleActionsProps> = ({
         <Tip label={copy.restoreFromHere}>
           <button
             aria-label={copy.restoreCheckpoint}
-            className={cn('pointer-events-auto size-6', USER_ACTION_ICON_BUTTON_CLASS)}
+            className={cn('pointer-events-auto', touch ? 'size-11' : 'size-6', USER_ACTION_ICON_BUTTON_CLASS)}
             onClick={event => {
               event.preventDefault()
               event.stopPropagation()
@@ -296,6 +315,73 @@ const UserBubbleActions: FC<UserBubbleActionsProps> = ({
           </button>
         </Tip>
       ) : null}
+    </div>
+  )
+}
+
+interface TouchUserBubbleProps {
+  children: ReactNode
+  className: string
+  editable: boolean
+  expandable: boolean
+  expanded: boolean
+  onToggleExpanded: () => void
+  showRestore: boolean
+  showStop: boolean
+}
+
+/** Touch bubble: the prose stays plain selectable text, so a long press keeps
+ *  the platform's selection handles and Copy, and editing is an explicit button
+ *  below it instead of a tap on the bubble. A clamped prompt gets an explicit
+ *  expand toggle in the same row. The row leaves room for the Stop/Restore
+ *  cluster pinned over its end. */
+function TouchUserBubble({
+  children,
+  className,
+  editable,
+  expandable,
+  expanded,
+  onToggleExpanded,
+  showRestore,
+  showStop
+}: TouchUserBubbleProps) {
+  const copy = useI18n().t.assistant.thread
+
+  return (
+    <>
+      <div className={cn(className, 'cursor-text')} data-selectable-text="true">
+        {children}
+      </div>
+      <div className={cn('flex justify-end', (showStop || showRestore) && 'pr-11')}>
+        {expandable && (
+          <Button
+            aria-expanded={expanded}
+            aria-label={copy.expandMessage}
+            data-slot="aui_user-touch-expand"
+            onClick={() => {
+              triggerHaptic('selection')
+              onToggleExpanded()
+            }}
+            size="icon"
+            variant="ghost"
+          >
+            <Codicon name={expanded ? 'chevron-up' : 'chevron-down'} />
+          </Button>
+        )}
+        {editable && (
+          <ActionBarPrimitive.Edit asChild>
+            <Button
+              aria-label={copy.editMessage}
+              data-slot="aui_user-touch-edit"
+              onClick={notifyThreadEditOpen}
+              size="icon"
+              variant="ghost"
+            >
+              <Codicon name="edit" />
+            </Button>
+          </ActionBarPrimitive.Edit>
+        )}
+      </div>
     </>
   )
 }
@@ -306,6 +392,7 @@ export const UserMessage: FC<{
 }> = ({ onCancel, onRequestRestoreConfirm }) => {
   const { t } = useI18n()
   const copy = t.assistant.thread
+  const touch = useStore($touchPointer)
   const messageId = useAuiState(s => s.message.id)
   const content = useAuiState(s => s.message.content)
   const messageText = messageContentText(content)
@@ -342,6 +429,8 @@ export const UserMessage: FC<{
     [react]
   )
 
+  // Watch windows spectate a subagent run driven elsewhere: prompts can't be
+  // edited, restored, or stopped from here. Prompts render in full (no clamp).
   const readOnly = isWatchWindow()
 
   // Injected background-process notification, not a human prompt — render the
@@ -430,13 +519,14 @@ export const UserMessage: FC<{
                 // menu, and this handler's selection guard keeps ⌘C flows.
                 data-context-menu-skip=""
                 onContextMenu={
-                  // Right-click is the desktop stand-in for iOS touch-and-hold —
-                  // but only when there's nothing selected. A live highlight
-                  // keeps the native Copy menu (and ⌘C) instead of the picker.
+                  // Right-click is the desktop reaction gesture. A touch long-press
+                  // in the browser-hosted Desktop stays the platform's, so selection
+                  // handles and Copy are never replaced by the picker; a mouse
+                  // right-click on the same device still opens it.
                   readOnly || !reactionsEnabled
                     ? undefined
                     : event => {
-                        if (hasTextSelection()) {
+                        if (hasTextSelection() || isTouchInteraction(event.nativeEvent)) {
                           return
                         }
 
@@ -445,7 +535,19 @@ export const UserMessage: FC<{
                       }
                 }
               >
-                {readOnly ? (
+                {touch ? (
+                  <TouchUserBubble
+                    className={bubbleClassName}
+                    editable={!readOnly}
+                    expandable={false}
+                    expanded={false}
+                    onToggleExpanded={() => undefined}
+                    showRestore={showRestore}
+                    showStop={showStop}
+                  >
+                    {bubbleContent}
+                  </TouchUserBubble>
+                ) : readOnly ? (
                   <div className={cn(bubbleClassName, 'cursor-text')}>{bubbleContent}</div>
                 ) : (
                   // Always editable — clicking opens the edit composer even while a
@@ -479,7 +581,6 @@ export const UserMessage: FC<{
                     </button>
                   </ActionBarPrimitive.Edit>
                 )}
-
               </div>
             </ReactionPicker>
             <div className="flex min-h-6 items-center justify-end gap-2 px-1 pt-1.5" data-slot="aui_user-message-meta">
@@ -491,6 +592,7 @@ export const UserMessage: FC<{
                 runtimeUserOrdinal={runtimeUserOrdinal}
                 showRestore={showRestore}
                 showStop={showStop}
+                touch={touch}
               />
               <MessageTimelineTimestamp />
             </div>
