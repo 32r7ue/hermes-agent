@@ -1,0 +1,3 @@
+name: rollover
+description: "No compaction: at the trigger the session rolls over to a child that points at the full parent transcript (retrieved verbatim on demand) instead of carrying an LLM summary."
+version: 0.1.0
