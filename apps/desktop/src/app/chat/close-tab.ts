@@ -4,6 +4,7 @@ import { closeActiveTerminal } from '@/app/right-sidebar/terminal/terminals'
 import { $workspaceIsPage } from '@/app/routes'
 import { closeFocusedSessionTab, closeFocusedToolTab } from '@/components/pane-shell/tree/store'
 import { isFocusWithin } from '@/lib/keybinds/combo'
+import { foldSurfacesBesideChat } from '@/store/layout'
 import { requestFreshSession } from '@/store/profile'
 import { $activeSessionId, $selectedStoredSessionId } from '@/store/session'
 import { closeSessionTile, nextSessionTileForWorkspace } from '@/store/session-states'
@@ -54,6 +55,7 @@ export function closeWorkspaceTab(loadSessionIntoWorkspace?: (storedSessionId: s
 /**
  * ⌘W — close the tab of the context you're in, by precedence:
  *   1. a focused terminal → its active terminal tab,
+ *   1b. anything open beside the chat (right column, terminal) → folded,
  *   2. the FOCUSED chat zone → its active tab (a session tile stacked into it).
  *   3. a focused TOOL PANEL zone (terminal / logs) → its active tab.
  *   4. the workspace tab itself — see `closeWorkspaceTab`.
@@ -81,6 +83,12 @@ export function closeActiveTab(loadSessionIntoWorkspace?: (storedSessionId: stri
   }
 
   if (closeFocusedAuxiliaryPane()) {return true}
+
+  // From the chat, ⌘W first folds whatever sits beside it (right column,
+  // terminal); only a bare chat goes on to close tabs / start a new session.
+  if (foldSurfacesBesideChat()) {
+    return true
+  }
 
   // A closeable tab in the focused chat zone (a session tile that's the active
   // tab) closes outright; the uncloseable workspace tab falls through.

@@ -54,7 +54,7 @@ export async function toggleMessageReaction(
   emoji: null | string,
   author: MessageReaction['author'] = 'user',
   sessionIdOverride?: null | string
-): Promise<void> {
+): Promise<boolean> {
   // A live message hasn't round-tripped through a resume yet, so it carries no
   // rowId. Rather than disable the affordance (which made reactions invisible
   // in any active conversation), let the backend resolve the newest row of
@@ -74,7 +74,7 @@ export async function toggleMessageReaction(
   if (!sessionId || !gateway) {
     notifyError(new Error(!sessionId ? 'No active session' : 'Gateway not connected'), 'Could not react')
 
-    return
+    return false
   }
 
   // Bound (not wrapped) so the ambient fallback keeps the exact call shape
@@ -106,10 +106,14 @@ export async function toggleMessageReaction(
 
     // Learn the row id from the response so later toggles address it directly.
     writeReactions(message.id, result?.reactions ?? [], result?.row_id)
+
+    return true
   } catch (err) {
     // Be optimistic, THEN honest: a rejected write rolls back visibly and says
     // why, instead of the reaction quietly vanishing (desktop AGENTS.md).
     writeReactions(message.id, snapshot ?? [])
     notifyError(err, 'Could not react')
+
+    return false
   }
 }

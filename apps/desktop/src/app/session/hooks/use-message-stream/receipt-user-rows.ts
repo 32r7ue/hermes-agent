@@ -93,3 +93,30 @@ export function bindReceiptUserRows(messages: ChatMessage[], receipt: PersistedT
     return rowId === undefined ? message : { ...message, rowId }
   })
 }
+
+/**
+ * Where a turn whose prompt was sent hidden (inline Run, widget intent) starts
+ * in the window. No bubble marks such a turn, so it begins after the last row
+ * that carries a stored id outside the turn. -1 when a user bubble sits in that
+ * span: a visible prompt the receipt does not name, so the pairing is unsure.
+ */
+export function hiddenPromptTurnStart(
+  messages: ChatMessage[],
+  receipt: PersistedTurn,
+  before = messages.length - 1
+): number {
+  const turnRows = new Set(receipt.row_ids.filter(isRowId))
+  let index = before
+
+  for (; index >= 0; index -= 1) {
+    if (transcriptRowIds(messages[index]).some(id => !turnRows.has(id))) {
+      break
+    }
+
+    if (isTurnUserBubble(messages[index])) {
+      return -1
+    }
+  }
+
+  return index < before ? index + 1 : -1
+}

@@ -3,6 +3,7 @@
 Single-writer stream ownership, delta/reasoning hook fan-out, and interim assistant text dedup.
 Extracted from ``run_agent.py``; every method resolves through ``AIAgent``'s MRO unchanged.
 """
+import time
 import logging
 import re
 import threading
@@ -87,6 +88,9 @@ class StreamDeliveryMixin:
         # Inline <think> text is forwarded to the reasoning pane only while no native reasoning delta
         # arrived for this model response (#89647).
         self._native_reasoning_streamed = False
+        # Thinking time for this response: request start to its first visible output.
+        self._response_started_mono = time.monotonic()
+        self._first_output_mono = None
         # Next stream re-reads plugins.stream_reasoning_deltas (config edits land per request).
         self._stream_reasoning_hooks_enabled = None
 
@@ -329,8 +333,22 @@ class StreamDeliveryMixin:
     def _emit_stream_end(self, *, final_text: str, finished: bool, error: str | None) -> None:
         self._enqueue_stream_hook("on_stream_end", final_text=final_text, finished=finished, error=error)
 
+    def _note_first_output(self) -> None:
+        if getattr(self, "_first_output_mono", None) is None:
+            self._first_output_mono = time.monotonic()
+
+    def _reasoning_seconds(self) -> float | None:
+        """Seconds this response spent before its first visible output (the thinking time)."""
+        started = getattr(self, "_response_started_mono", None)
+        if started is None:
+            return None
+        ended = getattr(self, "_first_output_mono", None) or time.monotonic()
+        return round(max(0.0, ended - started), 1)
+
     def _fire_stream_delta(self, text: str) -> None:
         """Fire all registered stream delta callbacks (display + TTS)."""
+        if isinstance(text, str) and text.strip():
+            self._note_first_output()
         # A superseded stream must not interleave its tokens alongside the retry that replaced it.
         if self._stream_writer_superseded():
             # See #65991.
@@ -397,6 +415,7 @@ class StreamDeliveryMixin:
 
     def _fire_tool_gen_started(self, tool_name: str) -> None:
         """Notify the display layer that the model is generating tool call arguments (spinner for large payloads)."""
+        self._note_first_output()
         self._call_quietly(self.tool_gen_callback, tool_name)
 
     def _has_stream_consumers(self) -> bool:

@@ -40,3 +40,37 @@ _VIBE_RE = re.compile(
 def detect_reaction(text: str | None) -> str | None:
     """Return the reaction kind for *text* (currently :data:`VIBE`), or ``None``."""
     return VIBE if text and _VIBE_RE.search(text) else None
+
+
+def pending_reaction_note(db, session_id: str) -> str:
+    """Model-bound note for the user's message reactions since the last turn, or "".
+
+    Announced once (rows are stamped ``seen`` on read) on the NEXT user turn, never by rewriting
+    the reacted message. Gated on ``display.message_reactions``. Shared by every submit path
+    (TUI sidecar and gateway), so a reaction reaches the model whichever process runs the turn.
+    """
+    if db is None or not session_id:
+        return ""
+    try:
+        from hermes_cli.config import load_config_readonly
+        display = (load_config_readonly() or {}).get("display")
+        if not (isinstance(display, dict) and bool(display.get("message_reactions", False))):
+            return ""
+        pending = db.take_unseen_reactions(session_id, author="user")
+    except Exception:
+        import logging
+        logging.getLogger(__name__).debug("Failed to read pending reactions", exc_info=True)
+        return ""
+    notes = []
+    for entry in pending or ():
+        snippet = (entry.get("text") or "").strip().replace("\n", " ")
+        if len(snippet) > 120:
+            snippet = snippet[:120] + "…"
+        emoji = entry.get("emoji") or ""
+        whose = "their own" if entry.get("role") == "user" else "your"
+        if snippet:
+            notes.append(f'[The user reacted {emoji} to {whose} message: "{snippet}"]')
+        else:
+            # Attachment-only / tool-call-only rows: no quote beats an empty quote.
+            notes.append(f"[The user reacted {emoji} to {whose} earlier message]")
+    return "\n".join(notes)

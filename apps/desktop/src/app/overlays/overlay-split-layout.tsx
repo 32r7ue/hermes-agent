@@ -1,4 +1,4 @@
-import { Fragment, memo, type ReactNode, useEffect, useId, useState } from 'react'
+import { Fragment, memo, type ReactNode, useEffect, useId, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { DisclosureCaret } from '@/components/ui/disclosure-caret'
@@ -212,6 +212,42 @@ export function OverlayNav({ footer, groups }: { footer?: ReactNode; groups: Ove
       return next
     })
   }, [activeGroupId, activeChildId])
+
+  // ⇥ / ⇧⇥ step through the sections, except while typing in a field (there
+  // Tab keeps its text-entry meaning) or inside a dialog/menu layered on top.
+  const groupsRef = useRef(groups)
+  groupsRef.current = groups
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab' || event.altKey || event.ctrlKey || event.metaKey || event.defaultPrevented) {
+        return
+      }
+
+      const target = event.target as HTMLElement | null
+
+      if (
+        target?.closest(
+          'input, textarea, select, [contenteditable=""], [contenteditable="true"], [role="dialog"] [role="dialog"], [role="menu"], [role="listbox"]'
+        )
+      ) {
+        return
+      }
+
+      const list = groupsRef.current
+      const index = list.findIndex(group => group.active)
+      const next = list[(index + (event.shiftKey ? -1 : 1) + list.length) % list.length]
+
+      if (next) {
+        event.preventDefault()
+        next.onSelect()
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
 
   return (
     <>

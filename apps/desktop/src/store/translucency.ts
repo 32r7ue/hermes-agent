@@ -198,6 +198,11 @@ export const isChatWindow = (search = typeof window === 'undefined' ? '' : windo
    the seam is measured from; styles.css picks the matching gradient
    direction off html[dir]. */
 let railObserver: null | ResizeObserver = null
+// The rail remounts (layout reset, route/overlay swaps, profile switch) and the
+// ResizeObserver stays on the detached node, freezing the seam — often at 0,
+// which paints the whole field opaque: glass "turns itself off" until a
+// Settings edit re-measures. Watch the tree for that and re-acquire.
+let railMountObserver: MutationObserver | null = null
 let railTarget: Element | null = null
 let railTrackingOn = false
 
@@ -258,6 +263,16 @@ const startRailTracking = (): void => {
   }
 
   window.addEventListener('resize', measureRailEdge)
+
+  if (typeof MutationObserver !== 'undefined' && !railMountObserver) {
+    railMountObserver = new MutationObserver(() => {
+      if (!railTarget || !railTarget.isConnected) {
+        measureRailEdge()
+      }
+    })
+  }
+
+  railMountObserver?.observe(document.body, { childList: true, subtree: true })
   measureRailEdge()
 }
 
@@ -267,6 +282,7 @@ const stopRailTracking = (): void => {
   }
 
   railTrackingOn = false
+  railMountObserver?.disconnect()
 
   if (railObserver && railTarget) {
     railObserver.unobserve(railTarget)

@@ -8,12 +8,21 @@ import { Download, FolderOpen, MonitorPlay } from '@/lib/icons'
 import { normalizeOrLocalPreviewTarget } from '@/lib/local-preview'
 import { downloadGatewayMediaFile } from '@/lib/media'
 import { previewName } from '@/lib/preview-targets'
+import { revealFileInTree } from '@/store/layout'
 import { notifyError } from '@/store/notifications'
 import { $previewTabSources, closePreviewForSource, openPreview } from '@/store/preview'
 
 /** What the Electron main process said about this target's LOCAL filesystem
  * state (#101683). `null` keeps the stock card — remote-backend targets keep
  * Download, and a bridge-less dev server can't classify. */
+/** The in-app file browser roots at the session cwd; a path under it can be
+ *  revealed there instead of handing off to the OS file manager. */
+function insideCwd(path: string, cwd?: string | null): boolean {
+  const root = cwd?.replace(/[\\/]+$/, '')
+
+  return Boolean(root) && (path === root || path.startsWith(`${root}/`) || path.startsWith(`${root}\\`))
+}
+
 type LocalTargetState = { path: string; type: 'directory' | 'file' } | { type: 'missing' } | null
 
 async function classifyLocalTarget(rawTarget: string, cwd?: string | null): Promise<LocalTargetState> {
@@ -108,6 +117,12 @@ export function PreviewAttachment({ target }: { target: string }) {
       return
     }
 
+    if (insideCwd(path, cwd)) {
+      revealFileInTree(path)
+
+      return
+    }
+
     setOpening(true)
 
     try {
@@ -177,6 +192,10 @@ export function PreviewAttachment({ target }: { target: string }) {
       }
 
       openPreview(preview)
+
+      if (localTarget?.type === 'file' && insideCwd(localTarget.path, requestCwd)) {
+        revealFileInTree(localTarget.path)
+      }
     } catch (error) {
       if (
         !mountedRef.current ||

@@ -1978,7 +1978,7 @@ class TestOpenAIReasoningWireProjection:
 
     def test_explicit_none_is_sent_and_unset_keeps_the_default(self, transport):
         assert self._reasoning(transport, "gpt-5.6-sol", {"enabled": False}) == {"effort": "none"}
-        assert self._reasoning(transport, "gpt-5.6-sol", None) == {"effort": "medium", "summary": "auto", "context": "all_turns"}
+        assert self._reasoning(transport, "gpt-5.6-sol", None) == {"effort": "medium", "summary": "detailed", "context": "all_turns"}
         # Astra's vocabulary has no ``none``: nothing to send, never an escalated level.
         assert self._reasoning(transport, "gpt-6-astra", {"enabled": False}) is None
 
@@ -2000,6 +2000,6 @@ class TestOpenAIReasoningWireProjection:
         for rc in (None, {"enabled": True, "effort": "high"}, {"enabled": False}):
             assert self._reasoning(transport, model, rc) is None, (model, rc)
         # Reasoning models on the same origin and the same id on a relay keep the dial (the relay may translate).
-        assert self._reasoning(transport, "o4-mini", None) == {"effort": "medium", "summary": "auto"}
+        assert self._reasoning(transport, "o4-mini", None) == {"effort": "medium", "summary": "detailed"}
         assert self._reasoning(transport, model, {"enabled": True, "effort": "high"},
                                base_url="https://relay.example.com/v1") == {"effort": "high", "summary": "auto"}

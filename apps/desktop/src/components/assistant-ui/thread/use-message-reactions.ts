@@ -1,15 +1,14 @@
-import { useAuiState, useMessageRuntime } from '@assistant-ui/react'
+import { useAuiState } from '@assistant-ui/react'
 import { registryBackendScopeKey } from '@hermes/shared'
 import { useStore } from '@nanostores/react'
-import { type MouseEvent, useCallback } from 'react'
+import { useCallback } from 'react'
 
+import { requestComposerSubmit } from '@/app/chat/composer/focus'
 import { useSessionView } from '@/app/chat/session-view'
 import type { ChatMessage } from '@/lib/chat-messages'
-import { triggerHaptic } from '@/lib/haptics'
-import { isTouchInteraction } from '@/lib/touch-interaction'
 import { activeGatewayConnectionId } from '@/store/gateway'
 import { $activeGatewayProfile } from '@/store/profile'
-import { QUICK_REACTIONS, toggleMessageReaction } from '@/store/reactions'
+import { toggleMessageReaction } from '@/store/reactions'
 import { $reactionsEnabled } from '@/store/reactions-enabled'
 import {
   $agentReactions,
@@ -24,42 +23,28 @@ import type { MessageReaction } from '@/types/hermes'
 // Stable empty identity — a fresh [] per render would re-run every consumer.
 const EMPTY_REACTIONS: MessageReaction[] = []
 
-/** The tapback a double-click lands: Apple's first Tapback, and ours. */
-export const DOUBLE_CLICK_REACTION = QUICK_REACTIONS[0]
+/** The hidden turn a reaction starts. The gateway puts the reaction itself in
+ *  front of it (`agent.reactions.pending_reaction_note`). */
+const REACTION_WAKE_PROMPT =
+  'The user reacted to your message (see the note). Take it as feedback and respond to it briefly; do not repeat your earlier answer.'
 
-// Double-click means something else on these: links and controls act, inputs
-// and code blocks select. The gesture only claims plain message body.
-const NOT_A_TAPBACK = 'a, button, input, pre, select, textarea, [contenteditable="true"], [role="button"]'
-
-/**
- * Is this double-click the "heart it" gesture?
- *
- * `detail === 2` keeps a triple-click (select-the-paragraph) from re-firing,
- * and anything the browser already gives a double-click meaning keeps it.
- */
-export function isTapbackDoubleClick(event: { detail: number; target: EventTarget | null }): boolean {
-  if (event.detail !== 2) {
-    return false
-  }
-
-  const target = event.target
-
-  return target instanceof Element ? !target.closest(NOT_A_TAPBACK) : true
-}
-
-/** Paint the tapback locally, then persist behind it. */
+/** Paint the tapback locally, then persist behind it. `wake` runs once the
+ *  reaction is stored, so the turn it starts sees it. */
 function commitReaction(
   messageId: string,
   role: ChatMessage['role'],
   rowId: number | undefined,
   reactions: MessageReaction[],
   emoji: null | string,
-  sessionId: null | string
+  sessionId: null | string,
+  wake?: () => void
 ): void {
   // Flip the UI immediately — a tapback is direct manipulation and must never
   // wait on a round-trip. Persistence follows in the background.
   setLocalReaction(messageId, emoji)
-  void toggleMessageReaction({ id: messageId, role, rowId, reactions } as ChatMessage, emoji, 'user', sessionId)
+  void toggleMessageReaction({ id: messageId, role, rowId, reactions } as ChatMessage, emoji, 'user', sessionId).then(
+    stored => stored && wake?.()
+  )
 }
 
 /**
@@ -98,6 +83,10 @@ export function useMessageReactions(
   const runtimeSessionId = useStore(sessionView.$runtimeId)
   const storedSessionId = useStore(sessionView.$storedId)
   const sessionId = runtimeSessionId ?? storedSessionId
+  const busy = useStore(sessionView.$busy)
+  // A reaction to the agent's message wakes an idle primary chat: a hidden
+  // turn the agent answers. Busy chats get the note on their next turn anyway.
+  const wakes = role === 'assistant' && sessionView.kind === 'primary' && !busy
 
   // The agent overlay is keyed by bare DB row id, and row ids are only
   // meaningful within ONE source's database. Resolve the source this
@@ -116,67 +105,20 @@ export function useMessageReactions(
   return {
     enabled,
     react: useCallback(
-      (emoji: null | string) => commitReaction(messageId, role, rowId, reactions, emoji, sessionId),
-      [messageId, reactions, role, rowId, sessionId]
+      (emoji: null | string) =>
+        commitReaction(
+          messageId,
+          role,
+          rowId,
+          reactions,
+          emoji,
+          sessionId,
+          emoji && wakes
+            ? () => void requestComposerSubmit(REACTION_WAKE_PROMPT, { displayKind: 'hidden', target: 'active' })
+            : undefined
+        ),
+      [messageId, reactions, role, rowId, sessionId, wakes]
     ),
     reactions: mergeReactions(reactions, localAll[messageId], agentLive)
   }
-}
-
-/**
- * Double-click a message to heart it — the iMessage gesture.
- *
- * Reads the message's reaction state lazily at event time (the same trick the
- * footer uses for its text): the gesture renders nothing, so subscribing the
- * perf-sensitive message root to every reaction change would be pure cost.
- * Returns `undefined` while reactions are off, so the element carries no
- * listener at all.
- */
-export function useTapbackDoubleClick(
-  messageId: string,
-  role: ChatMessage['role']
-): ((event: MouseEvent<HTMLElement>) => void) | undefined {
-  const enabled = useStore($reactionsEnabled)
-  const messageRuntime = useMessageRuntime()
-  const sessionView = useSessionView()
-  const runtimeSessionId = useStore(sessionView.$runtimeId)
-  const storedSessionId = useStore(sessionView.$storedId)
-  const sessionId = runtimeSessionId ?? storedSessionId
-
-  const onDoubleClick = useCallback(
-    (event: MouseEvent<HTMLElement>) => {
-      if (isTouchInteraction(event.nativeEvent) || !isTapbackDoubleClick(event)) {
-        return
-      }
-
-      // Double-click has already selected the word underneath — the tapback,
-      // not a stray selection, is what the gesture meant.
-      window.getSelection()?.removeAllRanges()
-      triggerHaptic('selection')
-
-      const custom = (messageRuntime.getState().metadata?.custom ?? {}) as {
-        reactions?: MessageReaction[]
-        rowId?: number
-      }
-
-      const reactions = custom.reactions ?? EMPTY_REACTIONS
-
-      // Same toggle semantics as the picker: a second double-click retracts.
-      const mine = mergeReactions(reactions, $localReactions.get()[messageId]).find(
-        reaction => reaction.author === 'user'
-      )
-
-      commitReaction(
-        messageId,
-        role,
-        custom.rowId,
-        reactions,
-        mine?.emoji === DOUBLE_CLICK_REACTION ? null : DOUBLE_CLICK_REACTION,
-        sessionId
-      )
-    },
-    [messageId, messageRuntime, role, sessionId]
-  )
-
-  return enabled ? onDoubleClick : undefined
 }

@@ -623,7 +623,11 @@ def _reasoning_fields(
                 # below avoids (#46527).
                 fields["reasoning"] = {**params["profile_reasoning"], "summary": "auto"}
         else:
-            fields["reasoning"] = {"effort": effort, "summary": "auto", **({"context": "all_turns"} if all_turns else {})}
+            # OpenAI's own endpoints take "detailed", the longest summary they give (raw reasoning
+            # is never exposed); "auto" often returns a bare bold title. Relays/Copilot keep "auto".
+            openai = params.get("is_codex_backend") is True or _is_openai_api_origin(params.get("base_url"))
+            summary = "detailed" if openai else "auto"
+            fields["reasoning"] = {"effort": effort, "summary": summary, **({"context": "all_turns"} if all_turns else {})}
             fields["include"] = include
     elif not profile_reasoning and not is_xai_responses:
         fields["include"] = []

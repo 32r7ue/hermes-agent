@@ -3,6 +3,7 @@ import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { registerLayoutPresets } from '@/app/contrib/layout-presets'
 import { $activePresetId } from '@/components/pane-shell/tree/store'
 import { $pendingSkinApply } from '@/themes/backend-sync'
+import { DEFAULT_SKIN_NAME } from '@/themes/presets'
 import { $pendingModeApply } from '@/themes/request'
 
 import { applyAppearance } from './appearance-apply'
@@ -25,7 +26,7 @@ describe('applyAppearance', () => {
       applied: { accent: 'violet', layout: 'terminal-deck', mode: 'dark' },
       success: true
     })
-    expect($pendingSkinApply.get()).toBe('nous-accent-8a2be2')
+    expect($pendingSkinApply.get()).toBe(`${DEFAULT_SKIN_NAME}-accent-8a2be2`)
     expect($pendingModeApply.get()).toBe('dark')
     expect($activePresetId.get()).toBe('terminal-deck')
     expect($interfaceMode.get()).toBe('advanced')
@@ -49,4 +50,10 @@ describe('applyAppearance', () => {
     })
   })
 
+
+  it('switches the theme preset through settings.theme and refuses an unknown one', () => {
+    expect(applyAppearance({ settings: { theme: 'graphite' } })).toEqual({ applied: { settings: { theme: 'graphite' } }, success: true })
+    expect($pendingSkinApply.get()).toBe('graphite')
+    expect(applyAppearance({ settings: { theme: 'nope' } }).success).toBe(false)
+  })
 })

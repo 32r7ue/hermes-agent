@@ -537,7 +537,12 @@ export function toChatMessages(messages: SessionMessage[]): ChatMessage[] {
     const reasoning = message.display_reasoning !== undefined ? message.display_reasoning : rawReasoning
 
     if (reasoning && message.role === 'assistant') {
-      parts.push(reasoningPart(reasoning, message.timestamp))
+      // The agent records how long it thought (display_metadata.reasoning_seconds),
+      // so a reloaded block still reads "Thought for …".
+      const seconds = parseDisplayMetadata(message.display_metadata)?.reasoning_seconds
+      const part = reasoningPart(reasoning, message.timestamp)
+
+      parts.push(typeof seconds === 'number' && Number.isFinite(seconds) ? { ...part, durationSeconds: seconds } : part)
     }
 
     const reply = message.display_content !== undefined ? displayContent : displayContent || codexText?.reply

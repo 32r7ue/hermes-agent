@@ -8576,7 +8576,7 @@
    "reasoning": {
     "context": "all_turns",
     "effort": "high",
-    "summary": "auto"
+    "summary": "detailed"
    },
    "store": false,
    "timeout": 1800.0,
@@ -8691,7 +8691,7 @@
    "reasoning": {
     "context": "all_turns",
     "effort": "medium",
-    "summary": "auto"
+    "summary": "detailed"
    },
    "store": false,
    "timeout": 1800.0,
@@ -8767,7 +8767,7 @@
    "prompt_cache_key": "pck_f6d11aab44ec88459ba6fe2e",
    "reasoning": {
     "effort": "high",
-    "summary": "auto"
+    "summary": "detailed"
    },
    "store": false,
    "timeout": 1800.0,
@@ -8909,7 +8909,7 @@
    "prompt_cache_key": "pck_f6d11aab44ec88459ba6fe2e",
    "reasoning": {
     "effort": "medium",
-    "summary": "auto"
+    "summary": "detailed"
    },
    "store": false,
    "timeout": 1800.0,

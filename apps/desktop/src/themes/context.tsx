@@ -390,6 +390,18 @@ function applyTheme(theme: DesktopTheme, mode: 'light' | 'dark', chatFontFamily 
     root.style.setProperty(k, v)
   }
 
+  // Optional per-theme text slots; absent, styles.css falls back to the foreground mixes.
+  for (const [k, v] of [
+    ['--dt-sidebar-foreground', c.sidebarForeground],
+    ['--dt-scaffold-foreground', c.scaffoldForeground]
+  ] as const) {
+    if (v) {
+      root.style.setProperty(k, v)
+    } else {
+      root.style.removeProperty(k)
+    }
+  }
+
   applyTypographyKnobs(root, typo)
 
   const chromeBg = chromeBackground(c.background, isDark)

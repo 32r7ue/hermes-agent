@@ -7,6 +7,8 @@ import {
   $collapsedTreeSides,
   $hiddenTreePanes,
   $layoutTree,
+  closeTreePane,
+  isPaneVisible,
   layoutHasRootSide,
   paneRootSide,
   restoreHiddenTreeSideTabs,
@@ -789,6 +791,34 @@ function rightSideShown(group: GroupNode): boolean {
   const side = paneRootSide(allPaneIds(group)[0])
 
   return !group.minimized && !(side && $collapsedTreeSides.get().has(side)) && shownPanesInGroup(group).length > 0
+}
+
+/**
+ * ⌘W's first rung from a chat: fold every surface beside the conversation
+ * (the right column with Browser / Files / Review, and the terminal) before
+ * ⌘W reaches the chat itself. True when something was on screen to fold.
+ */
+export function foldSurfacesBesideChat(): boolean {
+  let folded = false
+
+  if (isPaneVisible('terminal')) {
+    closeTreePane('terminal')
+    folded = true
+  }
+
+  const group = rightSideGroup()
+
+  if (group ? rightSideShown(group) : layoutHasRootSide('right') && $fileBrowserOpen.get()) {
+    if (group) {
+      setTreeGroupMinimized(group.id, true)
+    } else {
+      setFileBrowserOpen(false)
+    }
+
+    folded = true
+  }
+
+  return folded
 }
 
 // Is `paneId` a main surface (the workspace or a session/route tile)? Those

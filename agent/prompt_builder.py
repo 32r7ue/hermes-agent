@@ -703,7 +703,9 @@ PLATFORM_HINTS = {
         "height live, width from the content's first measured span — lay content flush left with no centering wrappers "
         "or it measures full-bleed. Widgets talk back: data-hermes-send=\"prompt\" on any clickable element (or "
         "window.hermes.send(\"prompt\")) sends that prompt as a hidden user turn — answer it by updating the widget's "
-        "file, not with prose."
+        "file, not with prose. "
+        "App settings are yours to change without clicking: set_theme (theme preset, mode, accent, layout, glass, "
+        "text size), and for any other desktop preference `hermes config ui [KEY [VALUE]]`, applied live."
     ),
     "api_server": (
         "You're responding through an API server. The rendering layer is unknown — assume plain text. No markdown "

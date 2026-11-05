@@ -14,9 +14,11 @@ import { layoutPresetTier, LAYOUTS_AREA } from '@/components/pane-shell/tree/pre
 import { registry } from '@/contrib/registry'
 import { matchesQuery } from '@/hooks/use-media-query'
 import { ACCENT_SWATCH_IDS, resolveAccentPick, type ResolvedAccent } from '@/themes/accents'
-import type { ThemeMode } from '@/themes/context'
+import { committedTheme, type ThemeMode } from '@/themes/context'
 import { persistAccent } from '@/themes/persist-accent'
-import { requestMode } from '@/themes/request'
+import { BUILTIN_THEME_LIST } from '@/themes/presets'
+import { requestMode, requestTheme } from '@/themes/request'
+import { resolveTheme } from '@/themes/user-themes'
 
 import { applyAppSettings, inspectAppSettings, validateAppSettings } from './app-settings'
 import { $interfaceMode, setInterfaceMode } from './interface-mode'
@@ -82,7 +84,16 @@ function applyLayout(id: string): void {
   }
 }
 
-export function applyAppearance(values: AppearanceValues): AppearanceAnswer {
+export function applyAppearance(input: AppearanceValues): AppearanceAnswer {
+  // `settings.theme` names the theme preset (noir, graphite, …). It rides the
+  // settings patch so the wire contract stays as is; the ThemeProvider drains it.
+  const { theme, ...otherSettings } = input.settings ?? {}
+  const values: AppearanceValues = input.settings ? { ...input, settings: otherSettings } : input
+
+  if (theme !== undefined && (typeof theme !== 'string' || !resolveTheme(theme))) {
+    return { available: BUILTIN_THEME_LIST.map(t => t.name), error: `Unknown theme "${String(theme)}".`, success: false }
+  }
+
   const settingsError = values.settings && validateAppSettings(values.settings)
 
   if (settingsError) {return { available: Object.keys(inspectAppSettings()), error: settingsError, success: false }}
@@ -107,6 +118,10 @@ export function applyAppearance(values: AppearanceValues): AppearanceAnswer {
 
   const applied: AppliedAppearance = {}
 
+  if (typeof theme === 'string') {
+    requestTheme(theme)
+  }
+
   if (values.mode !== undefined) {
     requestMode(values.mode)
     applied.mode = values.mode
@@ -127,7 +142,9 @@ export function applyAppearance(values: AppearanceValues): AppearanceAnswer {
     applied.settings = applyAppSettings(values.settings)
   }
 
-  if (values.inspect) {applied.settings = inspectAppSettings()}
+  if (values.inspect) {applied.settings = { theme: committedTheme().name, ...inspectAppSettings() }}
+
+  if (typeof theme === 'string') {applied.settings = { ...applied.settings, theme }}
 
   return { applied, success: true }
 }

@@ -23,7 +23,12 @@
 
 import type { PersistedTurn } from '@hermes/shared'
 
-import { isRowId, isTurnUserBubble, receiptUserRowIds } from '@/app/session/hooks/use-message-stream/receipt-user-rows'
+import {
+  hiddenPromptTurnStart,
+  isRowId,
+  isTurnUserBubble,
+  receiptUserRowIds
+} from '@/app/session/hooks/use-message-stream/receipt-user-rows'
 import { transcriptRowIds } from '@/app/session/hooks/use-session-actions/pending-turn-identity'
 import { type ChatMessage, isLocalSystemNotice } from '@/lib/chat-messages'
 
@@ -64,7 +69,9 @@ function receiptBounds(message: ChatMessage): null | { first: number; last: numb
 
 /** Window indices of the turn ending at `end`, or none when its identity is incomplete. */
 function windowTurnIndices(window: ChatMessage[], end: number, first: number, last: number, receipt: PersistedTurn) {
-  const start = receiptPromptIndex(window, receipt, end)
+  const prompt = receiptPromptIndex(window, receipt, end)
+  // A stopped turn sent hidden (inline Run, widget intent) has no prompt bubble.
+  const start = prompt >= 0 ? prompt : window[end].interrupted ? hiddenPromptTurnStart(window, receipt, end) : -1
 
   if (start < 0) {
     return []
@@ -123,9 +130,11 @@ function receiptTurnIndices(
 ): number[] {
   const bounds = receiptBounds(window[end])
 
+  // The page is contiguous, so one that starts before the turn holds its first
+  // row even when it does not paint it (a hidden prompt).
   if (
     !bounds ||
-    !pageRows.has(bounds.first) ||
+    !(pageRows.has(bounds.first) || Math.min(...pageRows) < bounds.first) ||
     Math.max(...pageRows) < bounds.last ||
     !pageHoldsTheReply(window[end], bounds.last, replyRows)
   ) {

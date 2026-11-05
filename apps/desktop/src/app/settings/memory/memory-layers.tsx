@@ -1,7 +1,10 @@
 import { useStore } from '@nanostores/react'
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router'
 
+import { MEMORY_WIKI_PATH, SIDEBAR_NAV_AREA } from '@/app/routes'
 import { Button } from '@/components/ui/button'
+import { useContributions } from '@/contrib/react/use-contributions'
 import { getMemoryStatus } from '@/hermes'
 import { useI18n } from '@/i18n'
 import type { MemoryLayersTranslations } from '@/i18n/types_memory_layers'
@@ -151,7 +154,33 @@ export function MemoryLayersSummary({ builtin, onRetry, provider, status, status
         />
       ) : null}
       <ListRow action={builtinPill(m, builtin)} description={m.builtinDesc} title={m.builtinLayer} />
+      <MemoryWikiRow />
     </div>
+  )
+}
+
+/** The Memory Wiki plugin's page, opened from here instead of a sidebar entry. Absent without the plugin. */
+function MemoryWikiRow() {
+  const installed = useContributions(SIDEBAR_NAV_AREA).some(
+    c => (c.data as { path?: string } | undefined)?.path === MEMORY_WIKI_PATH
+  )
+
+  return installed ? <MemoryWikiOpenRow /> : null
+}
+
+function MemoryWikiOpenRow() {
+  const navigate = useNavigate()
+
+  return (
+    <ListRow
+      action={
+        <Button onClick={() => navigate(MEMORY_WIKI_PATH)} size="xs" type="button" variant="textStrong">
+          Open
+        </Button>
+      }
+      description="Subject pages and daily logs built from your session history."
+      title="Memory Wiki"
+    />
   )
 }
 

@@ -685,9 +685,13 @@ export function TreeSplit({
   // sidebar (review, files, sessions) must keep that clamp — otherwise ⌘G
   // balloons the rail and sash-remembered sizes become a flex-basis that
   // grow still expands past.
-  const absorberIndex = allFixed
-    ? allFixedAbsorberIndex(growable, i => (horizontal ? tracks[i].sizing?.maxWidth : tracks[i].sizing?.maxHeight))
-    : -1
+  // A track left alone in its split fills it, cap or not: a ⌘J terminal whose
+  // column-mates are folded used to sit at the bottom under empty slack.
+  const absorberIndex = !allFixed
+    ? -1
+    : growable.length === 1
+      ? growable[0]
+      : allFixedAbsorberIndex(growable, i => (horizontal ? tracks[i].sizing?.maxWidth : tracks[i].sizing?.maxHeight))
 
   // A capped all-fixed run leaves slack. When every track left standing is
   // END-placed chrome (a bottom terminal whose column-mates ⌘J folded away),

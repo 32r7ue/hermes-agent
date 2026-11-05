@@ -37,7 +37,7 @@ import { ResponseMessageIds } from '@/components/assistant-ui/thread/response-gr
 import { ResponseLoadingIndicator, TurnActivityIndicator } from '@/components/assistant-ui/thread/status'
 import { threadMessageIndex } from '@/components/assistant-ui/thread/thread-message-index'
 import { MessageTimelineTimestamp } from '@/components/assistant-ui/thread/timeline-timestamp'
-import { useMessageReactions, useTapbackDoubleClick } from '@/components/assistant-ui/thread/use-message-reactions'
+import { useMessageReactions } from '@/components/assistant-ui/thread/use-message-reactions'
 import { AGENT_MESSAGE_RE } from '@/components/assistant-ui/thread/user-message'
 import { isApprovalActivity, isCurrentTurnMessage } from '@/components/assistant-ui/tool/approval-activity'
 import { TooltipIconButton } from '@/components/assistant-ui/tooltip-icon-button'
@@ -235,7 +235,10 @@ const AssistantMessageBody: FC<AssistantMessageProps & { collapsedNotice?: null 
   const messageRuntime = useMessageRuntime()
   const threadRuntime = useThreadRuntime()
   const responseIds = useContext(ResponseMessageIds)
-  const responseTail = responseIds.length === 0 || responseIds.at(-1) === messageId
+  // A reacted message keeps its footer mid-group: the reaction lives there, and a
+  // reply after it (a reaction wake-up turn) must not hide the user's tapback.
+  const hasReactions = useAuiState(s => ((s.message.metadata?.custom?.reactions as unknown[] | undefined)?.length ?? 0) > 0)
+  const responseTail = responseIds.length === 0 || responseIds.at(-1) === messageId || hasReactions
   const { t } = useI18n()
 
   // PERF: this component must NOT subscribe to the streaming text, and no
@@ -299,10 +302,6 @@ const AssistantMessageBody: FC<AssistantMessageProps & { collapsedNotice?: null 
   const [initiallyRunning] = useState(() => messageRuntime.getState().status?.type === 'running')
   const enterRef = useEnterAnimation(initiallyRunning, `assistant-message:${messageId}`)
 
-  // Double-click the reply to heart it (iMessage). Undefined while reactions
-  // are off, so the root carries no listener at all.
-  const onDoubleClick = useTapbackDoubleClick(messageId, 'assistant')
-
   return (
     <MessagePrimitive.Root
       className={cn(
@@ -312,10 +311,6 @@ const AssistantMessageBody: FC<AssistantMessageProps & { collapsedNotice?: null 
       data-approval-activity-only={approval && activityOnly ? '' : undefined}
       data-role="assistant"
       data-slot="aui_assistant-message-root"
-      // Collapsed inter-agent rows never carried the tapback listener; keeping
-      // that exact truth table means gating it on the notice rather than on
-      // whether the hook returned a handler.
-      onDoubleClick={collapsedNotice ? undefined : onDoubleClick}
       ref={enterRef}
     >
       {collapsedNotice ?? (
@@ -374,10 +369,10 @@ const StoppedNotice: FC = () => {
 
   return (
     <div
-      className="flex items-center gap-1 px-(--message-text-indent) pt-1 text-[0.72rem] text-(--ui-text-tertiary)"
+      className="flex items-center gap-1.5 px-(--message-text-indent) pt-1 text-[length:var(--conversation-tool-font-size)] text-(--ui-text-tertiary)"
       data-slot="aui_assistant-message-stopped"
     >
-      <Codicon className="size-3" name="debug-stop" />
+      <Codicon name="debug-pause" size="1em" />
       {t.assistant.thread.responseStopped}
     </div>
   )
@@ -1398,6 +1393,43 @@ const AssistantActionBar: FC<MessageActionProps & { durationS?: number }> = ({
           ⏱ {formatElapsed(durationS)}
         </span>
       )}
+      {/* ONE slot, Slack-style: the picker trigger and the landed reaction are
+          the same element, so reacting never shifts layout. Empty → ☺, hidden
+          until hover like its action-bar neighbors (state lives in styles.css
+          — the aui_msg-reactions rules outweigh Tailwind utilities here).
+          Reacted → the emoji itself, always visible at full strength, and
+          clicking it reopens the picker to switch or retract. Outside
+          ActionBarPrimitive.Root so a landed reaction doesn't ride the bar's
+          hover opacity. Placed before the bar, next to the duration: after it, a
+          landed reaction sat beyond the bar's invisible width, detached. */}
+      {(reactionsEnabled || shownReactions.length > 0) && (
+        <ReactionPicker
+          onOpenChange={setPickerOpen}
+          onSelect={pickEmoji}
+          open={pickerOpen}
+          selected={shownReactions.find(reaction => reaction.author === 'user')?.emoji}
+        >
+          <TooltipIconButton
+            data-reacted={shownReactions.length > 0 || undefined}
+            data-slot="aui_msg-reactions"
+            data-state={pickerOpen ? 'open' : undefined}
+            onClick={reactionsEnabled ? () => setPickerOpen(open => !open) : undefined}
+            tooltip={copy.react}
+          >
+            {shownReactions.length > 0 ? (
+              <span className="flex items-center gap-0.5 text-[0.8125rem] leading-none">
+                {shownReactions.map(reaction => (
+                  <span className="reaction-pop" key={`${reaction.author}-${reaction.emoji}`}>
+                    {reaction.emoji}
+                  </span>
+                ))}
+              </span>
+            ) : (
+              <SmilePlusIcon className="size-3.5" />
+            )}
+          </TooltipIconButton>
+        </ReactionPicker>
+      )}
       <ActionBarPrimitive.Root
         className={
           // NOTE: intentionally NOT `hideWhenRunning`. That prop unmounts the
@@ -1474,42 +1506,6 @@ const AssistantActionBar: FC<MessageActionProps & { durationS?: number }> = ({
           </div>
         )}
       </ActionBarPrimitive.Root>
-      {/* ONE slot, Slack-style: the picker trigger and the landed reaction are
-          the same element, so reacting never shifts layout. Empty → ☺, hidden
-          until hover like its action-bar neighbors (state lives in styles.css
-          — the aui_msg-reactions rules outweigh Tailwind utilities here).
-          Reacted → the emoji itself, always visible at full strength, and
-          clicking it reopens the picker to switch or retract. Outside
-          ActionBarPrimitive.Root so a landed reaction doesn't ride the bar's
-          hover opacity. */}
-      {(reactionsEnabled || shownReactions.length > 0) && (
-        <ReactionPicker
-          onOpenChange={setPickerOpen}
-          onSelect={pickEmoji}
-          open={pickerOpen}
-          selected={shownReactions.find(reaction => reaction.author === 'user')?.emoji}
-        >
-          <TooltipIconButton
-            data-reacted={shownReactions.length > 0 || undefined}
-            data-slot="aui_msg-reactions"
-            data-state={pickerOpen ? 'open' : undefined}
-            onClick={reactionsEnabled ? () => setPickerOpen(open => !open) : undefined}
-            tooltip={copy.react}
-          >
-            {shownReactions.length > 0 ? (
-              <span className="flex items-center gap-0.5 text-[0.8125rem] leading-none">
-                {shownReactions.map(reaction => (
-                  <span className="reaction-pop" key={`${reaction.author}-${reaction.emoji}`}>
-                    {reaction.emoji}
-                  </span>
-                ))}
-              </span>
-            ) : (
-              <SmilePlusIcon className="size-3.5" />
-            )}
-          </TooltipIconButton>
-        </ReactionPicker>
-      )}
     </div>
   )
 }

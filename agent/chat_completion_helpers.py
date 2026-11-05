@@ -1646,6 +1646,11 @@ def build_assistant_message(agent, assistant_message, finish_reason: str) -> dic
     msg = stamp_message_timestamp({"role": "assistant",
         "content": _assistant_content_for_storage(agent, assistant_message), "reasoning": reasoning_text,
         "finish_reason": finish_reason})
+    # How long the model thought, for the transcript's "Thought for …" after a reload.
+    seconds_fn = getattr(agent, "_reasoning_seconds", None)
+    seconds = seconds_fn() if reasoning_text and callable(seconds_fn) else None
+    if isinstance(seconds, (int, float)):
+        msg["display_metadata"] = {**(msg.get("display_metadata") or {}), "reasoning_seconds": seconds}
 
     raw_reasoning_content = getattr(assistant_message, "reasoning_content", None)
     if raw_reasoning_content is None:

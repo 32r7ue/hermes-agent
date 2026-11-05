@@ -58,6 +58,7 @@ import {
   $busy,
   $connection,
   $currentCwd,
+  $currentProvider,
   $currentUsage,
   $selectedStoredSessionId,
   $sessions,
@@ -167,7 +168,10 @@ export function useStatusbarItems({
   // own cwd in `$sessionStates` and must not paint the primary's workspace.
   const primaryCwd = useStore($currentCwd)
   const primaryUsage = useStore($currentUsage)
-  const focusedProvider = useStoreSelector($focusedSessionState, state => state?.provider ?? '')
+  // A draft has no session slice yet: the composer's picked provider stands in,
+  // so the usage ring reads before the first message (model.options needs no session).
+  const draftProvider = useStore($currentProvider)
+  const focusedProvider = useStoreSelector($focusedSessionState, state => state?.provider ?? '') || draftProvider
   const gatewayRestarting = useStore($gatewayRestarting)
   const primarySessionStartedAt = useStore($sessionStartedAt)
   const tileSessionFocusStartedAt = useStore($tileSessionFocusStartedAt)

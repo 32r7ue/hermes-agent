@@ -47,6 +47,10 @@ export interface ThemePresetColors {
   sidebarBorder?: string
   userBubble?: string
   userBubbleBorder?: string
+  /** Sidebar text. Falls back to `foreground`. */
+  sidebarForeground?: string
+  /** Transcript scaffolding (thinking headers, tool-call lines). Falls back to a mix of `foreground`. */
+  scaffoldForeground?: string
 }
 
 export interface ThemePresetPalette {
@@ -464,6 +468,118 @@ export const THEME_PRESET_PALETTES = {
       sidebarBorder: '#2a1004',
       userBubble: '#2a1000',
       userBubbleBorder: '#4a2010'
+    }
+  },
+  noir: {
+    colors: {
+      background: '#ffffff',
+      foreground: '#141414',
+      card: '#f7f7f7',
+      cardForeground: '#141414',
+      muted: '#f0f0f0',
+      mutedForeground: '#6b6b6b',
+      popover: '#ffffff',
+      popoverForeground: '#141414',
+      primary: '#141414',
+      primaryForeground: '#ffffff',
+      secondary: '#ececec',
+      secondaryForeground: '#2a2a2a',
+      accent: '#eeeeee',
+      accentForeground: '#1f1f1f',
+      border: '#e2e2e2',
+      input: '#e2e2e2',
+      ring: '#6b6b6b',
+      midground: '#6b6b6b',
+      destructive: '#b42318',
+      destructiveForeground: '#ffffff',
+      sidebarBackground: '#f5f5f5',
+      sidebarBorder: '#e6e6e6',
+      userBubble: '#f0f0f0',
+      userBubbleBorder: '#dcdcdc'
+    },
+    darkColors: {
+      background: '#0e0e0e',
+      foreground: '#eaeaea',
+      card: '#141414',
+      cardForeground: '#eaeaea',
+      muted: '#1e1e1e',
+      mutedForeground: '#808080',
+      popover: '#181818',
+      popoverForeground: '#eaeaea',
+      primary: '#eaeaea',
+      primaryForeground: '#0e0e0e',
+      secondary: '#262626',
+      secondaryForeground: '#c8c8c8',
+      accent: '#222222',
+      accentForeground: '#d8d8d8',
+      border: '#2a2a2a',
+      input: '#2a2a2a',
+      ring: '#9a9a9a',
+      midground: '#9a9a9a',
+      destructive: '#a84040',
+      destructiveForeground: '#fef2f2',
+      sidebarBackground: '#0a0a0a',
+      sidebarBorder: '#202020',
+      userBubble: '#1a1a1a',
+      userBubbleBorder: '#363636'
+    }
+  },
+  graphite: {
+    colors: {
+      background: '#f8f8f8',
+      foreground: '#1f1f1f',
+      card: '#ffffff',
+      cardForeground: '#1f1f1f',
+      muted: '#efefef',
+      mutedForeground: '#6e6e6e',
+      popover: '#ffffff',
+      popoverForeground: '#1f1f1f',
+      primary: '#1f1f1f',
+      primaryForeground: '#f8f8f8',
+      secondary: '#e9e9e9',
+      secondaryForeground: '#2e2e2e',
+      accent: '#ebebeb',
+      accentForeground: '#242424',
+      border: '#e0e0e0',
+      input: '#e0e0e0',
+      ring: '#6e6e6e',
+      midground: '#6e6e6e',
+      destructive: '#b42318',
+      destructiveForeground: '#ffffff',
+      sidebarBackground: '#efefef',
+      sidebarBorder: '#e2e2e2',
+      sidebarForeground: '#1a1a1a',
+      scaffoldForeground: '#6e6e6e',
+      userBubble: '#ececec',
+      userBubbleBorder: '#dcdcdc'
+    },
+    darkColors: {
+      background: '#191919',
+      foreground: '#efefef',
+      card: '#1f1f1f',
+      cardForeground: '#efefef',
+      muted: '#242424',
+      mutedForeground: '#9c9c9c',
+      popover: '#222222',
+      popoverForeground: '#efefef',
+      primary: '#efefef',
+      primaryForeground: '#191919',
+      secondary: '#2b2b2b',
+      secondaryForeground: '#d6d6d6',
+      accent: '#2a2a2a',
+      accentForeground: '#e2e2e2',
+      border: '#303030',
+      input: '#303030',
+      ring: '#9c9c9c',
+      midground: '#9c9c9c',
+      destructive: '#c0504a',
+      destructiveForeground: '#fef2f2',
+      sidebarBackground: '#141414',
+      sidebarBorder: '#262626',
+      sidebarForeground: '#f2f2f2',
+      scaffoldForeground: '#9c9c9c',
+      userBubble: '#262626',
+      userBubbleBorder: '#363636'
     }
   },
   mono: {

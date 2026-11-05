@@ -3701,6 +3701,22 @@ def _cmd_config_check(args):
     print()
 
 
+def _cmd_config_ui(args) -> None:
+    """``hermes config ui [KEY [VALUE]] [--unset]``: the desktop's machine preference store
+    (``ui-preferences.json``). Every open desktop window watches it and applies a change live."""
+    from hermes_cli.ui_preferences import read_preferences, write_preferences
+
+    key, value = getattr(args, "key", None), getattr(args, "value", None)
+    if not key:
+        for name, current in sorted(read_preferences()["values"].items()):
+            print(f"{name} = {current}")
+        return
+    if getattr(args, "unset", False) or value is not None:
+        write_preferences({key: None if getattr(args, "unset", False) else value})
+    current = read_preferences()["values"].get(key)
+    print(f"{key} = {current}" if current is not None else f"{key} is unset (app default)")
+
+
 def _cmd_config_show() -> None:
     from hermes_cli.config_show import show_config
     show_config()
@@ -3713,6 +3729,7 @@ _CONFIG_SUBCOMMANDS = {
     "get": _cmd_config_get,
     "set": _cmd_config_set,
     "unset": _cmd_config_unset,
+    "ui": _cmd_config_ui,
     "path": lambda args: print(get_config_path()),
     "env-path": lambda args: print(get_env_path()),
     "migrate": _cmd_config_migrate,
@@ -3724,6 +3741,7 @@ _CONFIG_USAGE = """Available commands:
   hermes config get <key>          Print a resolved config value
   hermes config set <key> <value>   Set a config value
   hermes config unset <key>        Remove a config value
+  hermes config ui [key [value]]   Read or change desktop app settings (live)
   hermes config check     Check for missing, outdated, or inactive config
   hermes config migrate   Update config with new options
   hermes config path      Show config file path

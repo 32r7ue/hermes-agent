@@ -36,6 +36,12 @@ def build_config_parser(subparsers, *, cmd_config: Callable) -> None:
     config_unset = config_subparsers.add_parser("unset", help="Remove a configuration value")
     config_unset.add_argument("key", nargs="?", help="Configuration key to remove")
 
+    config_ui = config_subparsers.add_parser(
+        "ui", help="Read or change desktop app settings (the machine UI preference store, applied live)")
+    config_ui.add_argument("key", nargs="?", help="Preference key (omit to list all)")
+    config_ui.add_argument("value", nargs="?", help="New value (a string; JSON for structured keys)")
+    config_ui.add_argument("--unset", action="store_true", help="Remove the key (back to the app default)")
+
     config_subparsers.add_parser("path", help="Print config file path")
     config_subparsers.add_parser("env-path", help="Print .env file path")
     config_subparsers.add_parser("check", help="Check for missing/outdated config")

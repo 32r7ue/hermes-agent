@@ -194,6 +194,47 @@ describe('a refreshed page that holds the live turn whole', () => {
     expect(count(stopped, 'old-b answer')).toBe(1)
   })
 
+  describe('a stopped turn whose prompt was sent hidden (inline Run, widget intent)', () => {
+    // A hidden send draws no user bubble and its stored row is typed hidden, so
+    // neither the window nor the page shows the turn's prompt.
+    const hiddenPrompt = { ...user(17, 'command result'), display_kind: 'hidden' } as SessionMessage
+
+    const receipt: PersistedTurn = {
+      row_ids: [17, 18, 19, 20],
+      complete: false,
+      user_row_id: 17,
+      user_row_ids: [17],
+      submission_id: 'sub-hidden'
+    }
+
+    const page = toChatMessages([
+      ...olderTurn(1, 'old-a').slice(3),
+      ...olderTurn(9, 'old-b'),
+      hiddenPrompt,
+      narration(18, 'live look', 'live-1'),
+      tool(19, 'live-1'),
+      answer(20, 'partial')
+    ])
+
+    const liveTurn = [live('assistant-stream-1', 'assistant', 'live look partial', { interrupted: true })]
+
+    it('draws it once after its interrupted completion binds the receipt', () => {
+      const stopped = bindStoppedTurnReceipt([...toChatMessages(windowRows), ...liveTurn], receipt)
+      const merged = texts(graftRefreshedTailOntoBackfill(page, stopped))
+
+      expect(count(merged, 'live look')).toBe(1)
+      expect(count(merged, 'old-b answer')).toBe(1)
+    })
+
+    it('draws it once when a page merged before its interrupted completion', () => {
+      const refreshed = graftRefreshedTailOntoBackfill(page, [...toChatMessages(windowRows), ...liveTurn])
+      const stopped = texts(bindStoppedTurnReceipt(refreshed, receipt))
+
+      expect(count(stopped, 'live look')).toBe(1)
+      expect(count(stopped, 'old-b answer')).toBe(1)
+    })
+  })
+
   it('draws a turn stopped during its tool run once, keeping its stopped mark', () => {
     // No reply text: the turn ends on its tool result and an empty assistant
     // row, neither of which a page paints.

@@ -221,3 +221,33 @@ def test_lineage_scope_still_rejects_foreign_and_branch_rows(compacted, db):
     assert db.set_message_reaction(tip, foreign, "👍") is None
     assert db.set_message_reaction(branch, rows[0], "👍") is None
     assert db.get_message_reactions(branch, rows[0]) == []
+
+
+def test_pending_reaction_note_reaches_the_model_once(session, db, monkeypatch):
+    """The note every submit path (TUI sidecar and gateway) adds for the user's reactions."""
+    from agent import reactions
+
+    monkeypatch.setattr("hermes_cli.config.load_config_readonly", lambda: {"display": {"message_reactions": True}})
+    key, rows = session
+    db.set_message_reaction(key, rows[1], "❤️", author="user")
+
+    assert reactions.pending_reaction_note(db, key) == '[The user reacted ❤️ to your message: "use flexbox"]'
+    assert reactions.pending_reaction_note(db, key) == ""
+
+
+def test_pending_reaction_note_is_off_without_the_setting(session, db, monkeypatch):
+    from agent import reactions
+
+    monkeypatch.setattr("hermes_cli.config.load_config_readonly", lambda: {"display": {}})
+    key, rows = session
+    db.set_message_reaction(key, rows[1], "👍", author="user")
+
+    assert reactions.pending_reaction_note(db, key) == ""
+
+
+def test_latest_user_message_skips_hidden_sends(session, db):
+    """A hidden send (reaction wake-up) draws no bubble, so the agent's default reaction target skips it."""
+    key, rows = session
+    db.append_message(key, "user", "The user reacted to your message.", display_kind="hidden")
+
+    assert db.latest_message_row_id(key, role="user") == rows[0]

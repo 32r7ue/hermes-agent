@@ -202,36 +202,17 @@ def _coerce_truncate_int(rid, value, param_name="truncate_before_user_ordinal"):
 
 
 def _pending_reaction_notes(session: dict) -> str:
-    """Note block for reactions since the last turn (model input only, announced once —
-    rows are stamped ``seen`` on read), or "".  Gated on display.message_reactions."""
+    """Note block for reactions since the last turn (see agent.reactions.pending_reaction_note)."""
     session_key = str(session.get("session_key") or "")
     if not session_key:
         return ""
-    try:
-        display = _load_cfg().get("display")
-        if not (isinstance(display, dict) and bool(display.get("message_reactions", False))):
-            return ""
-    except Exception:
-        return ""
+    from agent.reactions import pending_reaction_note
     try:
         with _session_db(session) as db:
-            pending = None if db is None else db.take_unseen_reactions(session_key, author="user")
+            return pending_reaction_note(db, session_key)
     except Exception:
         logger.debug("Failed to read pending reactions", exc_info=True)
         return ""
-    notes = []
-    for entry in pending or ():
-        snippet = (entry.get("text") or "").strip().replace("\n", " ")
-        if len(snippet) > 120:
-            snippet = snippet[:120] + "…"
-        emoji = entry.get("emoji") or ""
-        whose = "their own" if entry.get("role") == "user" else "your"
-        if snippet:
-            notes.append(f'[The user reacted {emoji} to {whose} message: "{snippet}"]')
-        else:
-            # Attachment-only / tool-call-only rows: no quote beats an empty quote.
-            notes.append(f"[The user reacted {emoji} to {whose} earlier message]")
-    return "\n".join(notes)
 
 
 # ── prompt.submit pieces ────────────────────────────────────────────────────

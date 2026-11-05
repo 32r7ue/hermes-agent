@@ -58,8 +58,8 @@ afterEach(() => {
   $layoutTree.set(null)
 })
 
-describe('⌘J (view.toggleRightSidebar)', () => {
-  it('folds a Browser column on the right instead of toggling the terminal', () => {
+describe('⌘J (view.showTerminal)', () => {
+  it('toggles the terminal even with a Browser column on the right', () => {
     $layoutTree.set(split('row', [group(['sessions', 'files']), group(['workspace']), group([BROWSER])]))
 
     window.dispatchEvent(
@@ -73,7 +73,7 @@ describe('⌘J (view.toggleRightSidebar)', () => {
       })
     )
 
-    expect(findGroupOfPane($layoutTree.get() as LayoutNode, BROWSER)?.minimized).toBe(true)
-    expect(toggleTerminalPane).not.toHaveBeenCalled()
+    expect(findGroupOfPane($layoutTree.get() as LayoutNode, BROWSER)?.minimized).toBeFalsy()
+    expect(toggleTerminalPane).toHaveBeenCalledTimes(1)
   })
 })

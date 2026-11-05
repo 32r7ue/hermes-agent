@@ -47,6 +47,10 @@ export interface DesktopThemeColors {
   sidebarBorder?: string
   userBubble?: string
   userBubbleBorder?: string
+  /** Sidebar text. Falls back to `foreground`. */
+  sidebarForeground?: string
+  /** Transcript scaffolding (thinking headers, tool-call lines). Falls back to a mix of `foreground`. */
+  scaffoldForeground?: string
 }
 
 export interface DesktopThemeTypography {

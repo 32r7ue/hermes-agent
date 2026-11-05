@@ -370,7 +370,7 @@
        between the secondary and tertiary greys those lines used to pick
        individually, and dimmed once more by the fade rule below so the prose
        reading column stays primary. */
-    --conversation-scaffold-text: color-mix(in srgb, var(--ui-base) 76%, transparent);
+    --conversation-scaffold-text: var(--dt-scaffold-foreground, color-mix(in srgb, var(--ui-base) 76%, transparent));
     --conversation-scaffold-meta: color-mix(in srgb, var(--ui-base) 44%, transparent);
     --ui-stroke-primary: color-mix(
       in srgb,
@@ -579,7 +579,7 @@
     --sidebar-content-inline-padding: 1rem;
 
     --sidebar: var(--dt-sidebar-bg);
-    --sidebar-foreground: var(--dt-foreground);
+    --sidebar-foreground: var(--dt-sidebar-foreground, var(--dt-foreground));
     --sidebar-primary: var(--dt-primary);
     --sidebar-primary-foreground: var(--dt-primary-foreground);
     --sidebar-accent: var(--ui-control-active-background);
@@ -708,10 +708,23 @@
     );
   }
 
-  /* Sidebar Fade is local: never lower native opacity for this scope. The
-     body gradient fades its field tint; this group fades sidebar content. */
+  /* Sidebar Fade thins only the field tint (the body gradient above), never
+     the sidebar's content: faded text over a see-through field was hard to
+     read. Under glass the sidebar's text tokens also step up to full
+     strength, so labels stay white over a bright backdrop. */
   :root[data-hermes-glass][data-hermes-glass-scope='sidebar'] [data-slot='sidebar'] {
-    opacity: var(--translucency-sidebar-opacity, 1) !important;
+    opacity: 1 !important;
+  }
+
+  [data-slot='sidebar'] {
+    --ui-base: var(--dt-sidebar-foreground, var(--theme-foreground));
+  }
+
+  :root[data-hermes-glass] [data-slot='sidebar'] {
+    --ui-text-primary: var(--ui-base);
+    --ui-text-secondary: color-mix(in srgb, var(--ui-base) 90%, transparent);
+    --ui-text-tertiary: color-mix(in srgb, var(--ui-base) 72%, transparent);
+    --ui-text-quaternary: color-mix(in srgb, var(--ui-base) 56%, transparent);
   }
 
   /* The app shell's two full-window opaque painters (the contrib controller

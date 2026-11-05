@@ -193,10 +193,25 @@ def _stored_breakdown(row, conversation, usage) -> dict:
         except (TypeError, ValueError):
             pin = None  # a pin hash whose row was swept resolves to itself
         breakdown = stored_context_breakdown(prompt, pinned_tool_defs(pin), conversation)
-    return {**breakdown, 'context_max': int(usage.get('context_max') or 0),
-            'context_percent': int(usage.get('context_percent') or 0), 'context_used': int(usage.get('context_used') or 0),
-            'context_estimated': bool(usage.get('context_estimated', False)),
-            'context_source': str(usage.get('context_source') or 'provider_usage'), 'model': str(usage.get('model') or '')}
+    reading = {'context_max': int(usage.get('context_max') or 0),
+               'context_percent': int(usage.get('context_percent') or 0), 'context_used': int(usage.get('context_used') or 0),
+               'context_estimated': bool(usage.get('context_estimated', False)),
+               'context_source': str(usage.get('context_source') or 'provider_usage')}
+    # No resident agent knows no window, so the Desktop gauge read "—" for every chat not run since the
+    # gateway started. The session row names its model: size the window from it and estimate occupancy
+    # from the frozen prompt + transcript just measured.
+    if not reading['context_max'] and breakdown.get('estimated_total') and row.get('model'):
+        with contextlib.suppress(Exception):
+            # The turn's own resolver (route, credentials, catalog cache), so the gauge reads the window a
+            # resumed agent would get rather than a credential-less catalog default.
+            from gateway.run import _resolve_gateway_model_context
+            maximum = int(_resolve_gateway_model_context(model=row['model']).context_length)
+            used = int(breakdown['estimated_total'])
+            if maximum > 0:
+                reading = {'context_max': maximum, 'context_used': used,
+                           'context_percent': min(100, round(used / maximum * 100)),
+                           'context_estimated': True, 'context_source': 'local_estimate'}
+    return {**breakdown, **reading, 'model': str(usage.get('model') or row.get('model') or '')}
 
 
 def _agent_context_marks(agent) -> tuple:

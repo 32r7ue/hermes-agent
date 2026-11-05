@@ -410,6 +410,22 @@ export const emberTheme: DesktopTheme = {
   }
 }
 
+/** Default. Deep black with full-strength text (dark), and its white counterpart. */
+export const noirTheme: DesktopTheme = {
+  name: 'noir',
+  label: 'Noir',
+  description: 'Deep black and white, glass sidebar',
+  ...THEME_PRESET_PALETTES.noir
+}
+
+/** Softer contrast: #191919 canvas, off-white text, grey tool lines. */
+export const graphiteTheme: DesktopTheme = {
+  name: 'graphite',
+  label: 'Graphite',
+  description: 'Soft charcoal, off-white text, quieter contrast',
+  ...THEME_PRESET_PALETTES.graphite
+}
+
 /** Clean grayscale. Matches the CLI mono skin and dashboard mono theme. */
 export const monoTheme: DesktopTheme = {
   name: 'mono',
@@ -442,6 +458,8 @@ export const slateTheme: DesktopTheme = {
 }
 
 export const BUILTIN_THEMES: Record<string, DesktopTheme> = {
+  noir: noirTheme,
+  graphite: graphiteTheme,
   nous: nousTheme,
   github: githubTheme,
   catppuccin: catppuccinTheme,
@@ -459,7 +477,7 @@ export const BUILTIN_THEMES: Record<string, DesktopTheme> = {
 export const BUILTIN_THEME_LIST = Object.values(BUILTIN_THEMES)
 
 /** Skin used when nothing is persisted or the persisted name is retired. */
-export const DEFAULT_SKIN_NAME = 'nous'
+export const DEFAULT_SKIN_NAME = 'noir'
 
 /** Names that no longer resolve to a skin of their own. A stored pick of one
  *  falls back to DEFAULT_SKIN_NAME, and a cached backend theme under one is

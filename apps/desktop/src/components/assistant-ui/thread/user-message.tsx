@@ -271,7 +271,9 @@ const UserBubbleActions: FC<UserBubbleActionsProps> = ({
   return (
     <div
       className={cn(
-        'pointer-events-none absolute right-2 bottom-2 z-10 flex items-center gap-1 rounded-md bg-(--dt-user-bubble) pl-1 transition-opacity',
+        // In flow under the bubble, unfilled: it used to float over the bubble's
+        // bottom edge in a grey box of its own.
+        'pointer-events-none flex items-center gap-1 transition-opacity',
         touch
           ? 'opacity-100'
           : 'opacity-0 group-hover/user-message:opacity-100 group-hover/user-message:transition-none group-focus-within/user-message:opacity-100'

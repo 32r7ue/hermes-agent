@@ -132,3 +132,25 @@ async def test_context_breakdown_measures_only_the_compression_tips_model_histor
     assert actual['categories'] == expected['categories'], actual
     assert actual['estimated_total'] == expected['estimated_total']
     assert '\n'.join(render_context_breakdown_lines(expected, grid=False)) in await reads._exec(owner, sid, 'context')
+
+
+@pytest.mark.asyncio
+async def test_agentless_breakdown_sizes_the_window_from_the_sessions_model(owner, monkeypatch):
+    """With no resident agent the Desktop gauge still gets a window: the session row's model sizes it and
+    the stored-freeze estimate fills it (it used to read "—" until the chat was run again)."""
+    from gateway import run
+    from gateway.session_tui_reads import _stored_id
+
+    sid = (await owner.call('session.create', request_id='idle-window', source='tui', cwd=str(owner.workdir)))['session_id']
+    db = owner.authority.db
+    stored = _stored_id(owner.authority, SimpleNamespace(session_id=sid))
+    db.update_system_prompt(stored, 'You are Hermes. ' * 50)
+    db.append_message(stored, 'user', 'hello ' * 100)
+    db._execute_write(lambda conn: conn.execute('UPDATE sessions SET model=? WHERE id=?', ('test-model', stored)))
+    monkeypatch.setattr(run, '_resolve_gateway_model_context',
+                        lambda model=None, **_: SimpleNamespace(context_length=500_000 if model == 'test-model' else 0))
+
+    actual = await owner.call('session.context_breakdown', session_id=sid)
+    assert actual['context_max'] == 500_000, actual
+    assert actual['context_used'] == actual['estimated_total'] > 0
+    assert actual['context_estimated'] is True

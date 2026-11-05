@@ -10,7 +10,7 @@ import {
 } from '@/lib/chat-messages'
 import { generatedImageEchoSources, stripGeneratedImageEchoes } from '@/lib/generated-images'
 
-import { bindReceiptUserRows, isRowId } from './receipt-user-rows'
+import { bindReceiptUserRows, hiddenPromptTurnStart, isRowId } from './receipt-user-rows'
 
 const flat = (text: string) => text.replace(/\s+/g, ' ').trim()
 
@@ -83,8 +83,24 @@ export function extendInterruptedReply(messages: ChatMessage[], rawText: string,
 function dropStoredCopiesOfTheTurn(messages: ChatMessage[], receipt: PersistedTurn): ChatMessage[] {
   const submission = typeof receipt.submission_id === 'string' ? receipt.submission_id : ''
   const prompt = submission ? messages.findIndex(message => message.id === `user-${submission}`) : -1
+  // A hidden prompt (inline Run, widget intent) draws no bubble: the live copy
+  // starts at the turn's first unstored reply row, its stored copy right before.
+  const hiddenStart = prompt < 0 ? hiddenPromptTurnStart(messages, receipt) : -1
 
-  if (prompt < 0) {
+  const live =
+    prompt >= 0
+      ? prompt
+      : hiddenStart < 0
+        ? -1
+        : messages.findIndex(
+            (message, index) =>
+              index >= hiddenStart &&
+              message.role === 'assistant' &&
+              !message.hidden &&
+              transcriptRowIds(message).length === 0
+          )
+
+  if (live < 0) {
     return messages
   }
 
@@ -93,7 +109,7 @@ function dropStoredCopiesOfTheTurn(messages: ChatMessage[], receipt: PersistedTu
   const storedCopy = (message: ChatMessage, index: number) => {
     const ids = transcriptRowIds(message)
 
-    return index < prompt && ids.length > 0 && ids.every(id => turnRows.has(id))
+    return index < live && index >= hiddenStart && ids.length > 0 && ids.every(id => turnRows.has(id))
   }
 
   return messages.some(storedCopy) ? messages.filter((message, index) => !storedCopy(message, index)) : messages

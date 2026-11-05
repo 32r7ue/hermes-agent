@@ -20,7 +20,11 @@ vi.mock('@/components/pane-shell/tree/store', () => ({
   $hiddenTreePanes: atom(new Set()),
   $layoutTree: atom(null),
   closeFocusedSessionTab: () => closeFocusedSessionTab(),
-  closeFocusedToolTab: () => closeFocusedToolTab()
+  closeFocusedToolTab: () => closeFocusedToolTab(),
+  closeTreePane: () => undefined,
+  isPaneVisible: () => false,
+  layoutHasRootSide: () => false,
+  rootRow: () => null
 }))
 
 vi.mock('@/store/session-states', () => ({

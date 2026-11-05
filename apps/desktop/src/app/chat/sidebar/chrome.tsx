@@ -26,7 +26,7 @@ import {
 
 /** The muted slot beside a section label (loading glyph, status hint). */
 export function SidebarSectionMeta({ children }: { children: React.ReactNode }) {
-  return <span className="shrink-0 text-[0.6875rem] font-medium text-(--ui-text-quaternary)">{children}</span>
+  return <span className="shrink-0 text-[0.6875rem] font-medium text-(--ui-text-tertiary)">{children}</span>
 }
 
 // Row geometry lives in `row-geometry.ts` — see that file for why each class
@@ -132,7 +132,7 @@ export function SidebarDateDivider({
   toggle?: { ariaLabel: string; onToggle: () => void; open: boolean }
 }) {
   const caption = (
-    <span className="shrink-0 text-[0.64rem] font-semibold uppercase tracking-[0.12em] text-(--ui-text-quaternary)">
+    <span className="shrink-0 text-[0.64rem] font-semibold uppercase tracking-[0.12em] text-(--ui-text-tertiary)">
       {label}
     </span>
   )

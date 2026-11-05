@@ -32,6 +32,7 @@ import { useI18n } from '@/i18n'
 import { mcpTargets, toolLabels } from '@/lib/connector-tools'
 import { generatedImageFromResult } from '@/lib/generated-images'
 import { separateGluedReasoningBlocks } from '@/lib/reasoning-blocks'
+import { reasoningHeadline } from '@/lib/reasoning-headline'
 import { isTodoToolName } from '@/lib/todos'
 import { type CardToolName, isCardTool, isCardToolName } from '@/lib/tool-render-class'
 import { useEnterAnimation } from '@/lib/use-enter-animation'
@@ -221,13 +222,24 @@ const TimelineMarkdownText: FC<TimelineTextPartProps> = ({ completedAt, timestam
 const ThinkingDisclosure: FC<{
   children: ReactNode
   completedAt?: number
+  reasoningText?: string
+  storedSeconds?: number
   messageRunning?: boolean
   pending?: boolean
   timestamp?: number
   // Required: the block's duration is remembered against this key, so a
   // component that mounts after the block finished can still report it.
   timerKey: string
-}> = ({ children, completedAt, messageRunning = false, pending = false, timestamp, timerKey }) => {
+}> = ({
+  children,
+  completedAt,
+  messageRunning = false,
+  pending = false,
+  reasoningText = '',
+  storedSeconds,
+  timestamp,
+  timerKey
+}) => {
   const { t } = useI18n()
   const sessionId = useStore(useSessionView().$runtimeId)
   const onboardingChat = useStore(useMemo(() => onboardingChatStore(sessionId), [sessionId]))
@@ -237,7 +249,8 @@ const ThinkingDisclosure: FC<{
   // default, unless the user opts into the low-jitter collapsed presentation.
   const [userOpen, setUserOpen] = useState<boolean | null>(null)
   const elapsed = useElapsedSeconds(pending, timerKey)
-  const thoughtFor = useMeasuredDuration(pending, timerKey)
+  // Live measurement first; a reloaded block falls back to what the agent stored.
+  const thoughtFor = useMeasuredDuration(pending, timerKey) ?? storedSeconds ?? null
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const contentRef = useRef<HTMLDivElement | null>(null)
   const enterRef = useEnterAnimation(messageRunning, timerKey)
@@ -250,7 +263,9 @@ const ThinkingDisclosure: FC<{
   // useless — in which case it just says it was quick. With no duration at all
   // it still has to read as finished; a turn that ended must not go on saying
   // "Thinking".
-  let thoughtLabel = t.assistant.thread.thinking
+  const { headline, titleOnly } = reasoningHeadline(reasoningText)
+  // Live: the model's current step ("Clarifying the move count") instead of a bare "Thinking".
+  let thoughtLabel = headline ?? t.assistant.thread.thinking
 
   if (!pending) {
     if (thoughtFor === null) {
@@ -258,9 +273,18 @@ const ThinkingDisclosure: FC<{
     } else if (thoughtFor < 1) {
       thoughtLabel = t.assistant.thread.thoughtBriefly
     } else {
-      thoughtLabel = t.assistant.thread.thoughtFor(formatElapsed(thoughtFor))
+      thoughtLabel = t.assistant.thread.thoughtFor(formatElapsed(Math.round(thoughtFor)))
+    }
+
+    // Titles alone: the headline IS the whole thought, so it replaces the label
+    // (keeping the duration) and there is nothing left to expand.
+    if (titleOnly && headline) {
+      thoughtLabel =
+        thoughtFor !== null && thoughtFor >= 1 ? `${headline} · ${formatElapsed(Math.round(thoughtFor))}` : headline
     }
   }
+
+  const expandable = pending || !titleOnly
 
   // Follow new tokens until the user scrolls up to read earlier reasoning.
   useEffect(() => {
@@ -318,8 +342,8 @@ const ThinkingDisclosure: FC<{
       ref={enterRef}
     >
       <ScaffoldRow
-        onToggle={() => setUserOpen(!open)}
-        open={open}
+        onToggle={expandable ? () => setUserOpen(!open) : undefined}
+        open={expandable && open}
         trailing={
           <span className="flex shrink-0 items-center gap-1.5">
             <TimelineTimestamp className={SCAFFOLD_META_CLASS} completedAt={completedAt} timestamp={timestamp} />
@@ -329,7 +353,7 @@ const ThinkingDisclosure: FC<{
       >
         <span className={cn(SCAFFOLD_LABEL_CLASS, pending && 'shimmer')}>{thoughtLabel}</span>
       </ScaffoldRow>
-      {open && (
+      {expandable && open && (
         <div
           className={cn(
             // Body sits flush with the "Thinking" header — no left indent —
@@ -400,6 +424,22 @@ const ReasoningAccordionGroup: FC<{ children?: ReactNode; endIndex: number; star
     }, undefined)
   )
 
+  const reasoningText = useAuiState(s =>
+    s.message.parts
+      .slice(Math.max(0, startIndex), endIndex + 1)
+      .map(part => (part.type === 'reasoning' ? part.text : ''))
+      .filter(Boolean)
+      .join('\n')
+  )
+
+  const storedSeconds = useAuiState(s =>
+    s.message.parts.slice(Math.max(0, startIndex), endIndex + 1).reduce<number | undefined>((total, part) => {
+      const value = part.type === 'reasoning' ? (part as { durationSeconds?: number }).durationSeconds : undefined
+
+      return value === undefined ? total : (total ?? 0) + value
+    }, undefined)
+  )
+
   if (!hasContent || !showReasoning) {
     return null
   }
@@ -413,6 +453,8 @@ const ReasoningAccordionGroup: FC<{ children?: ReactNode; endIndex: number; star
       completedAt={completedAt}
       messageRunning={messageRunning}
       pending={pending}
+      reasoningText={reasoningText}
+      storedSeconds={storedSeconds}
       timerKey={`reasoning:${messageId}:${startIndex}`}
       timestamp={timestamp}
     >
@@ -440,7 +482,7 @@ const ReasoningTextPart: ReasoningMessagePartComponent = () => {
 
   return (
     <MarkdownTextContent
-      containerClassName="text-xs leading-snug text-muted-foreground/85"
+      containerClassName="text-[length:var(--conversation-tool-font-size)] leading-snug text-muted-foreground/85 [&_strong]:font-medium [&_strong]:text-inherit"
       containerProps={{ 'data-slot': 'aui_reasoning-text' } as ComponentProps<'div'>}
       isRunning={status.type === 'running' || messageRunning}
       scratchpad

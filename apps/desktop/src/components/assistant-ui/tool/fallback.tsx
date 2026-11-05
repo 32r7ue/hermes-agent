@@ -72,6 +72,7 @@ import {
   isCardTool,
   isFileEditTool,
   isPreviewableTarget,
+  isSilentTool,
   looksRedundant,
   type SearchResultRow,
   selectMessageRunning,
@@ -844,7 +845,9 @@ export function splitRunItems(toolNames: readonly string[]): RunItem[] {
   let run: null | Extract<RunItem, { kind: 'run' }> = null
 
   toolNames.forEach((name, index) => {
-    if (!name || isCardTool(name)) {
+    // Silent tools (a reaction, the todo list) render nothing: kept out of runs so
+    // they never leave an empty "Used 1 tool" group behind.
+    if (!name || isCardTool(name) || isSilentTool(name)) {
       run = null
       items.push({ index, kind: 'card' })
 

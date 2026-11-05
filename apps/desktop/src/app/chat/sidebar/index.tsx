@@ -11,7 +11,6 @@ import { Codicon } from '@/components/ui/codicon'
 import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { GlyphSpinner } from '@/components/ui/glyph-spinner'
 import { KbdGroup } from '@/components/ui/kbd'
-import { SearchField } from '@/components/ui/search-field'
 import {
   Sidebar,
   SidebarContent,
@@ -61,7 +60,6 @@ import {
   $sidebarWorkspaceParentOrderIds,
   filterVisibleProjects,
   pinSession,
-  SESSION_SEARCH_FOCUS_EVENT,
   setPinnedSessionOrder,
   setSidebarCronOpen,
   setSidebarPinsOpen,
@@ -144,7 +142,7 @@ import {
   ARTIFACTS_ROUTE,
   CAPABILITIES_ROUTE,
   CRON_ROUTE,
-  MESSAGING_ROUTE,
+  MEMORY_WIKI_PATH,
   SIDEBAR_NAV_AREA,
   type SidebarNavContribution
 } from '../../routes'
@@ -223,13 +221,6 @@ const SIDEBAR_NAV: SidebarNavItem[] = [
     icon: props => <Codicon name="symbol-misc" {...props} />,
     route: CAPABILITIES_ROUTE,
     keybindActionId: 'nav.capabilities'
-  },
-  {
-    id: 'messaging',
-    label: '',
-    icon: props => <Codicon name="comment" {...props} />,
-    route: MESSAGING_ROUTE,
-    keybindActionId: 'nav.messaging'
   },
   // Artifacts and Scheduled jobs are outputs of running Hermes the developer
   // way; Capabilities and Messaging are how anyone sets it up.
@@ -423,7 +414,8 @@ export function ChatSidebar({
       navContributions.flatMap(c => {
         const data = c.data as Partial<SidebarNavContribution> | undefined
 
-        if (!data?.path?.startsWith('/') || !data.label) {
+        // The Memory Wiki page is reached from Settings → Memory & Context, not the sidebar.
+        if (!data?.path?.startsWith('/') || !data.label || data.path === MEMORY_WIKI_PATH) {
           return []
         }
 
@@ -555,17 +547,7 @@ export function ChatSidebar({
   const messagingOpenIds = useStore($sidebarMessagingOpenIds)
   // Per-platform count of rows currently revealed (starts at NON_SESSION_INITIAL_ROWS).
   const [messagingVisible, setMessagingVisible] = useState<Record<string, number>>({})
-  const searchInputRef = useRef<HTMLInputElement>(null)
   const trimmedQuery = searchQuery.trim()
-
-  // Hotkey (session.focusSearch) → focus the field once it's mounted.
-  useEffect(() => {
-    const onFocus = () => searchInputRef.current?.focus({ preventScroll: true })
-
-    window.addEventListener(SESSION_SEARCH_FOCUS_EVENT, onFocus)
-
-    return () => window.removeEventListener(SESSION_SEARCH_FOCUS_EVENT, onFocus)
-  }, [])
 
   // Flash the ⌘N hint full-opacity (no transition) for the press, so hitting
   // the shortcut visibly pings its affordance in the sidebar.
@@ -1568,7 +1550,7 @@ export function ChatSidebar({
       data-tip-region=""
       data-tour="sessions-sidebar"
     >
-      <SidebarContent className="gap-0 overflow-hidden bg-transparent px-2.5">
+      <SidebarContent className="gap-0 overflow-hidden bg-transparent px-1.5">
         <SidebarGroup className="shrink-0 p-0 pb-2 pt-[calc(var(--titlebar-height)+0.375rem)]">
           <SidebarGroupContent>
             <SidebarMenu className="gap-px">
@@ -1596,7 +1578,7 @@ export function ChatSidebar({
                       // resolved region has been observed to swallow clicks on the
                       // top rows. Same carve-out as USER_BUBBLE_BASE_CLASS in
                       // thread.tsx.
-                      'flex h-7 w-full justify-start gap-2 rounded-md border border-transparent px-2 text-left text-[0.8125rem] font-medium text-(--ui-text-secondary) transition-colors duration-100 ease-out [-webkit-app-region:no-drag] hover:bg-(--ui-control-hover-background) hover:text-foreground hover:transition-none',
+                      'flex h-[1.875rem] w-full justify-start gap-2 rounded-md border border-transparent px-2 text-left text-[0.875rem] font-medium text-(--ui-text-secondary) transition-colors duration-100 ease-out [-webkit-app-region:no-drag] hover:bg-(--ui-control-hover-background) hover:text-foreground hover:transition-none',
                       active &&
                         'border-(--ui-stroke-tertiary) bg-(--ui-control-active-background) text-foreground shadow-none hover:border-(--ui-stroke-tertiary)!',
                       !isInteractive &&
@@ -1705,18 +1687,6 @@ export function ChatSidebar({
         </SidebarGroup>
 
         <SidebarStorageCorruptNotice />
-
-        {showSessionSections && (
-          <div className="shrink-0 px-2 pb-1 pt-1">
-            <SearchField
-              aria-label={s.searchAria}
-              inputRef={searchInputRef}
-              onChange={setSearchQuery}
-              placeholder={s.searchPlaceholder}
-              value={searchQuery}
-            />
-          </div>
-        )}
 
         {showSessionSections && (
           <div
@@ -1844,7 +1814,7 @@ export function ChatSidebar({
                 // Otherwise project lanes stay chronological whatever the flat
                 // list does — only the flat list can swap its dividers for
                 // WORKING / DONE.
-                grouping={showArchived || rankedGlobally ? 'none' : grouping === 'status' ? 'status' : 'date'}
+                grouping={showArchived || rankedGlobally || grouping !== 'status' ? 'none' : 'status'}
                 groups={displayAgentGroups}
                 headerAction={
                   // One cluster, not a fragment: the header is justify-between,

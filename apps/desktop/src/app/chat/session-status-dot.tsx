@@ -1,9 +1,7 @@
-import { useStore } from '@nanostores/react'
 
 import { type Translations, useI18n } from '@/i18n'
 import { useStoreSelector } from '@/lib/use-session-slice'
 import { cn } from '@/lib/utils'
-import { $sessionColorById, sessionColorFor } from '@/store/session-color'
 import { $sessionDotStateById, type SessionDotState } from '@/store/session-dot-state'
 import type { SessionInfo } from '@/types/hermes'
 
@@ -126,11 +124,6 @@ export function SessionStatusDot({ storedSessionId, session, branchStem, classNa
   const { t } = useI18n()
   const r = t.sidebar.row
 
-  // Subscribe to the shared color map for reactivity; sessionColorFor falls
-  // back to the resolver for a session outside the recents page.
-  useStore($sessionColorById)
-  const color = sessionColorFor(session) ?? null
-
   // Selector, not a plain useStore: the map is rebuilt whenever any session's
   // status changes, but a given dot only repaints when ITS OWN state flips.
   const dotState = useStoreSelector($sessionDotStateById, states =>
@@ -150,7 +143,7 @@ export function SessionStatusDot({ storedSessionId, session, branchStem, classNa
         // Rendered even with no color to paint: an empty dot of the same size
         // keeps every row's title on one left edge, so a session finishing
         // can't shift the list under the pointer.
-        <span aria-hidden="true" className={variant.className} style={color ? { backgroundColor: color } : undefined} />
+        <span aria-hidden="true" className={cn(variant.className, 'invisible')} />
       ) : (
         <span
           aria-label={variant.ariaLabel?.(r)}

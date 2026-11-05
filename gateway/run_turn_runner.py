@@ -496,7 +496,12 @@ class TurnRunner(GatewayTurnProgressMixin, GatewaySessionAgentMixin):
         from gateway.session_surface import arm_surface_turn
         # auxiliary.voice_chat route (a voice note, or an admission committed as a voice turn) and
         # this turn's must-deliver notes; a managed worker arms its agent through the same helper.
-        arm_surface_turn(agent, runner._consume_pending_turn_sidecar_notes(ctx.session_key), voice_turn=ctx.voice_turn)
+        from agent.reactions import pending_reaction_note
+        # The user's message reactions since the last turn ride this turn's notes (the TUI sidecar
+        # path adds the same note; without it a desktop reaction never reached the model).
+        reaction_note = pending_reaction_note(getattr(agent, "_session_db", None), getattr(agent, "session_id", ""))
+        arm_surface_turn(agent, [*runner._consume_pending_turn_sidecar_notes(ctx.session_key), reaction_note],
+                         voice_turn=ctx.voice_turn)
         agent.background_review_callback, bg_release = self._make_bg_review_callbacks()
         # Register the release hook on the adapter so base.py's finally block fires it after the
         # main response is delivered.

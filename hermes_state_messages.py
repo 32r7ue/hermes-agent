@@ -601,7 +601,9 @@ class SessionMessagesMixin(SessionDetachedResultsMixin, SessionTodoResultMixin):
         skips rows without plain-text content so "the latest message" never resolves to an invisible bubble."""
         if not session_id or role not in {"user", "assistant"} or offset < 0:
             return None
-        text_filter = "AND content IS NOT NULL AND TRIM(content) != '' " if require_text else ""
+        # A hidden send (a reaction wake-up, an inline Run, a widget intent) draws no bubble: never "the latest".
+        text_filter = ("AND content IS NOT NULL AND TRIM(content) != '' AND COALESCE(display_kind, '') != 'hidden' "
+                       if require_text else "")
         row = self._read_one("SELECT id FROM messages WHERE session_id = ? AND role = ? "
             f"AND active = 1 {text_filter}ORDER BY id DESC LIMIT 1 OFFSET ?",
             (session_id, role, int(offset)))

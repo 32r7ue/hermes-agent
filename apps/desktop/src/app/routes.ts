@@ -127,6 +127,9 @@ function isContributedPath(pathname: string): boolean {
 
 export const SIDEBAR_NAV_AREA = 'sidebar.nav'
 
+/** The Memory Wiki plugin's page; linked from Settings → Memory & Context, not listed in the sidebar. */
+export const MEMORY_WIKI_PATH = '/memory-wiki'
+
 /** Payload of a `sidebar.nav` data contribution. */
 export interface SidebarNavContribution {
   /** Codicon name, e.g. `'project'`. */

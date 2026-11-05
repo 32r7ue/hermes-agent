@@ -30,10 +30,13 @@ export function ProviderUsageIndicator({ sessionId, provider, request }: Provide
 
   const query = useQuery({
     queryKey: ['provider-usage', sessionId, provider],
-    enabled: Boolean(sessionId),
-    queryFn: () => requestForOwnedSession<ModelOptionsResult>(sessionId!, request, 'model.options', {
-      session_id: sessionId!, explicit_only: true, refresh: true
-    }),
+    // No session yet (a fresh draft): ask the gateway directly. The provider
+    // picked in the composer selects the row below.
+    queryFn: () => sessionId
+      ? requestForOwnedSession<ModelOptionsResult>(sessionId, request, 'model.options', {
+        session_id: sessionId, explicit_only: true, refresh: true
+      })
+      : request<ModelOptionsResult>('model.options', { explicit_only: true, refresh: true }),
     staleTime: 60_000,
     refetchInterval: 60_000,
     retry: false
