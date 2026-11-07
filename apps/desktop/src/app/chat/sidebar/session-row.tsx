@@ -291,6 +291,13 @@ function SidebarSessionRowImpl({
       onClick={event => event.stopPropagation()}
       onPointerDown={event => event.stopPropagation()}
     >
+      {!card && dotState !== 'idle' && !session.archived && (
+        // One-line rows: the status dot sits at the right edge, under the ⋯
+        // (absolute right-0), and steps aside on hover like the tail figures.
+        <span className="session-row-tail grid w-5 place-items-center transition-opacity">
+          <SessionStatusDot session={session} storedSessionId={session.id} />
+        </span>
+      )}
       {trailing.map(({ key, node }, index) => (
         <span
           className={
@@ -504,7 +511,24 @@ function SidebarSessionRowImpl({
             if (!card) {
               return (
                 <>
-                  {leadNode}
+                  {/* No leading dot: the status lives at the right edge (actionsNode),
+                      so titles start at the row's left inset. Archived keeps its glyph. */}
+                  {branchStem ? (
+                    <span aria-hidden className="shrink-0 font-mono text-[0.625rem] leading-none text-(--ui-text-quaternary)">{branchStem}</span>
+                  ) : reorderable ? (
+                    // The grabber overlays the left inset (hover/focus only): keyboard
+                    // reorder keeps its button, titles keep the left edge.
+                    <SidebarRowGrab
+                      ariaLabel={handleLabel}
+                      className={cn(
+                        'absolute top-1/2 left-0.5 z-2 -translate-y-1/2 opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
+                        dragging && 'invisible'
+                      )}
+                      dragHandleProps={dragHandleProps}
+                    >
+                      {lead}
+                    </SidebarRowGrab>
+                  ) : lead && leadNode}
                   <SessionRowSlot area={SESSION_ROW_AREAS.leading} sessionId={sessionPinId(session)} />
                   {handoffBadge}
                   <span className="min-w-0 flex-1 self-center group-hover:[mask-image:linear-gradient(to_right,#000_calc(100%-1.75rem),transparent)]">

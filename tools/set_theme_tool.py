@@ -66,7 +66,8 @@ SET_THEME_SCHEMA = {
     "description": (
         "Inspect or change Hermes Desktop settings without computer use. inspect=true lists current app preferences. "
         "settings accepts theme (preset name: noir, graphite, mono, nous, github, catppuccin, …), backdrop (bool), text_scale (90/100/110/125/150/175), interface_mode (simple/advanced), "
-        "reasoning_collapsed/statusbar_visible (bool), translucency/translucency_fade (0-100), "
+        "text_style (default/slim/claude), reply_reveal (reveal = whole when done / live = token stream), "
+        "reasoning_collapsed/statusbar_visible/reply_hold_top (bool), translucency/translucency_fade (0-100), "
         "translucency_mode (clear/glass), glass_material (under-window/popover/titlebar/header), glass_scope (sidebar/window). "
         "For backend/runtime preferences use hermes config get/set through the terminal tool. "
         "Also change accent colour, light/dark mode and layout. Pass the values "

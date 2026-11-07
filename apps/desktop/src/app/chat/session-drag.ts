@@ -60,7 +60,7 @@ import { $selectedStoredSessionId, $sessions, sessionMatchesStoredId, sessionPin
 import { $sessionTiles, nextSessionTileForWorkspace, openSessionTile, type TileDock } from '@/store/session-states'
 
 import { requestComposerInsertRefs } from './composer/focus'
-import { type SessionDragPayload, sessionInlineRef, sessionLabel } from './composer/inline-refs'
+import { type SessionDragPayload, sessionInlineRef } from './composer/inline-refs'
 import { NO_PROJECT_ID } from './sidebar/projects/workspace-groups'
 import { tileZoneHost } from './tile-zone-host'
 
@@ -187,7 +187,6 @@ export function startSessionDrag(
   const restoreOpacity = source?.style.opacity ?? ''
 
   startDragSession(e, {
-    ghost: { label: sessionLabel(payload) },
     onTap: opts?.onTap,
 
     onEngage() {

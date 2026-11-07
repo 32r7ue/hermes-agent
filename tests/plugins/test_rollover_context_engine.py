@@ -68,3 +68,20 @@ def test_compress_hands_off_a_pointer_without_calling_a_summarizer():
 def test_handoff_is_recognized_from_text_alone():
     # Persisted rows lose in-process metadata; the prefix alone must identify the carrier.
     assert ContextCompressor.classify_summary_content(handoff_text("abc")) == "standalone"
+
+
+def test_automatic_compaction_after_weak_rounds_still_hands_off_the_pointer():
+    # The built-in compressor skips its summarizer after an ineffective round or a fallback streak
+    # and writes a generic fallback summary instead. For rollover that fallback would replace the
+    # pointer, so the skips are off and the fallback is the pointer too.
+    engine = _engine()
+    engine._ineffective_compression_count = 1
+    engine._fallback_compression_streak = 5
+    messages = _transcript()
+    with patch.object(ContextCompressor, "_generate_summary", side_effect=AssertionError("no LLM")), \
+         patch.object(ContextCompressor, "_call_summary_llm", side_effect=AssertionError("no LLM")):
+        out = engine.compress(messages, current_tokens=1_000_000)
+
+    blob = "\n".join(str(m.get("content")) for m in out)
+    assert 'session_search(session_id="parent-123")' in blob
+    assert engine._fallback_summary_for_window({}, [], 3, True) == handoff_text("parent-123")

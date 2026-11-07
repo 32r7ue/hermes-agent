@@ -17,6 +17,7 @@ import { normalize } from '@/lib/text'
 import { cn } from '@/lib/utils'
 import { $backdrop, setBackdrop } from '@/store/backdrop'
 import { $chatTextScale, CHAT_TEXT_SCALE_PRESETS, setChatTextScale } from '@/store/chat-text-scale'
+import { $chatTextStyle, CHAT_TEXT_STYLES, setChatTextStyle } from '@/store/chat-text-style'
 import { $composerPopoutGesturesEnabled, setComposerPopoutGesturesEnabled } from '@/store/composer-popout'
 import { $embedAllowed, $embedMode, clearEmbedAllowed, type EmbedMode, setEmbedMode } from '@/store/embed-consent'
 import {
@@ -33,6 +34,7 @@ import { notifyError } from '@/store/notifications'
 import { $activeGatewayProfile, $profiles, normalizeProfileKey } from '@/store/profile'
 import { $reactionsEnabled, setReactionsEnabled } from '@/store/reactions-enabled'
 import { $reasoningCollapsedByDefault, setReasoningCollapsedByDefault } from '@/store/reasoning-disclosure'
+import { $replyHoldTop, $replyReveal, REPLY_REVEAL_MODES, setReplyHoldTop, setReplyReveal } from '@/store/reply-display'
 import { $sessionListDensity, type SessionListDensity, setSessionListDensity } from '@/store/session-list-density'
 import { $tabStripDefault, setTabStripDefault, type TabStripDefault } from '@/store/tabstrip-prefs'
 import { $textDirection, setTextDirection, TEXT_DIRECTIONS, type TextDirection } from '@/store/text-direction'
@@ -419,6 +421,8 @@ export function AppearanceSettings({ subpage }: AppearanceSettingsProps = {}) {
   const hideCodeDiffsShadowed = useStore($modeShadowed('hideCodeDiffs'))
   const hideThreadTimeline = useStore($hideThreadTimeline)
   const reasoningCollapsedByDefault = useStore($reasoningCollapsedByDefault)
+  const replyReveal = useStore($replyReveal)
+  const replyHoldTop = useStore($replyHoldTop)
   const reasoningCollapsedShadowed = useStore($modeShadowed('reasoningCollapsedByDefault'))
   const interfaceMode = useStore($interfaceMode)
   const sessionListDensity = useStore($sessionListDensity)
@@ -426,6 +430,7 @@ export function AppearanceSettings({ subpage }: AppearanceSettingsProps = {}) {
   const titlebarAppActionsSide = useStore($titlebarAppActionsSide)
   const zoomPercent = useStore($zoomPercent)
   const chatTextScale = useStore($chatTextScale)
+  const chatTextStyle = useStore($chatTextStyle)
   const embedMode = useStore($embedMode)
   const embedAllowed = useStore($embedAllowed)
   const composerPopoutGesturesEnabled = useStore($composerPopoutGesturesEnabled)
@@ -700,6 +705,22 @@ export function AppearanceSettings({ subpage }: AppearanceSettingsProps = {}) {
                 description={a.chatTextScaleDesc}
                 id={settingElementId(ids.chatTextScale)}
                 title={a.chatTextScaleTitle}
+              />
+
+              <ListRow
+                action={
+                  <SegmentedControl
+                    onChange={value => {
+                      triggerHaptic('selection')
+                      setChatTextStyle(value)
+                    }}
+                    options={CHAT_TEXT_STYLES.map(style => ({ id: style, label: a.chatTextStyleOptions[style] }))}
+                    value={chatTextStyle}
+                  />
+                }
+                description={a.chatTextStyleDesc}
+                id={settingElementId(ids.chatTextStyle)}
+                title={a.chatTextStyleTitle}
               />
 
               <div id={settingElementId(ids.chatFont)}>
@@ -1047,6 +1068,34 @@ export function AppearanceSettings({ subpage }: AppearanceSettingsProps = {}) {
               id={settingElementId(ids.hideCodeDiffs)}
               label={a.hideCodeDiffsTitle}
               onChange={setHideCodeDiffs}
+            />
+          )}
+
+          {show('chat-display') && (
+            <ListRow
+              action={
+                <SegmentedControl
+                  onChange={value => {
+                    triggerHaptic('selection')
+                    setReplyReveal(value)
+                  }}
+                  options={REPLY_REVEAL_MODES.map(mode => ({ id: mode, label: a.replyRevealOptions[mode] }))}
+                  value={replyReveal}
+                />
+              }
+              description={a.replyRevealDesc}
+              id={settingElementId(ids.replyReveal)}
+              title={a.replyRevealTitle}
+            />
+          )}
+
+          {show('chat-display') && (
+            <ToggleRow
+              checked={replyHoldTop}
+              description={a.replyHoldTopDesc}
+              id={settingElementId(ids.replyHoldTop)}
+              label={a.replyHoldTopTitle}
+              onChange={setReplyHoldTop}
             />
           )}
 

@@ -87,6 +87,23 @@ export function prettyJson(value: unknown): string {
   return clampForDisplay(raw ?? '')
 }
 
+/** A settled turn stores outside-content results inside an `<untrusted_tool_result>` envelope
+ *  (a notice paragraph, then the payload); a live result arrives bare. Same payload either way. */
+export function unwrapUntrustedToolResult(value: string): string {
+  const trimmed = value.trim()
+  const open = trimmed.match(/^<untrusted_tool_result\b[^>]*>\s*/)
+  const close = trimmed.lastIndexOf('</untrusted_tool_result>')
+
+  if (!open || close <= open[0].length) {
+    return value
+  }
+
+  const wrapped = trimmed.slice(open[0].length, close).trim()
+  const payload = wrapped.indexOf('\n\n')
+
+  return (payload === -1 ? wrapped : wrapped.slice(payload + 2)).trim()
+}
+
 export function parseMaybeObject(value: unknown): Record<string, unknown> {
   if (isRecord(value)) {
     return value
@@ -97,7 +114,7 @@ export function parseMaybeObject(value: unknown): Record<string, unknown> {
   }
 
   try {
-    const parsed = JSON.parse(value)
+    const parsed = JSON.parse(unwrapUntrustedToolResult(value))
 
     return isRecord(parsed) ? parsed : {}
   } catch {

@@ -537,44 +537,15 @@ describe('flat tool list approval surfacing', () => {
     })
   })
 
-  it('lets completed tool rows be dismissed', async () => {
+  it('gives the steps inside a summary group no dismiss control', async () => {
     const { container } = render(<GroupHarness message={completedOnlyMessage()} />)
 
     fireEvent.click(container.querySelector('[data-tool-summary] button')!)
-    const dismiss = await screen.findByLabelText('Dismiss')
-
-    expect(container.querySelectorAll('[data-slot="tool-block"]').length).toBeGreaterThan(0)
-
-    fireEvent.click(dismiss)
 
     await waitFor(() => {
-      expect(screen.queryByLabelText('Dismiss')).toBeNull()
+      expect(container.querySelectorAll('[data-slot="tool-block"]').length).toBeGreaterThan(1)
     })
-  })
-
-  it('keeps a dismissed row hidden after a remount (virtualization)', async () => {
-    // The thread virtualizes, so a row's component unmounts/remounts as it
-    // scrolls. Dismissal must persist across that — component-local state would
-    // forget it and the row would pop back. Simulate the remount by unmounting
-    // and rendering the same message fresh.
-    const first = render(<GroupHarness message={completedOnlyMessage()} />)
-
-    fireEvent.click(first.container.querySelector('[data-tool-summary] button')!)
-    fireEvent.click(await screen.findByLabelText('Dismiss'))
-
-    await waitFor(() => {
-      expect(screen.queryByLabelText('Dismiss')).toBeNull()
-    })
-
-    first.unmount()
-
-    render(<GroupHarness message={completedOnlyMessage()} />)
-
-    // The row is the only thing this message renders, so staying dismissed
-    // means nothing comes back — including its dismiss control.
-    await waitFor(() => {
-      expect(screen.queryByLabelText('Dismiss')).toBeNull()
-    })
+    expect(screen.queryByLabelText('Dismiss')).toBeNull()
   })
 
   it('does not show dismiss for pending tool rows', async () => {

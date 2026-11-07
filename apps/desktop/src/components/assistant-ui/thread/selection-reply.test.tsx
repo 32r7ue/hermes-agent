@@ -4,7 +4,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { onComposerInsertRequest } from '@/app/chat/composer/focus'
 import { ComposerScopeProvider, MAIN_COMPOSER_SCOPE } from '@/app/chat/composer/scope'
 
-import { SelectionReply } from './selection-reply'
+import { quoteSelection, SelectionReply } from './selection-reply'
 
 afterEach(() => {
   window.getSelection()?.removeAllRanges()
@@ -59,4 +59,10 @@ it('does not offer a reply for a selection spanning different messages', () => {
     document.dispatchEvent(new Event('selectionchange'))
   })
   expect(screen.queryByRole('button', { name: 'Reply to selection' })).toBeNull()
+})
+
+it('marks a multi-line selection with a single quote marker', () => {
+  expect(quoteSelection('First point.\n\nSecond point.\n Third point. ')).toBe(
+    '> First point.\nSecond point.\nThird point.\n\n'
+  )
 })

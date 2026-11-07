@@ -7,7 +7,7 @@ import { hudTargetSessionId } from '@/app/hud/handoff'
 import { PANE_TOGGLE_REVEAL_EVENT } from '@/components/pane-shell'
 import { toggleLayoutEditMode } from '@/components/pane-shell/edit-mode'
 import { $narrowOverlayPaneIds } from '@/components/pane-shell/narrow-overlay-state'
-import { $narrowViewport } from '@/components/pane-shell/tree/store'
+import { $narrowViewport, $paneVisible } from '@/components/pane-shell/tree/store'
 import { resetLayoutTree } from '@/components/pane-shell/tree/store'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -28,9 +28,11 @@ import {
   $panesFlipped,
   CHAT_SIDEBAR_PANE_ID,
   FILE_BROWSER_PANE_ID,
+  SESSION_PANEL_PANE_ID,
   toggleLeftSide,
   togglePanesFlipped,
-  toggleRightSide
+  toggleRightSide,
+  toggleSessionPanel
 } from '@/store/layout'
 import { REVIEW_PANE_ID } from '@/store/review'
 import { $unreadSessionCount } from '@/store/session-dot-state'
@@ -157,6 +159,8 @@ interface SidebarEdge {
  * through the overlay's toggle. */
 function useSidebarEdges(): { left: SidebarEdge; right: SidebarEdge } {
   const fileBrowserOpen = useStore($fileBrowserOpen)
+  const flipped = useStore($panesFlipped)
+  const panelVisible = useStore($paneVisible(SESSION_PANEL_PANE_ID))
   const leftSideOpen = useStore($leftSideOpen)
   const narrow = useStore($narrowViewport)
   const overlayPanes = useStore($narrowOverlayPaneIds)
@@ -177,10 +181,13 @@ function useSidebarEdges(): { left: SidebarEdge; right: SidebarEdge } {
     }
   }
 
-  return {
-    left: edge(CHAT_SIDEBAR_PANE_ID, leftSideOpen, toggleLeftSide),
-    right: edge(rightOverlayId, fileBrowserOpen, toggleRightSide)
-  }
+  // Unflipped, the right edge is the session panel's column, shown and hidden whole.
+  const right =
+    narrow || flipped
+      ? edge(rightOverlayId, fileBrowserOpen, toggleRightSide)
+      : { open: panelVisible, toggle: toggleSessionPanel }
+
+  return { left: edge(CHAT_SIDEBAR_PANE_ID, leftSideOpen, toggleLeftSide), right }
 }
 
 export function TitlebarControls({ leftTools = [], tools = [], onOpenSettings }: TitlebarControlsProps) {

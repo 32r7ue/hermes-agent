@@ -100,6 +100,38 @@
   src: url('../../../node_modules/@nous-research/ui/dist/fonts/Collapse-Bold.woff2') format('woff2');
 }
 
+/* Anthropic Sans/Serif for the Claude chat text style, from the copies installed in
+   ~/Library/Fonts (not bundled). local() by PostScript name with a declared
+   weight range lets plain font-weight drive the variable wght axis; matching
+   by family name snaps every weight to the nearest named instance. */
+@font-face {
+  font-family: 'Hermes Anthropic Sans';
+  font-style: normal;
+  font-weight: 300 800;
+  src: local('AnthropicSansVariable-TextLight');
+}
+
+@font-face {
+  font-family: 'Hermes Anthropic Sans';
+  font-style: italic;
+  font-weight: 300 800;
+  src: local('AnthropicSansVariable-TextLightItalic');
+}
+
+@font-face {
+  font-family: 'Hermes Anthropic Serif';
+  font-style: normal;
+  font-weight: 300 800;
+  src: local('AnthropicSerifVariable-TextLight');
+}
+
+@font-face {
+  font-family: 'Hermes Anthropic Serif';
+  font-style: italic;
+  font-weight: 300 800;
+  src: local('AnthropicSerifVariable-TextLightItalic');
+}
+
 /* JetBrains Mono — bundled terminal font (Apache-2.0) so bold/italic share the
    regular face's metrics instead of squeezing against a system fallback. */
 @font-face {
@@ -987,6 +1019,24 @@
   box-decoration-break: clone;
 }
 
+/* Web links in chat prose are blue and underlined, like a browser's: a link
+   reads as a link at a glance. Kinded references (files, sessions, skills…)
+   keep their own colors. */
+.aui-md a.ref:not([data-ref]) {
+  --ref-color: #1a66d2;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--ref-color) 45%, transparent);
+  text-underline-offset: 0.18em;
+}
+
+:root.dark .aui-md a.ref:not([data-ref]) {
+  --ref-color: #8ab4f8;
+}
+
+.aui-md a.ref:not([data-ref]):hover {
+  text-decoration-color: currentColor;
+}
+
 /* Affordance without chrome: only the ones you can actually activate respond,
    and they do it with an underline rather than a background. */
 :where(a, button).ref:hover {
@@ -1819,6 +1869,41 @@ body.guest-pointer-lock :is(webview, iframe) {
   line-height: 1.5;
 }
 
+/* Chat text style (Settings → Appearance; store/chat-text-style.ts).
+   Both presets land on Claude Code's 15px at the default 110% text size
+   (13.636px × 1.1), and still follow the text-size setting from there.
+   Slim: the theme face at weight 350 instead of 400 (SF Pro is variable).
+   Claude: Claude Code's transcript — replies in Anthropic Serif, everything
+   else (your messages, composer, tool and thinking lines) in Anthropic Sans;
+   weight 360, line-height 1.4, bold at 530 (Claude's bold axis value). */
+:root[data-chat-text-style] :is([data-slot='aui_thread-content'], [data-slot='composer-rich-input']) {
+  --conversation-text-base-size: 0.8523rem;
+}
+
+:root[data-chat-text-style='slim'] :is([data-slot='aui_thread-content'], [data-slot='composer-rich-input']) {
+  font-weight: 350;
+}
+
+:root[data-chat-text-style='claude'] :is([data-slot='aui_thread-content'], [data-slot='composer-rich-input']) {
+  --font-sans: 'Hermes Anthropic Sans', var(--dt-font-sans);
+  --dt-line-height: 1.4;
+  font-family: var(--font-sans);
+  font-weight: 360;
+}
+
+:root[data-chat-text-style='claude']
+  [data-slot='aui_assistant-message-content']
+  .aui-md:not([data-slot='aui_reasoning-text'], :where([data-slot='aui_thinking-body'] *)) {
+  --font-sans: 'Hermes Anthropic Serif', var(--dt-font-sans);
+  font-family: var(--font-sans);
+}
+
+:root[data-chat-text-style='claude']
+  :is([data-slot='aui_thread-content'], [data-slot='composer-rich-input'])
+  :is(strong, b) {
+  font-weight: 530;
+}
+
 [data-slot='aui_assistant-message-root'] {
   width: 100%;
 }
@@ -2192,6 +2277,13 @@ body.guest-pointer-lock :is(webview, iframe) {
   --composer-fill: color-mix(in srgb, var(--dt-card) 90%, var(--dt-background));
 }
 
+/* Dark mode: lift the composer clearly off the transcript (the card and the
+   chat background are near-identical in the charcoal themes). Its docked
+   status/queue stack shares the var, so it lifts with it. */
+:root.dark [data-slot='composer-root'] {
+  --composer-fill: color-mix(in srgb, var(--dt-foreground) 8%, var(--dt-card));
+}
+
 /* Tool/thinking blocks now live at message-text alignment (no leading
    chevron column to escape into), so their headers and bodies share a
    common left edge with the model's text. */
@@ -2444,6 +2536,13 @@ body.guest-pointer-lock :is(webview, iframe) {
   margin-top: var(--scaffold-block-gap);
 }
 
+/* The live loader (pulse + clock) is not another line in the run: it keeps the full block gap so it
+   never crowds the summary line above it. Same specificity as the pair rules and after them. */
+[data-slot='aui_assistant-message-content']
+  > * + :is([data-slot='aui_turn-activity'][data-state='active'], [data-slot='aui_response-loading']) {
+  margin-top: var(--turn-block-gap);
+}
+
 /* Except a file edit, which is the deliverable rather than another line in the
    run — a diff you read like a PR, so it keeps the full block gap on both
    sides while the scaffolding around it stays tight. `data-file-edit` is only
@@ -2511,6 +2610,12 @@ button[data-slot='aui_msg-reactions'] {
   cursor: pointer;
   color: var(--color-muted-foreground);
   opacity: 0.5;
+}
+
+/* The empty reaction slot sits outside the bar but must fade with it, on the bar's own curve: it used
+   to inherit Button's 100ms transition-all while the bar switched instantly, so it trailed the bar. */
+button[data-slot='aui_msg-reactions'] {
+  transition: opacity 150ms ease-out, color 100ms ease-out;
 }
 
 [data-slot='aui_msg-actions'] button:not(:focus-visible),
@@ -4279,4 +4384,151 @@ html[data-hermes-desktop-host='browser'] [data-slot='sidebar-container'] {
 .aui-error-details .aui-error-details-link:hover {
   background: none;
   color: var(--err-ink);
+}
+
+/* A reply appears whole once it is done (message-parts TimelineMarkdownText). The view stops at its
+   top; the top fades in, and a soft edge sweeps the rest in from the lower third of the screen. */
+@property --aui-reveal-edge {
+  syntax: '<length-percentage>';
+  inherits: false;
+  initial-value: 100%;
+}
+
+@keyframes aui-text-reveal {
+  from {
+    filter: blur(2px);
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@keyframes aui-text-reveal-sweep {
+  from {
+    --aui-reveal-edge: 62vh;
+  }
+
+  to {
+    --aui-reveal-edge: calc(100% + 28vh);
+  }
+}
+
+.aui-text-reveal {
+  mask-image: linear-gradient(to bottom, #000 calc(var(--aui-reveal-edge) - 28vh), transparent var(--aui-reveal-edge));
+  animation:
+    aui-text-reveal 480ms cubic-bezier(0.16, 1, 0.3, 1),
+    aui-text-reveal-sweep 1400ms cubic-bezier(0.33, 1, 0.68, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aui-text-reveal {
+    animation: none;
+  }
+}
+
+/* The macOS window outline, carried inside: one straight hairline down the sidebar edge, from the
+   window's top to its bottom, meeting the tab strip's separation line. */
+:root {
+  --ui-window-outline: rgb(0 0 0 / 0.12);
+  --ui-window-outline-edge: transparent;
+}
+
+/* Measured off the macOS dark window rim: its inner hairline is ~#2e2e2e over the #171717 chrome. */
+:root.dark {
+  --ui-window-outline: rgb(255 255 255 / 0.088);
+  --ui-window-outline-edge: rgb(0 0 0 / 0.95);
+}
+
+/* Drawn the way macOS draws its rim: the light hairline plus a near-black edge on the outside (the
+   sidebar side). It starts below the window's own top rim so the two never stack into a bright dot. */
+[data-tree-group='grp-main'][data-zone-header]::before {
+  content: '';
+  position: absolute;
+  z-index: 50;
+  top: 1px;
+  bottom: 0;
+  left: 0;
+  /* 1 device px of edge, then 2 of light — the macOS rim's own proportions on a 2x display.
+     Painted inside the zone: it clips its overflow, so a shadow on the sidebar side was cut off. */
+  width: 1.5px;
+  background: linear-gradient(
+    to right,
+    var(--ui-window-outline-edge) 0 0.5px,
+    var(--ui-window-outline) 0.5px 1.5px
+  );
+  pointer-events: none;
+}
+
+/* Sidebar swapped to the right: the rim line faces it on the main pane's right edge. */
+:root[data-panes-flipped] [data-tree-group='grp-main'][data-zone-header]::before {
+  right: 0;
+  left: auto;
+  background: linear-gradient(
+    to left,
+    var(--ui-window-outline-edge) 0 0.5px,
+    var(--ui-window-outline) 0.5px 1.5px
+  );
+}
+
+/* The tab strip's separation in the same rim style: the edge on the strip side, the light below it.
+   Every zone with a tab strip (main, the preview beside it, …) shares it, so the line runs across
+   the window; the sessions sidebar keeps its own chrome. */
+[data-tree-group][data-zone-header]:not([data-tree-group='grp-sessions']) [data-pane-body]::before {
+  content: '';
+  position: absolute;
+  z-index: 50;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 1.5px;
+  background: linear-gradient(
+    to bottom,
+    var(--ui-window-outline-edge) 0 0.5px,
+    var(--ui-window-outline) 0.5px 1.5px
+  );
+  pointer-events: none;
+}
+
+/* The session panel column carries the same rim: the top line runs on across it, and a vertical line
+   parts it from main, starting under the titlebar band rather than through it. Tools stacked below
+   the panel share the column, so they share the vertical line. */
+[data-tree-group]:has([data-slot='session-info']) [data-pane-body]::before {
+  content: '';
+  position: absolute;
+  z-index: 50;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 1.5px;
+  background: linear-gradient(
+    to bottom,
+    var(--ui-window-outline-edge) 0 0.5px,
+    var(--ui-window-outline) 0.5px 1.5px
+  );
+  pointer-events: none;
+}
+
+[data-tree-group]:has([data-slot='session-info']) [data-pane-body]::after,
+[data-tree-split]:not([data-tree-split='spl-root']):has([data-slot='session-info'])
+  [data-tree-group]:not([data-window-top])::after {
+  content: '';
+  position: absolute;
+  z-index: 50;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 1.5px;
+  background: linear-gradient(
+    to right,
+    var(--ui-window-outline-edge) 0 0.5px,
+    var(--ui-window-outline) 0.5px 1.5px
+  );
+  pointer-events: none;
+}
+
+/* The rim marks the panel's edge, so the resize handle's resting line would only show up as a stray
+   line through the titlebar band. It still lights on hover for resizing. */
+div:has(> :is([data-tree-group], [data-tree-split]) [data-slot='session-info'])
+  > [data-sash-overlap]:not(:hover)
+  > span[class*='opacity-10'] {
+  opacity: 0;
 }

@@ -73,6 +73,7 @@ export const SETTINGS_MANIFEST = {
     theme: appearanceSetting('theme', ['color mode', 'skin', 'light', 'dark'], 'theme'),
     uiScale: appearanceSetting('typography', ['zoom', 'size'], 'uiScale'),
     chatTextScale: appearanceSetting('typography', ['chat', 'text', 'font', 'size', 'scale', 'zoom'], 'chatTextScale'),
+    chatTextStyle: appearanceSetting('typography', ['font', 'weight', 'slim', 'thin', 'claude', 'anthropic', 'text'], 'chatTextStyle'),
     chatFont: appearanceSetting('typography', ['font', 'typeface', 'family', 'text'], 'chatFont'),
     terminalFont: appearanceSetting(
       'typography',
@@ -135,6 +136,8 @@ export const SETTINGS_MANIFEST = {
       ['code', 'diff', 'patch', 'file edits', 'inline', 'added', 'removed'],
       'hideCodeDiffs'
     ),
+    replyReveal: appearanceSetting('chat-display', ['animation', 'stream', 'streaming', 'live', 'reveal', 'reply'], 'replyReveal'),
+    replyHoldTop: appearanceSetting('chat-display', ['scroll', 'top', 'jump', 'follow', 'reply', 'read'], 'replyHoldTop'),
     reasoningCollapsed: appearanceSetting(
       'chat-display',
       ['thinking', 'reasoning', 'collapse', 'expand', 'chain of thought'],

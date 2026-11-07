@@ -2,7 +2,7 @@ import { atom, computed, type ReadableAtom, type WritableAtom } from 'nanostores
 
 import { SIDEBAR_COLLAPSE_MEDIA_QUERY } from '@/app/layout-constants'
 import { PANE_TOGGLE_REVEAL_EVENT } from '@/components/pane-shell'
-import { allPaneIds, type GroupNode } from '@/components/pane-shell/tree/model'
+import { allPaneIds, groupLeafIds, type GroupNode } from '@/components/pane-shell/tree/model'
 import {
   $collapsedTreeSides,
   $hiddenTreePanes,
@@ -10,10 +10,12 @@ import {
   closeTreePane,
   isPaneVisible,
   layoutHasRootSide,
+  moveTreePane,
   paneRootSide,
   restoreHiddenTreeSideTabs,
   restoreMinimizedTreeSide,
   restoreTreePane,
+  revealTreePane,
   rootRow,
   setTreeGroupMinimized,
   setTreeSideCollapsed,
@@ -104,6 +106,48 @@ const $fileBrowserOpenPref: ReadableAtom<boolean> = computed(
 export const $fileBrowserOpen = modeBound('fileBrowserOpen', $fileBrowserOpenPref, open =>
   setPaneOpen(FILE_BROWSER_PANE_ID, open)
 )
+
+// The session panel (machine, folder, context, changes, tool doors) is the right edge's own column.
+// The titlebar's right button and ⌘B show and hide it whole, never as a rail; tools opened from it
+// stack beneath it in the same column.
+export const SESSION_PANEL_PANE_ID = 'session-info'
+export const $sessionPanelOpen = persistentAtom('hermes.desktop.session-panel-open.v1', true, Codecs.bool)
+
+/** The panel shares this side with Files: closing Files must not fold the panel's column. */
+const sessionPanelHolds = (side: TreeSide | null) =>
+  $sessionPanelOpen.get() && side !== null && paneRootSide(SESSION_PANEL_PANE_ID) === side
+
+export function openSessionPanel() {
+  $sessionPanelOpen.set(true)
+  revealTreePane(SESSION_PANEL_PANE_ID)
+}
+
+/** Stack `paneId` under the session panel, in its column, unless it already lives there. The caller
+ *  then opens it through its own store. */
+export function dockBelowSessionPanel(paneId: string) {
+  const column = rootRow()?.children.find(child => allPaneIds(child).includes(SESSION_PANEL_PANE_ID))
+  const bottom = column && groupLeafIds(column).at(-1)
+
+  if (bottom && !allPaneIds(column).includes(paneId)) {
+    moveTreePane(paneId, { groupId: bottom, pos: 'bottom' })
+  }
+}
+
+export function toggleSessionPanel() {
+  if (!isPaneVisible(SESSION_PANEL_PANE_ID)) {
+    openSessionPanel()
+
+    return
+  }
+
+  // The whole column goes with it, tools stacked below included; reopening brings back what it held.
+  const side = paneRootSide(SESSION_PANEL_PANE_ID)
+  $sessionPanelOpen.set(false)
+
+  if (side) {
+    setTreeSideCollapsed(side, true)
+  }
+}
 
 // Persisted so a relaunch reopens the same rail tab. Null when the rail has no
 // tabs; a restored id with no matching tab is reconciled in the preview store.
@@ -448,6 +492,17 @@ export const $sidebarViewCustomized: ReadableAtom<boolean> = computed(
 // When true, the sessions sidebar moves to the right and the file browser +
 // preview rail move to the left — a mirror of the default layout.
 export const $panesFlipped = modeLayout.atom(LAYOUT_KEYS.flipped, () => false, Codecs.bool)
+
+// Painted on the root so chrome drawn in CSS (the main pane's rim line) can face the sidebar's side.
+if (typeof document !== 'undefined') {
+  $panesFlipped.subscribe(flipped => {
+    if (flipped) {
+      document.documentElement.dataset.panesFlipped = ''
+    } else {
+      delete document.documentElement.dataset.panesFlipped
+    }
+  })
+}
 export const $isSidebarResizing = atom(false)
 export const $sessionsLimit = atom(SIDEBAR_SESSIONS_PAGE_SIZE)
 
@@ -661,13 +716,20 @@ export function toggleFileBrowserOpen() {
 
   const open = restoreMinimizedTreeSide(fileBrowserSide()) || !$fileBrowserOpen.get()
   $fileBrowserOpen.set(open)
-  setTreeSideCollapsed(fileBrowserSide(), !open)
+
+  if (open || !sessionPanelHolds(fileBrowserSide())) {
+    setTreeSideCollapsed(fileBrowserSide(), !open)
+  }
+
   trackArea('file_pane', open)
 }
 
 export function setFileBrowserOpen(open: boolean) {
   $fileBrowserOpen.set(open)
-  setTreeSideCollapsed(fileBrowserSide(), !open)
+
+  if (open || !sessionPanelHolds(fileBrowserSide())) {
+    setTreeSideCollapsed(fileBrowserSide(), !open)
+  }
 
   if (open) {
     restoreMinimizedTreeSide(fileBrowserSide())

@@ -177,7 +177,10 @@ it.each(['advanced', 'simple'] as const)(
     const settled = structuredClone(tree.$layoutTree.get())
     mode.setInterfaceMode(initialMode === 'simple' ? 'advanced' : 'simple')
     expect(tree.$collapsedTreeSides.get().has(layout.sidebarSide())).toBe(!layout.$sidebarOpen.get())
-    expect(tree.$collapsedTreeSides.get().has(layout.fileBrowserSide())).toBe(!layout.$fileBrowserOpen.get())
+    // The files side also stays open for its column-mate, the session panel.
+    expect(tree.$collapsedTreeSides.get().has(layout.fileBrowserSide())).toBe(
+      !(layout.$fileBrowserOpen.get() || layout.$sessionPanelOpen.get())
+    )
     mode.setInterfaceMode(initialMode)
     expect(tree.$layoutTree.get()).toEqual(settled)
     expect(panes.$paneStates.get()).toEqual(legacyPanes)

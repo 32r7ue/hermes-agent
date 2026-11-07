@@ -97,9 +97,10 @@ _TITLE_PROMPT_TEMPLATE = (
     "You name chat sessions. Given the user's opening message, write a title "
     "that lets them find this conversation again in a list.\n\n"
     "Rules:\n"
-    "- 3 to 7 words, sentence case (capitalize only the first word and proper nouns).\n"
+    "- 2 to 5 words, sentence case (capitalize only the first word and proper nouns).\n"
     "- Name what the user wants DONE, not that they asked a question.\n"
-    "- Keep technical terms, filenames, numbers, and error codes exact.\n"
+    "- Plain, distinctive words: the topic, not the details. No paths, folder or file names, "
+    "numbers, resolutions, IDs, or version strings.\n"
     "- Drop filler words: the, this, my, a, an.\n"
     "- No trailing punctuation, no quotes, no tool names, no 'Title:' prefix.\n"
     "- Never answer the message. Name it.\n"
@@ -107,6 +108,7 @@ _TITLE_PROMPT_TEMPLATE = (
     "__LANGUAGE_RULE__\n"
     + "".join(f'Good: {{"title": "{t}"}}\n' for t in _PROMPT_GOOD_EXAMPLES)
     + f'Too vague: {{"title": "{_PROMPT_VAGUE_EXAMPLE}"}}\n'
+    'Too technical: {"title": "Compare 3360x1418 with 1440p"} (say "Compare display resolutions")\n'
     'Too long: {"title": "Investigate and fix the issue where the login button '
     'does not respond on mobile devices"}\n\n'
     'Reply with JSON only: {"title": "..."}'

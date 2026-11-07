@@ -43,12 +43,14 @@ import { toggleHud } from '@/store/hud'
 import { toggleSimpleMode } from '@/store/interface-mode'
 import { $capture, $comboIndex, captureStep, endCapture, setBinding } from '@/store/keybinds'
 import {
+  $panesFlipped,
   cycleSidebarGrouping,
   layoutHasRightSide,
   requestSessionSearchFocus,
   setFileBrowserOpen,
   togglePanesFlipped,
   toggleRightSide,
+  toggleSessionPanel,
   toggleSidebarOpen
 } from '@/store/layout'
 import { notifyError } from '@/store/notifications'
@@ -348,10 +350,10 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
     // Narrow-viewport reveal is handled inside the store toggles now.
     'view.toggleSidebar': toggleSidebarOpen,
     'view.cycleSidebarGrouping': cycleSidebarGrouping,
-    // ⌘J toggles the physical right side — whatever column lives there in the
-    // live tree (the Browser preview column, the files column). Falls back to
-    // the terminal when nothing lives on the right (terminal-on-bottom).
-    'view.toggleRightSidebar': () => (layoutHasRightSide() ? toggleRightSide() : toggleTerminalPane()),
+    // ⌘B toggles the right edge: the session panel column whole. Without the panel in the layout it
+    // folds whatever column lives on the physical right, or falls back to the terminal.
+    'view.toggleRightSidebar': () =>
+      !$panesFlipped.get() ? toggleSessionPanel() : layoutHasRightSide() ? toggleRightSide() : toggleTerminalPane(),
     'view.toggleReview': toggleReview,
     'view.toggleStatusbar': toggleStatusbarVisible,
     'view.toggleProfileRail': toggleProfileRailVisible,

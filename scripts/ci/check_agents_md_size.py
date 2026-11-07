@@ -21,8 +21,8 @@ import subprocess
 import sys
 from pathlib import Path, PurePosixPath
 
-ROOT_MAX_CHARS = 12_000
-CHAIN_MAX_CHARS = 30_000
+ROOT_MAX_CHARS = 12_500  # fork: +500 for the fork rule block
+CHAIN_MAX_CHARS = 30_500  # fork: room for the fork rule block
 
 
 def _int_constant(source: Path, name: str) -> int:

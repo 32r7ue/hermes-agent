@@ -811,6 +811,18 @@ export function useComposerQueue({
     setQueueEditSnapshot(null)
   }, [activeQueueSessionKey, editingQueuedPrompt, queueEdit, setQueueEditSnapshot]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // "Send now" on a steer still waiting for the running step: queue the words
+  // and take the queue's own send-now path (promote, unpark, interrupt; the
+  // settle drain sends them). The stop drops the agent's pending steer.
+  const sendWordsNow = useCallback(
+    (text: string) => {
+      const entry = enqueueQueuedPrompt(activeQueueSessionKey, { attachments: [], text })
+
+      return entry ? sendQueuedNow(entry.id) : false
+    },
+    [activeQueueSessionKey, sendQueuedNow]
+  )
+
   return {
     beginQueuedEdit,
     deliverQueuedNow,
@@ -822,6 +834,7 @@ export function useComposerQueue({
     queueParked,
     queuedPrompts,
     sendQueuedNow,
+    sendWordsNow,
     steerQueuedNow,
     stepQueuedEdit
   }

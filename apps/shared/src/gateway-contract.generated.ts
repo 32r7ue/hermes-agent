@@ -1524,6 +1524,17 @@ export interface DisplayLeaseReleaseParams {
   viewer_id?: string | null
   force?: boolean | null
 }
+/** ``force`` starts a fresh fetch of upstream's release tags now instead of on the 6h cadence. */
+export interface ForkUpstreamParams {
+  force?: boolean
+}
+/** ``supported`` is False when the checkout has no ``upstream`` remote. ``latest`` is the newest feature release tag (``vX.Y.0``) known locally, ``current`` the newest one HEAD contains. */
+export interface ForkUpstreamStatusResult {
+  supported: boolean
+  latest?: string | null
+  merged?: boolean | null
+  current?: string | null
+}
 export interface GroupsCapabilitiesParams {
   profile?: string | null
 }
@@ -5324,6 +5335,7 @@ export interface CanonicalReplaceQueuedParams {
   attachments?: CanonicalAttachment[] | null
   display_kind?: 'hidden' | null
   title_preview?: string | null
+  clarify_batch?: boolean
 }
 export interface CanonicalConfigGetResult {
   value?: string | null
@@ -6255,6 +6267,8 @@ export interface RpcMethods {
   'display.thumbnail': { params: ProfileParams; result: DisplayThumbnailResult }
   /** Stage a non-image file into the session workspace and hand back its @file: ref. */
   'file.attach': { params: FileAttachParams; result: FileAttachResult }
+  /** Whether the newest upstream Hermes release is merged into this fork's checkout. */
+  'fork.upstream_status': { params: ForkUpstreamParams; result: ForkUpstreamStatusResult }
   /** Mark the one-time availability notice as shown on the free-tier identity. */
   'free_tier.ack_notice': { params: ProfileParams; result: FreeTierAckNoticeResult }
   /** Report a browser window outcome for the matching pending attempt; mint remains authoritative. */
@@ -6727,6 +6741,7 @@ export const RPC_METHODS = [
   'display.switchSandboxImage',
   'display.thumbnail',
   'file.attach',
+  'fork.upstream_status',
   'free_tier.ack_notice',
   'free_tier.challenge_result',
   'free_tier.claim_nudge',

@@ -20,6 +20,7 @@ import { $localModelsEnabled } from '@/store/local-models-flag'
 import { sessionAwaitingInput } from '@/store/prompts'
 import { parseModelLoadWait, sessionProviderWait } from '@/store/provider-wait'
 import { $showReasoning } from '@/store/reasoning-disclosure'
+import { $replyReveal } from '@/store/reply-display'
 import { $currentModel, $currentProvider } from '@/store/session'
 import { type DraftingTool, sessionDraftingTool } from '@/store/tool-drafting'
 import type { LocalModelLoadProgress } from '@/types/hermes'
@@ -371,6 +372,19 @@ export const TurnActivityIndicator: FC<{ thinking?: boolean }> = ({ thinking = f
   const showReasoning = useStore($showReasoning)
   const activity = useAuiState(s => activitySignature(s.message.content, showReasoning))
 
+  const reasoningVisible = useAuiState(s =>
+    s.message.content.some(part => part.type === 'reasoning' && part.text.trim().length > 0)
+  )
+
+  // A reply is held until it is done (message-parts TimelineMarkdownText). When nothing else is on
+  // screen above it — no tool line, no drawn thought — this row with its clock is the turn's only
+  // sign of life until the reply lands, so it shows at once rather than after a quiet spell.
+  const heldReply = useStore($replyReveal) === 'reveal'
+
+  const heldReplyOnly = useAuiState(s =>
+    s.message.content.every(part => part.type === 'text' || part.type === 'reasoning')
+  ) && !(showReasoning && reasoningVisible) && heldReply
+
   // Timestamp of the last visible progress, held from the moment the quiet
   // spell qualifies. Holding the timestamp (not a boolean) is what lets the
   // timer read "quiet for 12s" rather than the age of this component, which is
@@ -418,7 +432,10 @@ export const TurnActivityIndicator: FC<{ thinking?: boolean }> = ({ thinking = f
   // A live local-model load is a named wait too — it must not wait out the
   // quiet window (the load IS the story from second one).
   const active =
-    working && !awaitingInput && !toolNarrating && (Boolean(hint) || localLoad !== null || quietSince !== undefined)
+    working &&
+    !awaitingInput &&
+    !toolNarrating &&
+    (Boolean(hint) || localLoad !== null || quietSince !== undefined || heldReplyOnly)
 
   // Compaction owns the whole turn, so it keeps counting from the turn's start;
   // anything else counts from the moment the turn last produced something — the
@@ -443,7 +460,8 @@ export const TurnActivityIndicator: FC<{ thinking?: boolean }> = ({ thinking = f
 
   // A reply that has only thought so far, with the thinking not drawn, has
   // still put nothing on screen: it keeps the pre-first-token row.
-  if (thinking && !showReasoning) {
+  // Same for thinking that carries no visible text (encrypted reasoning draws no line).
+  if (thinking && (!showReasoning || !reasoningVisible)) {
     return <ResponseLoadingIndicator />
   }
 

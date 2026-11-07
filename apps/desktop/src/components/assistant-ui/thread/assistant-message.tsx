@@ -356,12 +356,20 @@ const AssistantMessageBody: FC<AssistantMessageProps & { collapsedNotice?: null 
   )
 }
 
+/** Sent hidden by Resume: the transcript shows only the agent picking the work back up. */
+export const RESUME_STOPPED_PROMPT =
+  'You were stopped mid-task. Resume exactly where you left off and finish the task; do not restart or repeat finished steps.'
+
 const StoppedNotice: FC = () => {
   const { t } = useI18n()
+  const { target } = useComposerScope()
 
   const stopped = useAuiState(
     s => s.message.status?.type !== 'running' && s.message.metadata?.custom?.interrupted === true
   )
+
+  // Resume belongs to the latest stopped reply only, and only while idle.
+  const resumable = useAuiState(s => s.message.isLast && !s.thread.isRunning)
 
   if (!stopped) {
     return null
@@ -374,6 +382,19 @@ const StoppedNotice: FC = () => {
     >
       <Codicon name="debug-pause" size="1em" />
       {t.assistant.thread.responseStopped}
+      {resumable && (
+        <Button
+          className="h-auto px-1 py-0 text-[length:inherit] text-(--ui-text-secondary) hover:text-foreground"
+          data-slot="aui_assistant-message-resume"
+          onClick={() => void requestComposerSubmit(RESUME_STOPPED_PROMPT, { displayKind: 'hidden', target })}
+          size="micro"
+          type="button"
+          variant="text"
+        >
+          <Codicon name="debug-continue" size="1em" />
+          {t.assistant.thread.resumeStopped}
+        </Button>
+      )}
     </div>
   )
 }
@@ -1439,7 +1460,7 @@ const AssistantActionBar: FC<MessageActionProps & { durationS?: number }> = ({
           // invisible by default (opacity-0 + pointer-events-none, reveals on
           // hover), so keeping it mounted reserves stable layout height with
           // no visual change during streaming.
-          'relative flex flex-row items-center justify-start gap-1.5 py-1.5 opacity-0 pointer-events-none group-hover:pointer-events-auto group-hover:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100'
+          'relative flex flex-row items-center justify-start gap-1.5 py-1.5 opacity-0 pointer-events-none transition-opacity duration-150 ease-out group-hover:pointer-events-auto group-hover:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100'
         }
         data-slot="aui_msg-actions"
       >

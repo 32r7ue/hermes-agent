@@ -60,11 +60,13 @@ import { watchDeadSessionPrune } from '@/store/dead-session-prune'
 import { $interfaceMode, $showsAdvancedChrome, setModeContext, toggleSimpleMode } from '@/store/interface-mode'
 import {
   $fileBrowserOpen,
+  $sessionPanelOpen,
   $sidebarOpen,
   FILE_BROWSER_DEFAULT_WIDTH,
   FILE_BROWSER_MAX_WIDTH,
   FILE_BROWSER_MIN_WIDTH,
   fileBrowserSide,
+  SESSION_PANEL_PANE_ID,
   setFileBrowserOpen,
   setSidebarOpen,
   SIDEBAR_DEFAULT_WIDTH,
@@ -114,6 +116,7 @@ import {
 } from '../chat/session-tile'
 import { AppContextMenu } from '../context-menu/app-context-menu'
 import { HudShell } from '../hud/hud-shell'
+import { SessionInfoPane } from '../right-sidebar/session-info'
 import { $terminalTakeover, setTerminalTakeover } from '../right-sidebar/store'
 import { terminalPaletteToggle } from '../right-sidebar/terminal/reveal-focus'
 import { $workspaceIsPage, WORKSPACE_PAGE_HEADER_AREA } from '../routes'
@@ -290,6 +293,23 @@ registry.registerMany([
       tabTitleText: () => translateNow('sidebar.review')
     },
     render: () => idle(<ReviewPaneContent />)
+  },
+  {
+    id: 'session-info',
+    area: 'panes',
+    title: translateNow('sessionInfo.title'),
+    // The session at a glance for wide windows: its own column on the right edge, shown and hidden
+    // whole by the titlebar's right button and ⌘B (no rail), with the tools it opens stacked below.
+    data: {
+      placement: 'right',
+      collapsible: true,
+      width: '16rem',
+      minWidth: '13rem',
+      maxWidth: '24rem',
+      tabTitle: () => <LocalizedTabTitle select={t => t.sessionInfo.title} />,
+      tabTitleText: () => translateNow('sessionInfo.title')
+    },
+    render: () => <SessionInfoPane />
   }
 ])
 
@@ -599,6 +619,12 @@ bindPaneVisibility(
   computed([$reviewOpen, $hasWorkspace], (open, workspace) => open && workspace),
   closeReview,
   () => openReview($reviewScopeCwd.get(), $reviewScopeTarget.get())
+)
+bindPaneVisibility(
+  SESSION_PANEL_PANE_ID,
+  $sessionPanelOpen,
+  () => $sessionPanelOpen.set(false),
+  () => $sessionPanelOpen.set(true)
 )
 // ⌃` / statusbar toggle — the terminal COLLAPSES to a rail (tab stays), not
 // hides; PTYs stay alive while collapsed (see PersistentTerminal). Simple has

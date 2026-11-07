@@ -961,6 +961,24 @@
       }
     },
     {
+      "name": "fork.upstream_status",
+      "summary": "Whether the newest upstream Hermes release is merged into this fork's checkout.",
+      "params": [
+        {
+          "name": "params",
+          "schema": {
+            "$ref": "#/components/schemas/ForkUpstreamParams"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "#/components/schemas/ForkUpstreamStatusResult"
+        }
+      }
+    },
+    {
       "name": "free_tier.ack_notice",
       "summary": "Mark the one-time availability notice as shown on the free-tier identity.",
       "params": [
@@ -9545,6 +9563,11 @@
             ],
             "default": null,
             "title": "Title Preview"
+          },
+          "clarify_batch": {
+            "default": false,
+            "title": "Clarify Batch",
+            "type": "boolean"
           }
         },
         "required": [
@@ -18486,6 +18509,70 @@
           "content"
         ],
         "title": "ForeignTurn",
+        "type": "object"
+      },
+      "ForkUpstreamParams": {
+        "additionalProperties": false,
+        "description": "``force`` starts a fresh fetch of upstream's release tags now instead of on the 6h cadence.",
+        "properties": {
+          "force": {
+            "default": false,
+            "title": "Force",
+            "type": "boolean"
+          }
+        },
+        "title": "ForkUpstreamParams",
+        "type": "object"
+      },
+      "ForkUpstreamStatusResult": {
+        "additionalProperties": false,
+        "description": "``supported`` is False when the checkout has no ``upstream`` remote. ``latest`` is the newest\nfeature release tag (``vX.Y.0``) known locally, ``current`` the newest one HEAD contains.",
+        "properties": {
+          "supported": {
+            "title": "Supported",
+            "type": "boolean"
+          },
+          "latest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Latest"
+          },
+          "merged": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Merged"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Current"
+          }
+        },
+        "required": [
+          "supported"
+        ],
+        "title": "ForkUpstreamStatusResult",
         "type": "object"
       },
       "FreeTierAckNoticeResult": {

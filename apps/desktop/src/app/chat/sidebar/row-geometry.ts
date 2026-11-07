@@ -43,8 +43,11 @@ export const SIDEBAR_ROW_INSET = cn(
 // so the extra leading just centers.
 export const SIDEBAR_TRUNCATED_LEADING = 'leading-[1.35]' as const
 
+// Long titles fade out at the right edge instead of ending in "…". The mask
+// only touches the last 1.5rem, so titles that fit are unaffected.
 export const SIDEBAR_ROW_LABEL = cn(
-  'min-w-0 truncate text-[0.875rem] text-(--ui-text-primary)',
+  'min-w-0 overflow-hidden whitespace-nowrap text-[0.875rem] text-(--ui-text-primary)',
+  '[mask-image:linear-gradient(to_right,#000_calc(100%-1.5rem),transparent)]',
   SIDEBAR_TRUNCATED_LEADING
 )
 

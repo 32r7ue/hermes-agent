@@ -1,8 +1,10 @@
 /** App-local preferences exposed through the existing session-scoped set_theme bridge. */
 import { $backdrop, setBackdrop } from './backdrop'
 import { $chatTextScale, CHAT_TEXT_SCALE_PRESETS, setChatTextScale } from './chat-text-scale'
+import { $chatTextStyle, CHAT_TEXT_STYLES, setChatTextStyle } from './chat-text-style'
 import { $interfaceMode, setInterfaceMode } from './interface-mode'
 import { $reasoningCollapsedByDefault, setReasoningCollapsedByDefault } from './reasoning-disclosure'
+import { $replyHoldTop, $replyReveal, REPLY_REVEAL_MODES, setReplyHoldTop, setReplyReveal } from './reply-display'
 import { $statusbarVisible } from './statusbar-prefs'
 import {
   $translucency, GLASS_MATERIALS, GLASS_SCOPES, setTranslucency, setTranslucencyFade,
@@ -22,8 +24,11 @@ const choice = (values: readonly unknown[]) => (value: unknown) => values.includ
 const SETTINGS: Record<string, Setting> = {
   backdrop: { read: () => $backdrop.get(), valid: boolean, write: setBackdrop },
   text_scale: { read: () => $chatTextScale.get(), valid: choice(CHAT_TEXT_SCALE_PRESETS), write: setChatTextScale },
+  text_style: { read: () => $chatTextStyle.get(), valid: choice(CHAT_TEXT_STYLES), write: setChatTextStyle },
   interface_mode: { read: () => $interfaceMode.get(), valid: choice(['simple', 'advanced']), write: setInterfaceMode },
   reasoning_collapsed: { read: () => $reasoningCollapsedByDefault.get(), valid: boolean, write: setReasoningCollapsedByDefault },
+  reply_reveal: { read: () => $replyReveal.get(), valid: choice(REPLY_REVEAL_MODES), write: setReplyReveal },
+  reply_hold_top: { read: () => $replyHoldTop.get(), valid: boolean, write: setReplyHoldTop },
   statusbar_visible: { read: () => $statusbarVisible.get(), valid: boolean, write: value => $statusbarVisible.set(value) },
   translucency: { read: () => $translucency.get().intensity, valid: percent, write: setTranslucency },
   translucency_fade: { read: () => $translucency.get().fade, valid: percent, write: setTranslucencyFade },

@@ -4,7 +4,7 @@ import { atom } from 'nanostores'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { type SessionView, SessionViewProvider } from '@/app/chat/session-view'
-import { MESSAGE_PARTS_COMPONENTS } from '@/components/assistant-ui/thread/message-parts'
+import { PART_COMPONENTS } from '@/components/assistant-ui/thread/message-parts'
 import { I18nProvider } from '@/i18n'
 import { $connectionRequests, type ConnectionRequest, setConnectionRequest } from '@/store/connection-request'
 import { $gateway } from '@/store/gateway'
@@ -102,7 +102,7 @@ afterEach(() => {
 
 describe('manage_connections routing outside guided onboarding', () => {
   it('renders the operation card for a plain chat session', async () => {
-    const Fallback = MESSAGE_PARTS_COMPONENTS.tools.Fallback
+    const Fallback = PART_COMPONENTS.tools.Fallback
     setSessionOwnerHint(STORED_ID, OWNER)
     setConnectionRequest(REQUEST)
     // SAFETY: the card reads only `request` off the client in this test.

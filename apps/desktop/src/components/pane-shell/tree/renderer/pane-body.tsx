@@ -40,6 +40,7 @@ export function PaneBody({ wrap, hidden, children }: PaneBodyProps) {
   const body = (
     <div
       className="relative min-h-0 min-w-0 flex-1 overflow-hidden"
+      data-pane-body=""
       ref={ref}
       style={hidden ? { position: 'absolute', visibility: 'hidden', pointerEvents: 'none', ...size } : undefined}
     >

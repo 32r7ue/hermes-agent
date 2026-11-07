@@ -42,11 +42,21 @@ def _interactive(authority, session_id):
     sources = authority.launch_sources
     if session_id not in sources:
         with authority.db._read_ctx() as conn:
-            found = conn.execute('SELECT source FROM sessions WHERE id=?', (session_id,)).fetchone()
+            # A peer refresh relabels a session ``local`` and keeps its launch surface in
+            # ``created_source`` (session_policy.py): a Desktop chat stays a Desktop chat.
+            found = conn.execute("SELECT CASE WHEN source='local' THEN created_source ELSE source END "
+                                 'FROM sessions WHERE id=?', (session_id,)).fetchone()
         if found is None:
             return False
         sources[session_id] = found[0]
     return sources[session_id] in _INTERACTIVE_SOURCES
+
+
+def _presentation_only_cli_turn(payload) -> set:
+    """``cli_turn_v1`` that only asks for the batched clarify card (Desktop sets it on every prompt) is
+    presentation, not turn content: an edit re-sends it (the client adds ``clarify_batch``)."""
+    turn = payload.get('cli_turn_v1')
+    return {'cli_turn_v1'} if isinstance(turn, dict) and set(turn) <= {'clarify_batch'} else set()
 
 
 def queued_controls(authority, row):
@@ -54,7 +64,8 @@ def queued_controls(authority, row):
     lists none, so its clients show none)."""
     payload = row.get('payload') or {}
     text = payload.get('text')
-    if (row.get('status') != 'queued' or set(payload) - _TEXT_ONLY or not isinstance(text, str) or not text.strip()
+    if (row.get('status') != 'queued' or set(payload) - _TEXT_ONLY - _presentation_only_cli_turn(payload)
+            or not isinstance(text, str) or not text.strip()
             or (payload.get('display_v1') or {}).get('kind') == 'hidden'
             or not _interactive(authority, row['target_session_id'])):
         return []

@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react'
 import { triggerHaptic } from '@/lib/haptics'
 import { composerFocusBlockedBySurface } from '@/lib/keybinds/composer-focus-keys'
 
+import { armEscHoldToStop } from '../esc-hold'
 import { type ComposerTarget, getActiveComposer } from '../focus'
 
 interface UseComposerEscCancelOptions {
@@ -56,8 +57,17 @@ export function useComposerEscCancel({ awaitingInput, busy, onCancel, target }: 
     }
 
     event.preventDefault()
-    triggerHaptic('cancel')
-    void Promise.resolve(onCancel())
+    // Held, not tapped (see esc-hold.ts); re-read busy when the hold completes.
+    armEscHoldToStop(() => stopIfStillBusyRef.current())
+  }
+
+  const stopIfStillBusyRef = useRef(() => {})
+
+  stopIfStillBusyRef.current = () => {
+    if (busy && !awaitingInput) {
+      triggerHaptic('cancel')
+      void Promise.resolve(onCancel())
+    }
   }
 
   useEffect(() => {

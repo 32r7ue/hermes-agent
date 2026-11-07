@@ -559,7 +559,11 @@ export function sealAcceptedCorrection<State extends LiveStreamState>(
     { keepRunningTools }
   )
 
-  return { ...sealed, messages: [...sealed.messages, state.messages[index]] }
+  // keepRunningTools is the steer path: the words wait for the running step,
+  // so the bubble is a pending steer ("Send now") until the agent moves on.
+  const message = keepRunningTools ? { ...state.messages[index], pendingSteer: true } : state.messages[index]
+
+  return { ...sealed, messages: [...sealed.messages, message] }
 }
 
 // ---------------------------------------------------------------------------

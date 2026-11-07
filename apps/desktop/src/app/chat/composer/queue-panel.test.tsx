@@ -88,10 +88,13 @@ describe('QueuePanel expandable previews', () => {
 describe('QueuePanel lost turn', () => {
   it('shows the lost turn and its Discard without expanding, and names the pause', async () => {
     const onDiscardLost = vi.fn()
-    renderPanel([{ ...entry('lost', 'doomed turn'), serverStatus: 'unknown' }, entry('next', 'follow up')], onDiscardLost)
+    renderPanel(
+      [{ ...entry('lost', 'doomed turn'), serverStatus: 'unknown' }, entry('next', 'follow up'), entry('last', 'and then')],
+      onDiscardLost
+    )
 
     expect(await screen.findByText('Turn lost during restart')).toBeTruthy()
-    expect(screen.getByRole('button', { name: /2 queued — paused/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /3 queued — paused/i })).toBeTruthy()
     // Only the lost row is previewed while collapsed; the healthy follow-up stays inside the section.
     expect(screen.queryByText('follow up')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
@@ -117,5 +120,28 @@ describe('QueuePanel lost turn', () => {
       </I18nProvider>
     )
     expect(await screen.findByText('Turn lost during restart')).toBeTruthy()
+  })
+})
+
+describe('QueuePanel short queue', () => {
+  it('shows up to two entries without expanding and edits on a click on the words', () => {
+    const onEdit = vi.fn()
+    render(
+      <QueuePanel
+        busy
+        editingId={null}
+        entries={[entry('a', 'first ask'), entry('b', 'second ask')]}
+        onDelete={vi.fn()}
+        onEdit={onEdit}
+        onResume={vi.fn()}
+        onSendNow={vi.fn()}
+        parked={false}
+      />
+    )
+
+    expect(screen.getByText('first ask')).toBeTruthy()
+    expect(screen.getByText('second ask')).toBeTruthy()
+    fireEvent.click(screen.getByText('second ask'))
+    expect(onEdit).toHaveBeenCalledWith(expect.objectContaining({ id: 'b' }))
   })
 })

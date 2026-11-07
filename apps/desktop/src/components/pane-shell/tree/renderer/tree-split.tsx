@@ -153,7 +153,22 @@ export function TreeSplit({
   // EMPTY zones only exist in editor-authored trees (normalize prunes them on
   // every structural op) — they take space in edit mode as drop targets.
   const isEmptyZone = (child: LayoutNode) => child.type === 'group' && child.panes.length === 0
-  const isCollapsed = (child: LayoutNode) => subtreeGone(child, trackCtx) || (isEmptyZone(child) && !editMode)
+  // A column in a row whose only shown zones are minimized (the terminal folded away beside the
+  // preview) has no rail of its own to draw: its strips are horizontal headers squeezed into a 28px
+  // track over empty chrome, a grey band down the window edge. It takes no space; the zone comes back
+  // through its toggle (⌘J for the terminal), and edit mode still shows it as a drop target.
+  const onlyMinimizedColumn = (child: LayoutNode) => {
+    if (!horizontal || editMode || child.type !== 'split' || child.orientation !== 'column') {
+      return false
+    }
+
+    const shown = child.children.filter(grandchild => !subtreeGone(grandchild, trackCtx))
+
+    return shown.length > 0 && shown.every(grandchild => grandchild.type === 'group' && Boolean(grandchild.minimized))
+  }
+
+  const isCollapsed = (child: LayoutNode) =>
+    subtreeGone(child, trackCtx) || (isEmptyZone(child) && !editMode) || onlyMinimizedColumn(child)
 
   // Min/max clamps come from a direct GROUP child's panes (the same clamps
   // the app's Pane props express). Floors apply to every zone; caps only when

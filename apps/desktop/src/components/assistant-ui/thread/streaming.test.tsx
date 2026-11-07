@@ -16,7 +16,7 @@ import { $activeSessionId } from '@/store/session'
 
 import { stubThreadEnvironment, stubThreadViewportSize, ThreadRuntime } from '../test-utils'
 
-import { MESSAGE_PARTS_COMPONENTS } from './message-parts'
+import { PART_COMPONENTS } from './message-parts'
 
 import { Thread } from '.'
 
@@ -448,7 +448,7 @@ describe('assistant-ui streaming renderer', () => {
 
     const UngroupedMessage = () => (
       <MessagePrimitive.Root>
-        <MessagePrimitive.Parts components={{ Reasoning: MESSAGE_PARTS_COMPONENTS.Reasoning }} />
+        <MessagePrimitive.Parts components={{ Reasoning: PART_COMPONENTS.Reasoning }} />
       </MessagePrimitive.Root>
     )
 
@@ -478,7 +478,7 @@ describe('assistant-ui streaming renderer', () => {
     }
   })
 
-  it('renders assistant text incrementally before completion', async () => {
+  it('holds assistant text until the reply is done, then shows it whole', async () => {
     let controls: StreamingControls | undefined
 
     const registerControls = (next: StreamingControls) => {
@@ -489,25 +489,20 @@ describe('assistant-ui streaming renderer', () => {
 
     expect(screen.getByRole('status', { name: 'Hermes is loading a response' })).toBeTruthy()
 
-    await waitFor(() => {
-      expect(container.textContent).toContain('first chunk')
-    })
-    expect(container.textContent).not.toContain('second chunk')
-    expect(screen.queryByRole('status', { name: 'Hermes is loading a response' })).toBeNull()
+    await waitFor(() => expect(controls).toBeDefined())
+    // Held back, but never silent: the loader with its clock stays until the reply is done.
+    await waitFor(() => expect(container.textContent).not.toContain('first chunk'))
+    expect(screen.getByRole('status', { name: 'Hermes is loading a response' })).toBeTruthy()
 
-    // Producer-gated, not wall-clock-gated: the old test slept 80ms and
-    // assumed a 500ms timer could not fire before the assertion. On a loaded
-    // runner the test thread could be descheduled for >500ms, so both chunks
-    // arrived and this clean behavior test flaked.
+    // Producer-gated, not wall-clock-gated.
     act(() => controls?.emitSecond())
-    await waitFor(() => {
-      expect(container.textContent).toContain('first chunk second chunk')
-    })
+    expect(container.textContent).not.toContain('second chunk')
 
     act(() => controls?.complete())
     await waitFor(() => {
       expect(container.textContent).toContain('first chunk second chunk')
     })
+    expect(screen.queryByRole('status', { name: 'Hermes is loading a response' })).toBeNull()
   })
 
   it('suppresses the action footer on sealed interim messages, keeping it on the final reply', () => {
@@ -567,15 +562,12 @@ describe('assistant-ui streaming renderer', () => {
   // layout, spring animation via rAF) only produces brittle change-detector
   // tests. The rendering/streaming-content tests below remain the contract.
 
-  it('renders an incomplete streaming fenced code block as a code card', async () => {
+  it('holds an incomplete streaming fenced code block until the reply is done', async () => {
     const { container } = render(<RunningMessageHarness message={assistantMessage('```ts\nconst answer = 42\n')} />)
 
-    await waitFor(() => {
-      expect(container.querySelector('[data-slot="code-card"]')).toBeTruthy()
-    })
-
-    expect(container.textContent).toContain('const answer = 42')
-    expect(container.textContent).not.toContain('```ts')
+    await waitFor(() => expect(container.querySelector('[data-slot="aui_assistant-message-root"]')).toBeTruthy())
+    expect(container.querySelector('[data-slot="code-card"]')).toBeNull()
+    expect(container.textContent).not.toContain('const answer = 42')
   })
 
   it('renders an incomplete streaming reasoning fenced code block as a code card', async () => {

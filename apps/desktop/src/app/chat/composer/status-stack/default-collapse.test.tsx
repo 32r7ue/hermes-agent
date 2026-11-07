@@ -76,14 +76,16 @@ it('auto-expands only todos and keeps other groups closed as activity arrives', 
 
   expect(screen.getByText('Visible todo')).toBeTruthy()
 
-  for (const text of ['Hidden legacy goal', 'Background process', 'Worker task', 'Queued request']) {
+  for (const text of ['Hidden legacy goal', 'Background process', 'Worker task']) {
     expect(screen.queryByText(text)).toBeNull()
   }
+
+  // A one-entry queue shows its row without expanding.
+  expect(screen.getByText('Queued request')).toBeTruthy()
 
   act(() => upsertSubagent('owner', { subagent_id: 'worker', text: 'Progress arrived' }, false, 'subagent.progress'))
   view.rerender(stack(true))
   expect(screen.queryByText('Worker task')).toBeNull()
-  expect(screen.queryByText('Queued request')).toBeNull()
 
   const header = screen.getByRole('button', { name: /1 Subagent/ })
   fireEvent.click(header)

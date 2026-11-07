@@ -8,7 +8,7 @@ import {
   useMessagePartText
 } from '@assistant-ui/react'
 import { useStore } from '@nanostores/react'
-import { type ComponentProps, type FC, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { type ComponentProps, type FC, Fragment, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import { useSessionView } from '@/app/chat/session-view'
 import { CatalogInstallTool } from '@/components/assistant-ui/catalog-install-tool'
@@ -22,10 +22,15 @@ import { ThemeTool } from '@/components/assistant-ui/theme-picker/theme-tool'
 import { AgentDeliveryNotice, deliveryTargetFromCommand } from '@/components/assistant-ui/thread/agent-delivery'
 import { TimelineTimestamp } from '@/components/assistant-ui/thread/timeline-timestamp'
 import { DelegateTool } from '@/components/assistant-ui/tool/delegate'
-import { ToolFallback, ToolGroupSlot } from '@/components/assistant-ui/tool/fallback'
+import {
+  REASONING_RUN_KEY,
+  splitRunItems,
+  ToolEmbedContext,
+  ToolFallback,
+  toolGroupKey,
+  ToolRun
+} from '@/components/assistant-ui/tool/fallback'
 import { parseMaybeObject, toolCallFailed } from '@/components/assistant-ui/tool/fallback-model'
-import { formatElapsed, useElapsedSeconds, useMeasuredDuration } from '@/components/chat/activity-timer'
-import { ActivityTimerText } from '@/components/chat/activity-timer-text'
 import { GeneratedImage } from '@/components/chat/generated-image-result'
 import { SCAFFOLD_LABEL_CLASS, SCAFFOLD_META_CLASS, ScaffoldRow } from '@/components/chat/scaffold-row'
 import { useI18n } from '@/i18n'
@@ -33,12 +38,14 @@ import { mcpTargets, toolLabels } from '@/lib/connector-tools'
 import { generatedImageFromResult } from '@/lib/generated-images'
 import { separateGluedReasoningBlocks } from '@/lib/reasoning-blocks'
 import { reasoningHeadline } from '@/lib/reasoning-headline'
+import { runEndedRecently, setReplyAnchor } from '@/lib/reply-anchor'
 import { isTodoToolName } from '@/lib/todos'
 import { type CardToolName, isCardTool, isCardToolName } from '@/lib/tool-render-class'
 import { useEnterAnimation } from '@/lib/use-enter-animation'
 import { cn } from '@/lib/utils'
 import { onboardingChatStore } from '@/store/onboarding-session'
 import { $reasoningCollapsedByDefault, $showReasoning } from '@/store/reasoning-disclosure'
+import { $replyHoldTop, $replyReveal } from '@/store/reply-display'
 import { useForcedTextDirection } from '@/store/text-direction'
 import { $showToolActivity } from '@/store/tool-activity'
 
@@ -202,8 +209,48 @@ const PREVIEW_RELOCK_THRESHOLD_PX = 24
 
 type TimelineTextPartProps = TextMessagePartProps & { completedAt?: number; timestamp?: number }
 
+// When a reply was last held back while streaming. Module-level, not per mount: the finished turn
+// swaps the streamed message for its stored copy (a new id, a fresh mount ~100ms later), and that copy
+// has never seen itself stream. A part that lands done right after a hold is the reply landing.
+let lastHeldAt = 0
+const REVEAL_WINDOW_MS = 2_500
+
 const TimelineMarkdownText: FC<TimelineTextPartProps> = ({ completedAt, timestamp }) => {
-  const { text } = useMessagePartText()
+  const { status, text } = useMessagePartText()
+  const streaming = status.type === 'running'
+  const tail = useAuiState(s => s.message.isLast)
+  const messageDone = useAuiState(s => s.message.status?.type !== 'running')
+  const threadRunning = useAuiState(s => s.thread.isRunning)
+  const liveStream = useStore($replyReveal) === 'live'
+  const holdTop = useStore($replyHoldTop)
+  const ref = useRef<HTMLDivElement>(null)
+
+  if (streaming) {
+    lastHeldAt = Date.now()
+  }
+
+  // Decided once per mount (history renders still), and again on the streaming → done flip.
+  const [revealing, setRevealing] = useState(
+    () => !streaming && tail && (Date.now() - lastHeldAt < REVEAL_WINDOW_MS || runEndedRecently(REVEAL_WINDOW_MS))
+  )
+
+  const [was, setWas] = useState({ streaming, threadRunning })
+
+  // Landing while mounted: the part stops streaming, or the turn ends under the tail reply.
+  if (was.streaming !== streaming || was.threadRunning !== threadRunning) {
+    setWas({ streaming, threadRunning })
+
+    if ((was.streaming && !streaming) || (tail && was.threadRunning && !threadRunning)) {
+      setRevealing(true)
+    }
+  }
+
+  // The turn's reply landing whole: hold the view at its top so reading starts there.
+  useLayoutEffect(() => {
+    if (holdTop && revealing && messageDone && tail) {
+      setReplyAnchor(ref.current)
+    }
+  }, [holdTop, messageDone, revealing, tail])
 
   // assistant-ui adds an empty continuation after a tool starts. It is not
   // prose yet and must not create paragraph spacing above pending approvals.
@@ -211,8 +258,22 @@ const TimelineMarkdownText: FC<TimelineTextPartProps> = ({ completedAt, timestam
     return null
   }
 
+  // A reply still streaming stays hidden and appears whole when it is done. The line
+  // above it (or the bottom loader, when there is none) stays live until then.
+  if (streaming && !liveStream) {
+    return null
+  }
+
   return (
-    <div className="min-w-0">
+    <div
+      className={cn('min-w-0', revealing && !liveStream && 'aui-text-reveal')}
+      onAnimationEnd={event => {
+        if (event.target === event.currentTarget && event.animationName === 'aui-text-reveal-sweep') {
+          setRevealing(false)
+        }
+      }}
+      ref={ref}
+    >
       <MarkdownText />
       <TimelineTimestamp className="mt-1 block" completedAt={completedAt} timestamp={timestamp} />
     </div>
@@ -248,9 +309,6 @@ const ThinkingDisclosure: FC<{
   // `null` = no explicit user toggle yet. Live reasoning remains visible by
   // default, unless the user opts into the low-jitter collapsed presentation.
   const [userOpen, setUserOpen] = useState<boolean | null>(null)
-  const elapsed = useElapsedSeconds(pending, timerKey)
-  // Live measurement first; a reloaded block falls back to what the agent stored.
-  const thoughtFor = useMeasuredDuration(pending, timerKey) ?? storedSeconds ?? null
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const contentRef = useRef<HTMLDivElement | null>(null)
   const enterRef = useEnterAnimation(messageRunning, timerKey)
@@ -267,21 +325,9 @@ const ThinkingDisclosure: FC<{
   // Live: the model's current step ("Clarifying the move count") instead of a bare "Thinking".
   let thoughtLabel = headline ?? t.assistant.thread.thinking
 
+  // No durations: a finished thought reads as its headline, else "Thought".
   if (!pending) {
-    if (thoughtFor === null) {
-      thoughtLabel = t.assistant.thread.thought
-    } else if (thoughtFor < 1) {
-      thoughtLabel = t.assistant.thread.thoughtBriefly
-    } else {
-      thoughtLabel = t.assistant.thread.thoughtFor(formatElapsed(Math.round(thoughtFor)))
-    }
-
-    // Titles alone: the headline IS the whole thought, so it replaces the label
-    // (keeping the duration) and there is nothing left to expand.
-    if (titleOnly && headline) {
-      thoughtLabel =
-        thoughtFor !== null && thoughtFor >= 1 ? `${headline} · ${formatElapsed(Math.round(thoughtFor))}` : headline
-    }
+    thoughtLabel = headline ?? t.assistant.thread.thought
   }
 
   const expandable = pending || !titleOnly
@@ -347,7 +393,6 @@ const ThinkingDisclosure: FC<{
         trailing={
           <span className="flex shrink-0 items-center gap-1.5">
             <TimelineTimestamp className={SCAFFOLD_META_CLASS} completedAt={completedAt} timestamp={timestamp} />
-            {pending && <ActivityTimerText className={SCAFFOLD_META_CLASS} seconds={elapsed} />}
           </span>
         }
       >
@@ -387,14 +432,24 @@ const ReasoningAccordionGroup: FC<{ children?: ReactNode; endIndex: number; star
   const messageId = useAuiState(s => s.message.id)
   const messageRunning = useAuiState(s => s.message.status?.type === 'running')
 
-  const pending = useAuiState(
-    s =>
-      s.thread.isRunning &&
-      s.message.status?.type === 'running' &&
+  // Also pending while the reply after it is still being written (held until done), so the
+  // line stays lit straight through to the reply instead of handing over to another marker.
+  const heldReply = useStore($replyReveal) === 'reveal'
+
+  const pending = useAuiState(s => {
+    if (!s.thread.isRunning || s.message.status?.type !== 'running') {
+      return false
+    }
+
+    const after = s.message.parts.slice(endIndex + 1)
+
+    return (
+      (heldReply && after.length > 0 && after.every(p => p?.type === 'text')) ||
       s.message.parts
         .slice(Math.max(0, startIndex), endIndex + 1)
         .some(p => p?.type === 'reasoning' && p.status?.type !== 'complete')
-  )
+    )
+  })
 
   // A reasoning group with no actual text is pure noise — drop the whole
   // "Thinking" disclosure rather than leave an empty header eating a row. This
@@ -492,22 +547,139 @@ const ReasoningTextPart: ReasoningMessagePartComponent = () => {
   )
 }
 
-// Module-level constant so the `components` prop on `MessagePrimitive.Parts`
-// has a stable identity across renders. Without this every AssistantMessage
-// render would create a fresh `components` object, invalidating the memo on
-// `MessagePrimitivePartByIndex` and forcing every tool/reasoning child to
-// re-render on every streaming delta. Memo invalidation alone doesn't
-// remount, but combined with the previous ToolFallback group-swap it was a
-// big chunk of the per-delta work.
-export const MESSAGE_PARTS_COMPONENTS = {
+// Rendering one part inside an activity group: the plain per-part components,
+// never a group component, so a part can't re-enter the grouping below.
+export const PART_COMPONENTS = {
   Reasoning: ReasoningTextPart,
-  ReasoningGroup: ReasoningAccordionGroup,
   Text: TimelineMarkdownText,
-  ToolGroup: ToolGroupSlot,
   tools: { Fallback: ChainToolFallback }
 } as const
 
-/** Narration stays in order; each adjacent tool run owns its disclosure. */
+const partAt = (index: number) => <MessagePrimitive.PartByIndex components={PART_COMPONENTS} index={index} key={index} />
+
+/** Consecutive reasoning parts inside [start, end] as [segStart, segEnd] pairs; tools in between stay single. */
+function activitySegments(keys: readonly string[], start: number, end: number) {
+  const segments: ({ end: number; kind: 'reasoning'; start: number } | { index: number; kind: 'tool' })[] = []
+
+  for (let i = start; i <= end; i++) {
+    const last = segments.at(-1)
+
+    if (keys[i] !== REASONING_RUN_KEY) {
+      segments.push({ index: i, kind: 'tool' })
+    } else if (last?.kind === 'reasoning' && last.end === i - 1) {
+      last.end = i
+    } else {
+      segments.push({ end: i, kind: 'reasoning', start: i })
+    }
+  }
+
+  return segments
+}
+
+/**
+ * Everything between two pieces of narration — thoughts and tool calls — as one
+ * level-1 line ("Searched 3 sites, ran 2 commands"). Opening it lists each step
+ * (level 2: a thought's headline, a tool row), and each step opens to its full
+ * text or output (level 3). Cards (diffs, questions, connectors) stay in place
+ * and split the lines around them. A run that is only thinking has no other
+ * step to list, so it shows the thought itself instead of a "Thought" wrapper.
+ */
+const ActivityGroup: FC = () => {
+  const showToolActivity = useStore($showToolActivity)
+
+  // Where this chain of thought sits in the message: its parts are a slice of
+  // message.parts, so the first one's reference gives the offset.
+  const range = useAuiState(state => {
+    const first = state.chainOfThought.parts[0]
+    const start = first ? state.message.parts.indexOf(first as never) : -1
+
+    return `${start}:${state.chainOfThought.parts.length}`
+  })
+
+  const [startIndex, length] = range.split(':').map(Number)
+  const endIndex = startIndex + length - 1
+
+  // Joined string, not an array: the selector re-runs on every delta and is compared with Object.is.
+  const keyString = useAuiState(state =>
+    state.message.parts
+      .map(part =>
+        part.type === 'tool-call'
+          ? toolGroupKey(part.toolName, part.args)
+          : part.type === 'reasoning'
+            ? REASONING_RUN_KEY
+            : ''
+      )
+      .join('\u0000')
+  )
+
+  const keys = useMemo(() => keyString.split('\u0000'), [keyString])
+
+  // Live, a run whose newest step is a thought names that thought.
+  const lastReasoning = useAuiState(state => {
+    const part = state.message.parts[endIndex]
+
+    return part?.type === 'reasoning' ? part.text : ''
+  })
+
+  if (startIndex < 0) {
+    return null
+  }
+
+  const items = splitRunItems(keys.slice(startIndex, endIndex + 1))
+
+  const segmentNodes = (start: number, end: number) =>
+    activitySegments(keys, start, end).map(segment =>
+      segment.kind === 'tool' ? (
+        partAt(segment.index)
+      ) : (
+        <ReasoningAccordionGroup endIndex={segment.end} key={`reasoning:${segment.start}`} startIndex={segment.start}>
+          {Array.from({ length: segment.end - segment.start + 1 }, (_, offset) => partAt(segment.start + offset))}
+        </ReasoningAccordionGroup>
+      )
+    )
+
+  return (
+    <ToolEmbedContext.Provider value={false}>
+      {items.map(item => {
+        if (item.kind === 'card') {
+          return <Fragment key={`card:${item.index}`}>{partAt(startIndex + item.index)}</Fragment>
+        }
+
+        const start = startIndex + item.start
+        const end = startIndex + item.end
+        const onlyThinking = keys.slice(start, end + 1).every(key => key === REASONING_RUN_KEY)
+
+        // Thinking alone, or the tool feed switched off: no summary line, the steps render as they are.
+        if (onlyThinking || !showToolActivity) {
+          return <Fragment key={`run:${start}`}>{segmentNodes(start, end)}</Fragment>
+        }
+
+        return (
+          <ToolRun
+            endIndex={end}
+            key={`run:${start}`}
+            liveStep={end === endIndex && lastReasoning ? reasoningHeadline(lastReasoning).headline : null}
+            startIndex={start}
+          >
+            {segmentNodes(start, end)}
+          </ToolRun>
+        )
+      })}
+    </ToolEmbedContext.Provider>
+  )
+}
+
+// Module-level constant so the `components` prop on `MessagePrimitive.Parts`
+// has a stable identity across renders. Without this every AssistantMessage
+// render would create a fresh `components` object and force every part to
+// re-render on every streaming delta. `ChainOfThought` takes every run of
+// reasoning and tool calls; ActivityGroup decides how it reads.
+export const MESSAGE_PARTS_COMPONENTS = {
+  ChainOfThought: ActivityGroup,
+  Text: TimelineMarkdownText
+} as const
+
+/** Narration stays in order; each activity run between it owns one summary line. */
 export function AssistantMessageParts() {
   return (
     <div data-slot="aui_message-parts">

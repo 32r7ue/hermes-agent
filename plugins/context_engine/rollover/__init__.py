@@ -97,6 +97,18 @@ class RolloverEngine(ContextCompressor):
         self._previous_summary = None
         return handoff_text(getattr(self, "_session_id", "") or "")
 
+    # The built-in compressor skips the summarizer after weak or failed rounds to save model calls,
+    # then writes a generic fallback summary. Rollover makes no model call, so a skip saves nothing and
+    # the fallback would replace the pointer: the agent would lose the way back to its full record.
+    def _fallback_streak_skip(self, telemetry: dict[str, Any]) -> bool:
+        return False
+
+    def _feasibility_skip(self, telemetry, turns_to_summarize, compress_start, compress_end) -> bool:
+        return False
+
+    def _fallback_summary_for_window(self, telemetry, turns_to_summarize, n_dropped, feasibility_skip) -> str:
+        return handoff_text(getattr(self, "_session_id", "") or "")
+
     def _take_prepared_summary(self, *args: Any, **kwargs: Any) -> Optional[Any]:
         # Prepared (background LLM) summaries have no place here.
         return None

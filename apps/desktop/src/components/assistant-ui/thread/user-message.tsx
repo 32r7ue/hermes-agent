@@ -2,6 +2,8 @@ import { ActionBarPrimitive, BranchPickerPrimitive, MessagePrimitive, useAuiStat
 import { useStore } from '@nanostores/react'
 import { type FC, type ReactNode, useCallback, useEffect, useState } from 'react'
 
+import { useComposerScope } from '@/app/chat/composer/scope'
+import { $sentNowSteerIds, requestSteerSendNow } from '@/app/chat/steer-send-now'
 import { DirectiveContent } from '@/components/assistant-ui/directive-text'
 import { isAttachmentRef } from '@/components/assistant-ui/reference-kinds'
 import {
@@ -423,6 +425,18 @@ export const UserMessage: FC<{
   const [pickerOpen, setPickerOpen] = useState(false)
   const { enabled: reactionsEnabled, react, reactions: shownReactions } = useMessageReactions(messageId, 'user')
 
+  // A steer the gateway holds until the running step finishes. While it is
+  // still the last row of a running turn, offer Claude Code's "Send now".
+  const { target: composerTarget } = useComposerScope()
+  const sentNowSteerIds = useStore($sentNowSteerIds)
+
+  const steerWaiting = useAuiState(
+    s =>
+      (s.message.metadata?.custom as { pendingSteer?: unknown } | undefined)?.pendingSteer === true &&
+      s.message.isLast &&
+      s.thread.isRunning
+  )
+
   const pickEmoji = useCallback(
     (emoji: null | string) => {
       setPickerOpen(false)
@@ -434,6 +448,11 @@ export const UserMessage: FC<{
   // Watch windows spectate a subagent run driven elsewhere: prompts can't be
   // edited, restored, or stopped from here. Prompts render in full (no clamp).
   const readOnly = isWatchWindow()
+
+  // Sent now: the words went out again as a prompt with its own bubble.
+  if (sentNowSteerIds.has(messageId)) {
+    return null
+  }
 
   // Injected background-process notification, not a human prompt — render the
   // compact system-style notice (after all hooks above have run).
@@ -606,6 +625,26 @@ export const UserMessage: FC<{
               onRetract={() => react(null)}
               reactions={shownReactions}
             />
+            {steerWaiting && !readOnly && (
+              <div
+                className="flex items-center justify-end gap-1.5 pr-1.5 pt-1 text-[length:var(--conversation-tool-font-size)] text-(--ui-text-tertiary)"
+                data-slot="aui_user-message-pending-steer"
+              >
+                {copy.steerWaiting}
+                <Button
+                  className="h-auto px-1 py-0 text-[length:inherit] text-(--ui-text-secondary) hover:text-foreground"
+                  data-slot="aui_user-message-send-now"
+                  onClick={() =>
+                    requestSteerSendNow({ messageId, target: composerTarget, text: messageText.trim() })
+                  }
+                  size="micro"
+                  type="button"
+                  variant="text"
+                >
+                  {copy.steerSendNow}
+                </Button>
+              </div>
+            )}
             <BranchPickerPrimitive.Root
               className={cn(
                 'checkpoint-container flex items-center gap-1 pb-0 pt-1 pl-1.5 text-[0.75rem] leading-none text-(--ui-text-tertiary)',

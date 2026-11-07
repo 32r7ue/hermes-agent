@@ -14,7 +14,7 @@ import { useTourMarker } from '@/app/chat/tour-marker'
 import type { GatewayRequester } from '@/app/contrib/types'
 import { useHudComposerDrag } from '@/app/hud/composer-drag'
 import { useBusyInputMode } from '@/app/session/hooks/use-busy-input-mode'
-import { composerFloatingStrip, composerInputBacking, composerSurfaceRing } from '@/components/chat/composer-dock'
+import { composerFloatingStrip, composerInputSurface, composerSurfaceRing } from '@/components/chat/composer-dock'
 import { useSetupChatView } from '@/components/onboarding/first-run/assembly'
 import { OnboardingSkip } from '@/components/onboarding/skip-setup'
 import { Slot as ContribSlot } from '@/contrib/react/slot'
@@ -43,6 +43,8 @@ import { $threadScrolledUpBySession } from '@/store/thread-scroll'
 import { $autoSpeakReplies } from '@/store/voice-prefs'
 import { useTheme } from '@/themes'
 
+import { markSteerSentNow, onSteerSendNow } from '../steer-send-now'
+
 import { AttachmentList } from './attachments'
 import { deriveBusySubmitState } from './busy-submit-state'
 import { ComposerDockGlow, QueuedEditBanner } from './chat-bar-parts'
@@ -61,6 +63,7 @@ import { COMPOSER_AREAS } from './contrib'
 import { ComposerControls } from './controls'
 import { ComposerDirectiveActions } from './directive-actions'
 import { COMPOSER_DROP_ACTIVE_CLASS, COMPOSER_DROP_FADE_CLASS } from './drop-affordance'
+import { armEscHoldToStop } from './esc-hold'
 import { onComposerUpload } from './focus'
 import { markActiveComposer, onComposerAttachImagesRequest } from './focus'
 import { HelpHint } from './help-hint'
@@ -370,6 +373,7 @@ export function ChatBar({
     queueParked,
     queuedPrompts,
     sendQueuedNow,
+    sendWordsNow,
     steerQueuedNow,
     stepQueuedEdit
   } = useComposerQueue({
@@ -387,6 +391,17 @@ export function ChatBar({
     queueSessionKey,
     sessionId
   })
+
+  // A pending steer's "Send now" (its bubble in this composer's transcript).
+  useEffect(
+    () =>
+      onSteerSendNow(({ messageId, target, text }) => {
+        if (target === scope.target && sendWordsNow(text)) {
+          markSteerSentNow(messageId)
+        }
+      }),
+    [scope.target, sendWordsNow]
+  )
 
   const statusStackVisible = queuedPrompts.length > 0 || statusPresent
 
@@ -1045,13 +1060,19 @@ export function ChatBar({
         return
       }
 
-      // Otherwise Esc interrupts the running turn (Stop-button parity) — unless
-      // the turn is parked waiting on the user, where Esc must not discard the
-      // pending prompt. An explicit halt, so it parks the queue too.
+      // Otherwise a HELD Esc interrupts the running turn (Stop-button parity) —
+      // a tap does nothing, so a button remapped to Esc can't stop a chat by
+      // accident. Not while the turn is parked waiting on the user, where Esc
+      // must not discard the pending prompt. An explicit halt, so it parks the
+      // queue too.
       if (busy && !awaitingInput) {
         event.preventDefault()
-        triggerHaptic('cancel')
-        void Promise.resolve(haltRun())
+        armEscHoldToStop(() => {
+          if (escStopStateRef.current.busy && !escStopStateRef.current.awaitingInput) {
+            triggerHaptic('cancel')
+            void Promise.resolve(haltRun())
+          }
+        })
       }
     }
   }
@@ -1083,6 +1104,10 @@ export function ChatBar({
 
   // Global Esc-to-cancel when the chat (not the composer input) has focus.
   // Same explicit-halt semantics as the Stop button: park the queue.
+  // Read when a held Esc fires, not when it was pressed: the turn may end mid-hold.
+  const escStopStateRef = useRef({ awaitingInput, busy })
+  escStopStateRef.current = { awaitingInput, busy }
+
   useComposerEscCancel({ awaitingInput, busy, onCancel: haltRun, target: scope.target })
 
   const {
@@ -1457,13 +1482,15 @@ export function ChatBar({
                   // the input/controls row) laid out against that phantom width
                   // and got clipped by overflow-hidden, send button first.
                   'group/composer-surface relative z-4 isolate grid grid-cols-[minmax(0,1fr)] grid-rows-[auto_1fr] overflow-hidden rounded-[inherit]', composerSurfaceRing,
+                  // The fill paints on the surface itself (border-box), under the translucent ring: a
+                  // backing child is clipped inside the border, so transcript text showed through the ring.
+                  composerInputSurface,
                   COMPOSER_DROP_FADE_CLASS,
                   dragActive && COMPOSER_DROP_ACTIVE_CLASS
                 )}
                 data-slot="composer-surface"
                 ref={composerSurfaceRef}
               >
-                <div aria-hidden className={composerInputBacking} />
                 {codingRowShown && (
                   <StatusDrawerContent collapsed={statusDrawerCollapsed} id={codingDrawerId}>
                     <CodingStatusRow
@@ -1557,8 +1584,7 @@ export function ChatBarFallback() {
       )}
       data-slot="composer-root"
     >
-      <div className={cn('composer-fallback-surface relative isolate h-(--composer-fallback-height) w-full rounded-[inherit]', composerSurfaceRing)}>
-        <div aria-hidden className={composerInputBacking} />
+      <div className={cn('composer-fallback-surface relative isolate h-(--composer-fallback-height) w-full rounded-[inherit]', composerSurfaceRing, composerInputSurface)}>
       </div>
     </div>
   )

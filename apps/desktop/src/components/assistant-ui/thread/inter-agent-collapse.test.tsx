@@ -13,7 +13,7 @@
 //    Nothing in the app itself reads it, so without this test a delete would
 //    look free and would silently regress that repro's response gate.
 import { AssistantRuntimeProvider, type ThreadMessage, useExternalStoreRuntime } from '@assistant-ui/react'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { Thread } from '.'
@@ -166,10 +166,11 @@ describe('inter-agent collapse gate', () => {
   it('does NOT collapse while that reply is still streaming', async () => {
     const { container } = render(<Harness messages={[user('u1', DELIVERY), assistant('a1', 'working on it', true)]} />)
 
-    await screen.findByText('working on it')
+    // Expanded => the full body root, which carries the streaming marker (the
+    // text itself is held back until the reply is done).
+    await waitFor(() => expect(container.querySelector('[data-message-streaming="true"]')).toBeTruthy())
     expect(screen.queryByText('show reply')).toBeNull()
-    // Expanded => the full body root, which carries the streaming marker.
-    expect(container.querySelector('[data-message-streaming="true"]')).toBeTruthy()
+    expect(screen.queryByText('working on it')).toBeNull()
   })
 
   it('leaves an ordinary reply expanded', async () => {

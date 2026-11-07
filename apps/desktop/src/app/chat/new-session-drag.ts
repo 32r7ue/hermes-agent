@@ -33,7 +33,6 @@ import {
 } from '@/components/pane-shell/tree/renderer/drag-session'
 import { $treeDragging, type DropHint, NEW_SESSION_DRAG } from '@/components/pane-shell/tree/store'
 import type { EngineZone, ZoneRect } from '@/components/pane-shell/tree/zones-engine'
-import { translateNow } from '@/i18n'
 import type { AgentProfileRoute } from '@/store/profile'
 import type { TileDock } from '@/store/session-states'
 
@@ -128,7 +127,6 @@ export function startNewSessionDrag(
   const restoreOpacity = source?.style.opacity ?? ''
 
   startDragSession(e, {
-    ghost: { label: opts?.label || translateNow('sidebar.nav.new-session') },
     onTap: opts?.onTap,
 
     onEngage() {
@@ -243,7 +241,6 @@ export function startNewProjectDrag(
   const restoreOpacity = source?.style.opacity ?? ''
 
   startDragSession(e, {
-    ghost: { label: translateNow('sidebar.projects.newButton') },
     onTap: opts?.onTap,
 
     onEngage() {

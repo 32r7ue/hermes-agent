@@ -10,7 +10,7 @@
 // scan), so a rewrite that drops it would make previews flicker in mid-stream
 // with nothing to catch it.
 import { AssistantRuntimeProvider, type ThreadMessage, useExternalStoreRuntime } from '@assistant-ui/react'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { Thread } from '.'
@@ -93,7 +93,7 @@ describe('settled-turn link previews', () => {
   it('does not render the embed while the turn is still running', async () => {
     const { container } = render(<Harness messages={[user('u1', 'start it'), assistant('a1', WITH_PREVIEW, true)]} />)
 
-    await screen.findByText('Serving now:', { exact: false })
+    await waitFor(() => expect(container.querySelector('[data-slot="aui_assistant-message-root"]')).toBeTruthy())
 
     expect(container.querySelector(`[title="${TARGET}"]`)).toBeNull()
   })

@@ -7,13 +7,19 @@ import { useI18n } from '@/i18n'
 import { findCatalogProvider } from '@/lib/model-options'
 import { requestForOwnedSession } from '@/store/session-states'
 
-/** Never combine different credential accounts into an invented quota. */
+// The 5-hour window: Codex labels it "Session", Anthropic "Current session" (agent/account_usage.py).
+const FIVE_HOUR_WINDOW = /\bsession\b/i
+
+/** The ring is the 5h limit when the provider reports one, else the fullest window.
+ *  Never combine different credential accounts into an invented quota. */
 export function providerRingPercent(provider: ModelOptionProvider | undefined): number | null {
   if (!provider) {return null}
   const sections = providerUsageSections(provider)
 
   if (sections.length !== 1) {return null}
-  const values = sections[0]!.windows.map(window => window.percent).filter(Number.isFinite)
+  const windows = sections[0]!.windows.filter(window => Number.isFinite(window.percent))
+  const fiveHour = windows.find(window => FIVE_HOUR_WINDOW.test(window.label))
+  const values = (fiveHour ? [fiveHour] : windows).map(window => window.percent)
 
   return values.length ? Math.max(0, Math.min(100, Math.max(...values))) : null
 }

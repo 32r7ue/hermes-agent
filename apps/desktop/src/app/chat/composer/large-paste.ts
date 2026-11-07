@@ -37,8 +37,11 @@ export function isPastedContentPath(path: string): boolean {
 
 /** Human-readable size of a paste's UTF-8 bytes, for the attachment chip. */
 export function pasteSizeLabel(text: string): string {
-  const bytes = new TextEncoder().encode(text).length
+  return byteSizeLabel(new TextEncoder().encode(text).length)
+}
 
+/** The same label for a byte count already known (a sent paste read back from disk). */
+export function byteSizeLabel(bytes: number): string {
   if (bytes < 1024) {
     return `${bytes} B`
   }

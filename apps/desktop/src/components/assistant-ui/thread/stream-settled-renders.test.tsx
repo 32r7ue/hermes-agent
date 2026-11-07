@@ -10,7 +10,7 @@
 // (`useMessagePartText`, read by every rendered text part).
 import type * as assistantUiModule from '@assistant-ui/react'
 import { AssistantRuntimeProvider, type ThreadMessage } from '@assistant-ui/react'
-import { act, cleanup, render } from '@testing-library/react'
+import { act, cleanup, render, waitFor } from '@testing-library/react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useRuntimeMessageRepository } from '@/app/chat/runtime-repository'
@@ -162,9 +162,10 @@ describe('streaming into a settled transcript', () => {
     let body = 'tok0'
     const stream = () => [...settled, prompt, text('a-live', 'assistant', body, true)]
 
-    const { findByText, rerender } = render(<Harness busy messages={stream()} />)
+    const { queryByText, rerender } = render(<Harness busy messages={stream()} />)
 
-    await findByText('tok0')
+    // The live reply is held back until it is done; wait for its row instead.
+    await waitFor(() => expect(rootRenders.get('a-live') ?? 0).toBeGreaterThan(0))
 
     // Let the render-budget backfill finish mounting older rows, and any async
     // one-shot work (the code plugin swap) re-render them, so the window below
@@ -186,7 +187,6 @@ describe('streaming into a settled transcript', () => {
 
     const rootBefore = sum(rootRenders, settledIds)
     const textBefore = sum(textRenders, settledIds)
-    const liveTextBefore = textRenders.get('a-live') ?? 0
 
     const t0 = performance.now()
 
@@ -198,7 +198,6 @@ describe('streaming into a settled transcript', () => {
     }
 
     const elapsed = performance.now() - t0
-    await findByText(body)
 
     if (PROBE) {
       console.info(
@@ -208,10 +207,9 @@ describe('streaming into a settled transcript', () => {
 
     const settledRootPerChunk = (sum(rootRenders, settledIds) - rootBefore) / CHUNKS
     const settledTextPerChunk = (sum(textRenders, settledIds) - textBefore) / CHUNKS
-    const liveTextPerChunk = ((textRenders.get('a-live') ?? 0) - liveTextBefore) / CHUNKS
 
-    // The live tail must actually be streaming, or the zero below is vacuous.
-    expect(liveTextPerChunk).toBeGreaterThanOrEqual(1)
+    // The streamed text reached the runtime but stays hidden until the reply is done.
+    expect(queryByText(body)).toBeNull()
     expect(settledRootPerChunk).toBe(0)
     expect(settledTextPerChunk).toBe(0)
   })

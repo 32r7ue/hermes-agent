@@ -25,3 +25,19 @@ export async function writeComposerPaste(hermesHome: string, text: string): Prom
 
   return filePath
 }
+
+const PASTE_FILE_RE = /^pasted_content_[\w-]+\.txt$/
+
+/**
+ * A sent message names its paste the way the backend took it — often relative
+ * (`.hermes/composer-pastes/pasted_content_….txt`, against the chat's cwd). Every
+ * paste lives in `<HERMES_HOME>/composer-pastes`, so its file name alone finds it.
+ * Null for anything that is not a paste file name.
+ */
+export function resolveComposerPastePath(hermesHome: string, filePath: string): null | string {
+  const name = path.basename(filePath)
+
+  return PASTE_FILE_RE.test(name) && !path.isAbsolute(filePath)
+    ? path.join(hermesHome, COMPOSER_PASTES_DIRNAME, name)
+    : null
+}

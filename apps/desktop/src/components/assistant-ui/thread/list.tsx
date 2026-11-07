@@ -21,6 +21,7 @@ import { useComposerSurfaceId } from '@/app/chat/composer/scope'
 import { usePaneLifecycle, usePaneVisible } from '@/components/pane-shell/pane-visibility'
 import { useI18n } from '@/i18n'
 import { messagePaintWeight } from '@/lib/render-weight'
+import { clearReplyAnchor, markRunEnded, replyAnchorCap } from '@/lib/reply-anchor'
 import { cn } from '@/lib/utils'
 import {
   COMPOSER_CLEARANCE_SLOT,
@@ -198,9 +199,12 @@ export const resolveThreadScrollTarget: GetTargetScrollTop = (targetScrollTop, {
   }
 
   const currentScrollTop = scrollElement.scrollTop
-  const remaining = targetScrollTop - currentScrollTop
+  // A reply that just landed whole holds the view at its top (lib/reply-anchor).
+  const cap = replyAnchorCap(scrollElement)
+  const target = cap !== null && cap < targetScrollTop ? cap : targetScrollTop
+  const remaining = target - currentScrollTop
 
-  return remaining >= 0 && remaining <= SCROLL_TARGET_EPSILON_PX ? currentScrollTop : targetScrollTop
+  return remaining >= 0 && remaining <= SCROLL_TARGET_EPSILON_PX ? currentScrollTop : target
 }
 
 /** Near-bottom slack for a run-start snap. Wider than the subpixel epsilon
@@ -860,11 +864,34 @@ const ThreadMessageListInner: FC<ThreadMessageListProps> = ({
     el.setAttribute('data-editing', 'true')
   }, [endEditHold, scrollRef, stopScroll])
 
+  // The reader moving the view themselves releases a reply's top anchor.
+  useEffect(() => {
+    const el = scrollRef.current
+
+    if (!el) {
+      return
+    }
+
+    const release = () => clearReplyAnchor()
+    el.addEventListener('wheel', release, { passive: true })
+    el.addEventListener('touchstart', release, { passive: true })
+    el.addEventListener('keydown', release)
+
+    return () => {
+      el.removeEventListener('wheel', release)
+      el.removeEventListener('touchstart', release)
+      el.removeEventListener('keydown', release)
+    }
+  }, [scrollRef])
+
   useEffect(() => onThreadEditOpen(beginEditHold), [beginEditHold])
   useEffect(() => onThreadEditClose(endEditHold), [endEditHold])
   useEffect(() => () => endEditHold(), [endEditHold])
   // New run → snap to the latest turn only when already near the bottom.
+  useAuiEvent('thread.runEnd', () => markRunEnded())
+
   useAuiEvent('thread.runStart', () => {
+    clearReplyAnchor()
     cancelRestoreRef.current?.()
     const el = scrollRef.current
 
@@ -944,7 +971,9 @@ const ThreadMessageListInner: FC<ThreadMessageListProps> = ({
         threadScrollStateFromMetrics({ ...previousResizeMetrics, scrollTop: el.scrollTop }).kind === 'bottom' &&
         !hasTranscriptTextSelection(el)
       ) {
-        el.scrollTop = threadScrollTargetTop(THREAD_SCROLL_BOTTOM, nextResizeMetrics)
+        // A reply that just landed whole holds the view at its top (lib/reply-anchor).
+        const bottom = threadScrollTargetTop(THREAD_SCROLL_BOTTOM, nextResizeMetrics)
+        el.scrollTop = Math.min(bottom, replyAnchorCap(el) ?? bottom)
       }
 
       previousResizeMetrics = nextResizeMetrics
@@ -1087,7 +1116,10 @@ const ThreadMessageListInner: FC<ThreadMessageListProps> = ({
     let ownScrollTop: number | null = null
 
     const applyTarget = (node: HTMLElement) => {
-      node.scrollTop = threadScrollTargetTop(target, node)
+      const top = threadScrollTargetTop(target, node)
+      // A fresh chat's first reply re-keys the session as it lands, which re-runs this restore to
+      // the bottom: a reply that just landed whole still holds the view at its top.
+      node.scrollTop = target.kind === 'bottom' ? Math.min(top, replyAnchorCap(node) ?? top) : top
       ownScrollTop = node.scrollTop
     }
 

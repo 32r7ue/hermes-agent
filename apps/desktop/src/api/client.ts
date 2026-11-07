@@ -454,7 +454,10 @@ export class HermesGateway extends JsonRpcGatewayClient {
     // The clarify card answers a whole question set as one form: declared, the owner asks the
     // turn's multi-question clarify as ONE request; undeclared, one card per question. An older
     // owner refuses the unknown key, so it rides only where `client.capabilities` advertised it.
-    if (method === 'prompt.submit' && this.backendClarifyBatch) { params = { ...params, clarify_batch: true } }
+    // An edited queued prompt (prompt.replace_queued) is a fresh submit of the new words: same flag.
+    if ((method === 'prompt.submit' || method === 'prompt.replace_queued') && this.backendClarifyBatch) {
+      params = { ...params, clarify_batch: true }
+    }
 
     let prepared = this.protocol.prepare(method, params)
     const wireMethod = this.protocol.wire(method, prepared)

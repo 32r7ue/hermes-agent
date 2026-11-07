@@ -37,6 +37,8 @@ const COMPARED_FIELDS = [
   // so a change (e.g. resume replay attaching the descriptor) must repaint.
   'errorSurface',
   'hidden',
+  // A pending steer draws its "Send now" row.
+  'pendingSteer',
   'branchGroupId',
   'interim',
   'interrupted',
@@ -159,7 +161,7 @@ export function chatReactionsEquivalent(a: ChatMessage['reactions'], b: ChatMess
 // flipping it must repaint (e.g. a previewed final settling onto a sealed
 // interim bubble restores the bar); `queuedTurnStarted` must reach the view's
 // copy because resume seeds session state from it.
-const FLAG_FIELDS = ['interim', 'queuedTurnStarted'] as const
+const FLAG_FIELDS = ['interim', 'queuedTurnStarted', 'pendingSteer'] as const
 
 const flagsDiffer = (a: ChatMessage, b: ChatMessage) =>
   FLAG_FIELDS.some(field => (a[field] ?? false) !== (b[field] ?? false))

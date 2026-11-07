@@ -135,7 +135,7 @@ import { discoverWithTeamFallback } from './cloud-discovery'
 import { createCloudSessionRecovery } from './cloud-session-recovery'
 import { installCommandScreenshot } from './command-screenshot'
 import { composerImageTimestamp } from './composer-image-name'
-import { writeComposerPaste } from './composer-paste'
+import { resolveComposerPastePath, writeComposerPaste } from './composer-paste'
 import { applyConnectionChange, teardownSshState } from './connection-apply'
 import {
   connectionInstallIds,
@@ -16237,7 +16237,9 @@ ipcMain.handle('hermes:readFileDataUrlForAttach', async (_event, filePath) => {
 
 ipcMain.handle('hermes:readFileText', async (_event, filePath) => {
   try {
-    const { resolvedPath, stat } = await resolveReadableFileForIpc(resolveIpcFileReadPath(filePath), {
+    const pastePath = resolveComposerPastePath(HERMES_HOME, String(filePath ?? ''))
+
+    const { resolvedPath, stat } = await resolveReadableFileForIpc(resolveIpcFileReadPath(pastePath ?? filePath), {
       maxBytes: TEXT_PREVIEW_SOURCE_MAX_BYTES,
       purpose: 'Text preview'
     })
@@ -16422,9 +16424,12 @@ ipcMain.handle('hermes:saveClipboardImage', async () => {
   return ''
 })
 
-ipcMain.handle('hermes:normalizePreviewTarget', (_event, target, baseDir) =>
-  normalizePreviewTarget(String(target || ''), baseDir ? String(baseDir) : '')
-)
+ipcMain.handle('hermes:normalizePreviewTarget', (_event, target, baseDir) => {
+  const raw = String(target || '')
+
+  // A sent message's paste chip names its file relative to some cwd; it always lives in HERMES_HOME.
+  return normalizePreviewTarget(resolveComposerPastePath(HERMES_HOME, raw) ?? raw, baseDir ? String(baseDir) : '')
+})
 
 ipcMain.handle('hermes:watchPreviewFile', (event, url) => watchPreviewFile(event.sender, String(url || '')))
 

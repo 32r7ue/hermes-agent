@@ -13,6 +13,9 @@ import './store/translucency'
 import './store/user-bubble-transparency'
 // Side-effect: restores chat typography before the first conversation paints.
 import './store/chat-text-scale'
+import './store/chat-text-style'
+import './lib/scrollbar-hover-repaint'
+import './store/fork-upstream'
 // Side-effect: mirrors the keep-awake mode to main and listens for main's
 // one-time keep-awake offer. Settings loads lazily, too late for the offer.
 import './store/keep-awake'

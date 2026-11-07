@@ -461,6 +461,9 @@ export interface Translations extends NoticeTranslations {
     installMethodUnsupportedTitle: string
     updateHermes: string
     updateReadyTitle: string
+    forkUpdateTitle: (tag: string) => string
+    forkUpdateMessage: string
+    forkUpdateMerge: string
     updateReadyMessage: (count: number) => string
     updateReadyMessageUnknown: string
     updateReadyMessageAppInstaller: string
@@ -801,6 +804,11 @@ export interface Translations extends NoticeTranslations {
       hideCodeDiffsDesc: string
       hideThreadTimelineTitle: string
       hideThreadTimelineDesc: string
+      replyRevealTitle: string
+      replyRevealDesc: string
+      replyRevealOptions: { reveal: string; live: string }
+      replyHoldTopTitle: string
+      replyHoldTopDesc: string
       reasoningCollapsedTitle: string
       reasoningCollapsedDesc: string
       chatTextScaleTitle: string
@@ -826,6 +834,9 @@ export interface Translations extends NoticeTranslations {
       terminalFontPlaceholder: string
       terminalFontPreview: string
       terminalFontReset: string
+      chatTextStyleTitle: string
+      chatTextStyleDesc: string
+      chatTextStyleOptions: { default: string; slim: string; claude: string }
       chatFontTitle: string
       chatFontDesc: string
       chatFontPlaceholder: string
@@ -2790,6 +2801,14 @@ export interface Translations extends NoticeTranslations {
     missingBody: string
   }
 
+  sessionInfo: {
+    title: string
+    environment: string
+    thisComputer: string
+    remote: string
+    context: string
+    changes: string
+  }
   sidebar: {
     filter: {
       grouping: string
@@ -3941,6 +3960,9 @@ export interface Translations extends NoticeTranslations {
       react: string
       dismissError: string
       responseStopped: string
+      resumeStopped: string
+      steerWaiting: string
+      steerSendNow: string
       /** Layer titles for the structured error card (agent/error_surface.py).
        *  `generic` is the fallback when the backend sent no descriptor. */
       errorLayers: {
@@ -4278,6 +4300,7 @@ export interface Translations extends NoticeTranslations {
     imageAttachFailed: string
     attachFailed: string
     pastedContent: string
+    pastedContentMissing: string
     pasteAttachFailed: string
     attachImages: string
     clipboard: string

@@ -18,7 +18,6 @@ import { ModelPill } from './model-pill'
 import { ReasoningPill } from './reasoning-pill'
 import { StartVoiceButton } from './start-voice-button'
 import type { ChatBarState, VoiceStatus } from './types'
-import { VoiceFan } from './voice-fan'
 import { VoiceMenu } from './voice-menu'
 
 // Re-exported: `context-menu.tsx` and other row neighbours have always reached
@@ -112,6 +111,8 @@ export function ComposerControls({
   // else, which is the one thing that must survive every width.
   const foldedVoice = hudMode || foldVoice
 
+  // The row's dictation mic (and its hover fan) is gone by request; the HUD's
+  // folded voice menu keeps dictation where there is no Start-voice button.
   const voiceControls = foldedVoice ? (
     <VoiceMenu
       autoSpeak={autoSpeak}
@@ -122,17 +123,7 @@ export function ComposerControls({
       state={state}
       voiceStatus={voiceStatus}
     />
-  ) : (
-    // One mic in the row; hovering it fans the other voice toggles out of it.
-    <VoiceFan
-      autoSpeak={autoSpeak}
-      disabled={disabled}
-      onDictate={onDictate}
-      onToggleAutoSpeak={onToggleAutoSpeak}
-      state={state}
-      voiceStatus={voiceStatus}
-    />
-  )
+  ) : null
 
   // The browser host's touch-size controls can outgrow a minimal row, so there
   // they pack to the end and wrap. Native Desktop keeps main's single row.

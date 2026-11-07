@@ -36,6 +36,9 @@ const entryPreview = (entry: QueuedPromptEntry, c: Translations['composer']) =>
 
 /** A preview long enough (or multiline enough) that two lines may still hide
  *  part of it — the entry gets an in-place expand/collapse toggle (#45664). */
+/** A short queue shows its rows right away; only a longer one folds behind the header. */
+const SHOW_WITHOUT_EXPANDING = 2
+
 const shouldOfferExpandedPreview = (preview: string) => preview.length > 140 || preview.includes('\n')
 
 export function QueuePanel({
@@ -87,6 +90,7 @@ export function QueuePanel({
     // The owner died mid-turn and recovered this row as `unknown`: the
     // FIFO behind it is paused until someone acknowledges the loss.
     const lost = entry.serverStatus === 'unknown'
+    const canEdit = !lost && (!entry.serverStatus || Boolean(entry.serverControls?.includes('replace')))
     const preview = entryPreview(entry, c)
     const canExpand = shouldOfferExpandedPreview(preview)
     const isExpanded = expandedIds.has(entry.id)
@@ -139,11 +143,16 @@ export function QueuePanel({
         trailingVisible={isEditing || lost}
       >
         <div className="min-w-0 flex-1">
+          {/* Clicking the words edits them — the pencil alone hides until hover. */}
           <p
             className={cn(
               'text-[0.73rem] leading-4 text-foreground/92',
-              isExpanded ? 'max-h-40 overflow-y-auto whitespace-pre-wrap pr-1' : 'line-clamp-2 break-words'
+              isExpanded ? 'max-h-40 overflow-y-auto whitespace-pre-wrap pr-1' : 'line-clamp-2 break-words',
+              canEdit && !isEditing && 'cursor-text'
             )}
+            data-slot="queue-entry-text"
+            onClick={canEdit && !isEditing && !editingId ? () => onEdit(entry) : undefined}
+            title={canEdit && !isEditing ? c.queueEdit : undefined}
           >
             {preview}
           </p>
@@ -187,7 +196,13 @@ export function QueuePanel({
       }
       icon={<Codicon className="text-muted-foreground/70" name={paused ? 'debug-pause' : 'layers'} size="0.8rem" />}
       label={paused ? c.queuedPaused(entries.length) : c.queued(entries.length)}
-      preview={lostEntries.length > 0 ? lostEntries.map(renderRow) : undefined}
+      preview={
+        entries.length <= SHOW_WITHOUT_EXPANDING
+          ? entries.map(renderRow)
+          : lostEntries.length > 0
+            ? lostEntries.map(renderRow)
+            : undefined
+      }
     >
       {entries.map(renderRow)}
     </StatusSection>

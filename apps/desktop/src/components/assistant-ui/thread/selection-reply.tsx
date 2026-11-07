@@ -13,11 +13,17 @@ interface SelectedQuote {
   y: number
 }
 
+// One `>` per marking, not per line: a four-line selection read as four
+// separate quotes to the model. Markdown's lazy continuation keeps the
+// following lines in the same blockquote; inner blank lines would end it, so
+// they collapse, and the trailing blank line closes the marking.
 export const quoteSelection = (text: string): string =>
-  text
+  `> ${text
+    .trim()
     .split('\n')
-    .map(line => `> ${line}`)
-    .join('\n') + '\n\n'
+    .map(line => line.trim())
+    .filter(Boolean)
+    .join('\n')}\n\n`
 
 /** Quote into the owning draft; selecting text never changes the transcript. */
 export function SelectionReply() {

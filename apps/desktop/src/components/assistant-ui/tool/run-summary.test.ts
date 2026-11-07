@@ -55,7 +55,17 @@ describe('summarizeToolRun', () => {
   // pending. Falling back to past tense there contradicted the ticker still
   // scrolling underneath, so the most recent call carries the present tense.
   it('stays in the present tense between two sequential calls', () => {
-    expect(running([read('a.ts'), ran('x'), ran('y')])).toBe('Explored a.ts, running 2 commands')
+    expect(running([read('a.ts'), ran('x'), ran('y')])).toBe('Explored 1 file, running 2 commands')
+  })
+
+  // Live, a run of several calls only counts, so the line never swaps in a query mid-run.
+  it('counts rather than names while a multi-call run is live', () => {
+    expect(running([webSearched('hermes agent'), tool('web_extract', { urls: ['https://a.dev'] })])).toBe(
+      'Searched 1 query, reading 1 page'
+    )
+    expect(settled([webSearched('hermes agent'), tool('web_extract', { urls: ['https://a.dev'] })])).toBe(
+      'Searched “hermes agent”, read a.dev'
+    )
   })
 
   // A turn can end — or the agent can simply move on — with a call that never

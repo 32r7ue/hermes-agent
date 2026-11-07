@@ -1,6 +1,8 @@
 import { cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { ESC_HOLD_MS } from '../esc-hold'
+
 import { useComposerEscCancel } from './use-composer-esc-cancel'
 
 function Harness({ busy, onCancel }: { busy: boolean; onCancel: () => void }) {
@@ -15,13 +17,31 @@ afterEach(() => {
 })
 
 describe('useComposerEscCancel', () => {
-  it('cancels the turn on Esc while busy with chat focus', () => {
+  it('cancels the turn on a HELD Esc while busy with chat focus', () => {
+    vi.useFakeTimers()
     const onCancel = vi.fn()
     render(<Harness busy onCancel={onCancel} />)
 
     fireEvent.keyDown(window, { key: 'Escape' })
+    expect(onCancel).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(ESC_HOLD_MS)
+    fireEvent.keyUp(window, { key: 'Escape' })
 
     expect(onCancel).toHaveBeenCalledTimes(1)
+    vi.useRealTimers()
+  })
+
+  it('ignores a tapped Esc (a button remapped to Esc must not stop the chat)', () => {
+    vi.useFakeTimers()
+    const onCancel = vi.fn()
+    render(<Harness busy onCancel={onCancel} />)
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+    fireEvent.keyUp(window, { key: 'Escape' })
+    vi.advanceTimersByTime(ESC_HOLD_MS * 2)
+
+    expect(onCancel).not.toHaveBeenCalled()
+    vi.useRealTimers()
   })
 
   it('does not cancel on Esc when the turn is not busy', () => {

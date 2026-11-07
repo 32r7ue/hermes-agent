@@ -13,7 +13,7 @@
 // `assistant-message:` key, which makes that an exact render counter for the
 // root without needing to export or wrap an internal component.
 import { AssistantRuntimeProvider, type ThreadMessage, useExternalStoreRuntime } from '@assistant-ui/react'
-import { cleanup, render, waitFor } from '@testing-library/react'
+import { act, cleanup, render, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as enterAnimationModule from '@/lib/use-enter-animation'
@@ -108,7 +108,8 @@ describe('streaming-status invalidation scope', () => {
     const messages = [user('u1', 'question'), assistant('a1', 'partial answer', true)]
     const { container, findByText, rerender } = render(<Harness messages={messages} />)
 
-    await findByText('partial answer')
+    // A reply still streaming is held back (it appears whole when done): wait for its row.
+    await waitFor(() => expect(container.querySelector('[data-slot="aui_assistant-message-root"]')).toBeTruthy())
     // The leaf carries the streaming flag while the turn is in flight.
     expect(container.querySelector('[data-message-streaming="true"]')).toBeTruthy()
 
@@ -128,15 +129,15 @@ describe('streaming-status invalidation scope', () => {
 
   it('does not re-render the message root when streaming text arrives', async () => {
     const messages = [user('u1', 'question'), assistant('a1', 'one', true)]
-    const { findByText, rerender } = render(<Harness messages={messages} />)
+    const { container, rerender } = render(<Harness messages={messages} />)
 
-    await findByText('one')
+    await waitFor(() => expect(container.querySelector('[data-slot="aui_assistant-message-root"]')).toBeTruthy())
     const rendersAfterFirstToken = rootRenders
 
     // A delta flush: same status, more text. The root must not subscribe to
     // the streaming text either — only the markdown part re-renders.
     rerender(<Harness messages={[messages[0], assistant('a1', 'one two', true)]} />)
-    await findByText('one two')
+    await act(async () => {})
 
     expect(rootRenders).toBe(rendersAfterFirstToken)
   })
@@ -150,7 +151,7 @@ describe('streaming-status invalidation scope', () => {
     const messages = [user('u1', delivery), assistant('a1', 'working on it', true)]
     const { container, findByText, rerender } = render(<Harness messages={messages} />)
 
-    await findByText('working on it')
+    await waitFor(() => expect(container.querySelector('[data-slot="aui_assistant-message-root"]')).toBeTruthy())
     const before = container.querySelector('[data-slot="aui_assistant-message-root"]')
 
     expect(before).toBeTruthy()

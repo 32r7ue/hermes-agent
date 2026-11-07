@@ -5,18 +5,21 @@ import type { TextMessagePartComponent, TextMessagePartProps } from '@assistant-
 import type { FC } from 'react'
 import { Fragment, useEffect, useMemo, useState } from 'react'
 
-import { isPastedContentPath } from '@/app/chat/composer/large-paste'
+import { byteSizeLabel, isPastedContentPath } from '@/app/chat/composer/large-paste'
 import { ZoomableImage } from '@/components/chat/zoomable-image'
 import { type I18nContextValue, useI18n } from '@/i18n'
-import { isReadFileErrorResult } from '@/lib/desktop-fs'
+import { isReadFileErrorResult, readDesktopFileText } from '@/lib/desktop-fs'
 import { extractEmbeddedImages } from '@/lib/embedded-images'
 import { ExternalLink, openLink } from '@/lib/external-link'
 import { triggerHaptic } from '@/lib/haptics'
+import { FileText } from '@/lib/icons'
 import { downscaleDataUrlForPreview, FALLBACK_PLACEHOLDER } from '@/lib/image-resize'
+import { normalizeOrLocalPreviewTarget } from '@/lib/local-preview'
 import { gatewayMediaDataUrl, isRemoteGateway } from '@/lib/media'
 import { useSessionLinkTitle } from '@/lib/session-link-title'
 import { parseSessionRefValue, sessionRefFallbackLabel } from '@/lib/session-refs'
 import { cn } from '@/lib/utils'
+import { notifyError } from '@/store/notifications'
 
 import {
   referenceKind,
@@ -373,6 +376,8 @@ export function DirectiveContent({ text }: { text: string }) {
           <SessionRefChip key={`m-${index}-${segment.id}`} label={segment.label} value={segment.id} />
         ) : segment.type === 'skill' ? (
           <SlashChip key={`m-${index}-${segment.id}`} kind="skill" label={segment.label} value={segment.id} />
+        ) : segment.type === 'file' && isPastedContentPath(segment.id) ? (
+          <PastedContentChip key={`m-${index}-${segment.id}`} path={segment.id} />
         ) : (
           <DirectiveChip id={segment.id} key={`m-${index}-${segment.id}`} label={segment.label} type={segment.type} />
         )
@@ -570,6 +575,61 @@ export const SessionRefLink: FC<{
       <DirectiveIcon type="session" />
       {resolved}
     </a>
+  )
+}
+
+/** A large paste in a sent message: the same card the composer showed before sending, and it opens
+ *  what was pasted in the preview sidebar, the way the composer's card does. */
+const PastedContentChip: FC<{ path: string }> = ({ path }) => {
+  const { t } = useI18n()
+  const [size, setSize] = useState<null | number>(null)
+
+  useEffect(() => {
+    let live = true
+
+    readDesktopFileText(path)
+      .then(result => live && setSize(result.byteSize ?? null))
+      .catch(() => undefined)
+
+    return () => {
+      live = false
+    }
+  }, [path])
+
+  const show = () => {
+    void normalizeOrLocalPreviewTarget(path)
+      .then(preview => {
+        if (!preview) {
+          throw new Error(t.desktop.pastedContentMissing)
+        }
+
+        // Loaded on click: the preview store pulls in the layout stores, which every transcript
+        // render (and test) would otherwise import just to draw a chip.
+        return import('@/store/preview').then(({ openPreview }) => openPreview(preview))
+      })
+      .catch(error => notifyError(error, t.desktop.pastedContentMissing))
+  }
+
+  return (
+    <button
+      className="my-1 flex max-w-72 items-center gap-2 rounded-2xl border border-border/60 bg-background/50 px-2 py-1.5 text-left whitespace-normal shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] transition-colors hover:border-primary/35 hover:bg-accent/45"
+      data-directive-id={path}
+      data-slot="aui_pasted-content-card"
+      onClick={show}
+      title={path}
+      type="button"
+    >
+      <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-border/55 bg-muted/35 text-muted-foreground">
+        <FileText className="size-3.5" />
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate text-[0.72rem] leading-4 font-medium text-foreground/90">
+          {t.desktop.pastedContent}
+          {size !== null && ` (${byteSizeLabel(size)})`}
+        </span>
+        <span className="block truncate text-[0.62rem] leading-3.5 text-muted-foreground/65">{path}</span>
+      </span>
+    </button>
   )
 }
 

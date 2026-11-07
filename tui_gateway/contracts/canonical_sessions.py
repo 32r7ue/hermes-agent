@@ -260,6 +260,8 @@ class CanonicalReplaceQueuedParams(CanonicalSessionParams):
     attachments: list[CanonicalAttachment] | None = None
     display_kind: Literal['hidden'] | None = None
     title_preview: str | None = None
+    # Same as prompt.submit: the edit is a fresh submit, so it keeps the batched clarify card.
+    clarify_batch: bool = False
 
 
 class CanonicalControlParams(CanonicalSessionParams):

@@ -57,6 +57,9 @@ export type ChatMessage = {
   interim?: boolean
   /** The user stopped this reply before it finished; its text is partial. */
   interrupted?: boolean
+  /** A mid-turn steer the gateway accepted and holds until the current step
+   *  finishes; its bubble offers "Send now" while it is still the last row. */
+  pendingSteer?: boolean
   /** A projected queued prompt (`user-queued-…`) whose own turn has started:
    *  `message.start` arrived after it was drawn. It is now that turn's user
    *  row, not a prompt still waiting for a later turn. */

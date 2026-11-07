@@ -20,6 +20,12 @@ it('keeps different accounts separate and never turns unknown into zero percent'
   expect(providerRingPercent({ name: 'Provider', slug: 'test', usage: { windows: [{ label: 'Weekly', used_percent: 95 }] } })).toBe(95)
 })
 
+it('shows the 5-hour window, not the fullest one', () => {
+  expect(providerRingPercent({ name: 'Claude', slug: 'anthropic', usage: { windows: [
+    { label: 'Current session', used_percent: 30 }, { label: 'Current week', used_percent: 80 }
+  ] } })).toBe(30)
+})
+
 it('loads the focused provider through its owner and opens a compact limit view', async () => {
   vi.mocked(requestForOwnedSession).mockResolvedValue({ providers: [{ slug: 'codex', name: 'Codex', usage: {
     windows: [{ label: 'Weekly limit', used_percent: 95 }]

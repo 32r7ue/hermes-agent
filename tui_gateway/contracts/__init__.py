@@ -8,6 +8,7 @@ from . import (
     connectors,
     connectors_operation,
     display,
+    fork,
     events,
     groups_bot_relay,
     i18n,

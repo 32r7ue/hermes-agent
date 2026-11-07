@@ -429,6 +429,9 @@ export const en: Translations = {
     installMethodUnsupportedTitle: 'Unsupported install method',
     updateHermes: 'Update Hermes',
     updateReadyTitle: 'Update ready',
+    forkUpdateTitle: tag => `Hermes ${tag} is out`,
+    forkUpdateMessage: 'Merge it into your version? An agent keeps your changes and resolves conflicts.',
+    forkUpdateMerge: 'Merge',
     updateReadyMessage: count => `${count} new change${count === 1 ? '' : 's'} available.`,
     updateReadyMessageUnknown: 'A new update is available.',
     updateReadyMessageAppInstaller: 'A new version of Hermes is ready. Update now and Windows will finish it for you.',
@@ -982,6 +985,11 @@ export const en: Translations = {
       hideCodeDiffsDesc: 'Show file edits as inline tool rows with added/removed line counts, without the code.',
       hideThreadTimelineTitle: 'Hide thread timeline bars',
       hideThreadTimelineDesc: 'Hide the navigation bars along the right edge of each conversation.',
+      replyRevealTitle: 'Reply Animation',
+      replyRevealDesc: 'Reveal shows a reply whole once it is done, with a soft sweep. Live streams it word by word as it is written.',
+      replyRevealOptions: { reveal: 'Reveal', live: 'Live' },
+      replyHoldTopTitle: 'Keep finished replies at the top',
+      replyHoldTopDesc: 'When a reply lands, stop at its first line instead of jumping to its end, so you can read it without scrolling back.',
       reasoningCollapsedTitle: 'Collapse thinking by default',
       reasoningCollapsedDesc: 'Keep streamed reasoning available without expanding it until you open it.',
       uiScaleTitle: 'UI Scale',
@@ -1008,6 +1016,10 @@ export const en: Translations = {
       terminalFontPlaceholder: 'MesloLGS NF or a CSS font stack',
       terminalFontPreview: 'Glyph preview',
       terminalFontReset: 'Use default',
+      chatTextStyleTitle: 'Chat Text Style',
+      chatTextStyleDesc:
+        'Default uses the chat font below. Slim is the same font lighter, at Claude size. Claude matches Claude Code: replies in Anthropic Serif, the rest in Anthropic Sans, same weight and spacing.',
+      chatTextStyleOptions: { default: 'Default', slim: 'Slim', claude: 'Claude' },
       chatFontTitle: 'Chat Font',
       chatFontDesc:
         "Choose an installed font for chat and the rest of the app. Handy for readability faces such as OpenDyslexic; leave blank to use the theme's font.",
@@ -3177,6 +3189,14 @@ export const en: Translations = {
     missingBody: 'This artifact is no longer in the local registry.'
   },
 
+  sessionInfo: {
+    title: 'Session',
+    environment: 'Environment',
+    thisComputer: 'This computer',
+    remote: 'Remote',
+    context: 'Context',
+    changes: 'Changes'
+  },
   sidebar: {
     filter: {
       grouping: 'Grouping',
@@ -4497,6 +4517,9 @@ export const en: Translations = {
       react: 'React',
       dismissError: 'Dismiss error',
       responseStopped: 'Response stopped',
+      resumeStopped: 'Resume',
+      steerWaiting: 'Waiting for the current step',
+      steerSendNow: 'Send now',
       ...enErrorLayers,
       errorCodes: enErrorCodes,
       errorAuthKinds: {
@@ -4846,6 +4869,7 @@ export const en: Translations = {
     imageAttachFailed: 'Image attach failed',
     attachFailed: 'Attach failed',
     pastedContent: 'Pasted content',
+    pastedContentMissing: 'This paste is no longer on disk.',
     pasteAttachFailed: 'Could not attach pasted text',
     attachImages: 'Attach images',
     clipboard: 'Clipboard',

@@ -157,11 +157,11 @@ function toolTarget(tool: ToolCallLike): string {
  * command is the exception — "ran 5 commands" is the useful reading, and a
  * command line only earns its space while it's the thing you're waiting on.
  */
-function clause(category: RunCategory, tools: ToolCallLike[], live: boolean): string {
+function clause(category: RunCategory, tools: ToolCallLike[], live: boolean, countOnly: boolean): string {
   const copy = CATEGORY_COPY[category]
   const verb = live ? copy.present : copy.past
   const count = tools.reduce((sum, tool) => sum + unitCount(tool), 0)
-  const target = count === 1 && category !== 'interact' ? toolTarget(tools[0]) : ''
+  const target = count === 1 && category !== 'interact' && !countOnly ? toolTarget(tools[0]) : ''
 
   if (target && (live || category !== 'run')) {
     return `${verb} ${target}`
@@ -222,7 +222,8 @@ export function summarizeToolRun(tools: readonly ToolCallLike[], live: boolean):
   const clauses = CATEGORY_ORDER.flatMap(category => {
     const group = byCategory.get(category)
 
-    return group ? [clause(category, group, category === liveCategory)] : []
+    // A live run of several calls only counts: a query or path in one clause makes the line jump as calls land.
+    return group ? [clause(category, group, category === liveCategory, live && tools.length > 1)] : []
   })
 
   const failed = tools.filter(toolCallFailed).length

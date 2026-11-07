@@ -3,7 +3,14 @@ import { computed } from 'nanostores'
 import { allPaneIds } from '@/components/pane-shell/tree/model'
 import { $layoutTree, bindTreeSideVisibility, mirrorLayoutTree } from '@/components/pane-shell/tree/store'
 import { modeLayout } from '@/store/interface-mode'
-import { $fileBrowserOpen, $panesFlipped, $sidebarOpen, setFileBrowserOpen, setSidebarOpen } from '@/store/layout'
+import {
+  $fileBrowserOpen,
+  $panesFlipped,
+  $sessionPanelOpen,
+  $sidebarOpen,
+  setFileBrowserOpen,
+  setSidebarOpen
+} from '@/store/layout'
 
 /** Side toggles belong to panes, not physical edges. Derive the flip from the
  * tree so dragging sessions or choosing a mirrored preset remaps the buttons. */
@@ -39,11 +46,14 @@ export function bindLayoutSides() {
     }
   })
 
-  const $leftEdgeOpen = computed([$panesFlipped, $sidebarOpen, $fileBrowserOpen], (flipped, sidebar, files) =>
+  // The files side stays open while either Files or the session panel (its column-mate) is up.
+  const $filesSideOpen = computed([$fileBrowserOpen, $sessionPanelOpen], (files, panel) => files || panel)
+
+  const $leftEdgeOpen = computed([$panesFlipped, $sidebarOpen, $filesSideOpen], (flipped, sidebar, files) =>
     flipped ? files : sidebar
   )
 
-  const $rightEdgeOpen = computed([$panesFlipped, $sidebarOpen, $fileBrowserOpen], (flipped, sidebar, files) =>
+  const $rightEdgeOpen = computed([$panesFlipped, $sidebarOpen, $filesSideOpen], (flipped, sidebar, files) =>
     flipped ? sidebar : files
   )
 

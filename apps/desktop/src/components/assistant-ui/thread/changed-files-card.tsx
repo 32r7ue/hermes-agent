@@ -43,7 +43,7 @@ export const ChangedFilesCard: FC<{ parts: readonly unknown[] }> = ({ parts }) =
 
   return (
     <div
-      className={cn(WIDGET_SHELL_CLASS, 'mt-1.5 text-[length:var(--conversation-tool-font-size)]')}
+      className={cn(WIDGET_SHELL_CLASS, 'mt-1.5 rounded-xl border border-(--ui-stroke-secondary) text-[length:var(--conversation-tool-font-size)]')}
       data-slot="aui_changed-files"
     >
       <div className="flex items-center gap-2">

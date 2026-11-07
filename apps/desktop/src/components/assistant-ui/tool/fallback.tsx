@@ -50,6 +50,7 @@ import { useEnterAnimation } from '@/lib/use-enter-animation'
 import { cn } from '@/lib/utils'
 import { recordPreviewArtifact } from '@/store/preview-status'
 import { sessionApprovalRequest } from '@/store/prompts'
+import { $replyReveal } from '@/store/reply-display'
 import { $showToolActivity } from '@/store/tool-activity'
 import { $toolRowDismissed, dismissToolRow } from '@/store/tool-dismiss'
 import { $toolProgressFor, formatToolProgress } from '@/store/tool-progress'
@@ -88,7 +89,7 @@ import { isToolCallPart, summarizeToolRun } from './run-summary'
 // the per-row chrome (timer / preview). The flat ToolGroupSlot sets this
 // false, so every row currently owns its own chrome; kept as a seam for any
 // future embedding surface.
-const ToolEmbedContext = createContext(false)
+export const ToolEmbedContext = createContext(false)
 const ToolRunDisclosureContext = createContext<string | null>(null)
 
 // A search hit's title is result *content* inside an expanded row, not one of
@@ -431,7 +432,8 @@ function ToolEntry({ part }: ToolEntryProps) {
   const isFileEdit = isFileEditTool(toolName)
   const defaultOpen = Boolean(inlineDiff) && !hideCodeDiffs
   const disclosureOpen = useDisclosureOpen(disclosureId, defaultOpen)
-  const canDismiss = !isPending && !embedded
+  // A row inside a summary group is a step of that group: it can't be dismissed on its own.
+  const canDismiss = !isPending && !embedded && !runDisclosureId
   // Only animate entries that mount while their message is actively
   // streaming — historical sessions mount with `messageRunning === false`,
   // so they paint statically without a settle cascade. The wrapping group
@@ -840,6 +842,9 @@ export type RunItem = { end: number; kind: 'run'; start: number } | { index: num
  * relative to the range. An empty name is a part that isn't a tool call at
  * all, which passes through as its own card.
  */
+/** A reasoning part's key in a mixed activity range: it joins the run around it. */
+export const REASONING_RUN_KEY = '\u0001reasoning'
+
 export function splitRunItems(toolNames: readonly string[]): RunItem[] {
   const items: RunItem[] = []
   let run: null | Extract<RunItem, { kind: 'run' }> = null
@@ -847,7 +852,7 @@ export function splitRunItems(toolNames: readonly string[]): RunItem[] {
   toolNames.forEach((name, index) => {
     // Silent tools (a reaction, the todo list) render nothing: kept out of runs so
     // they never leave an empty "Used 1 tool" group behind.
-    if (!name || isCardTool(name) || isSilentTool(name)) {
+    if (!name || (name !== REASONING_RUN_KEY && (isCardTool(name) || isSilentTool(name)))) {
       run = null
       items.push({ index, kind: 'card' })
 
@@ -897,13 +902,37 @@ function ToolRunHeader({
       <ScaffoldRow
         onToggle={onToggle}
         open={open}
-        trailing={<TimelineTimestamp completedAt={completedAt} timestamp={startedAt} />}
+        trailing={
+          live ? (
+            <LiveRunElapsed since={startedAt} />
+          ) : (
+            <TimelineTimestamp completedAt={completedAt} timestamp={startedAt} />
+          )
+        }
       >
         <FadeText className={cn(SCAFFOLD_LABEL_CLASS, 'truncate')}>
           {live ? <span className="shimmer">{summary}</span> : summary}
         </FadeText>
       </ScaffoldRow>
     </div>
+  )
+}
+
+// A long run earns a clock; a short one would only add noise to the line.
+const LIVE_ELAPSED_MIN_S = 120
+
+// `since` is the run's start in epoch seconds, like the timeline stamps.
+function LiveRunElapsed({ since }: { since?: number }) {
+  const seconds = useElapsedSeconds(true, undefined, since === undefined ? undefined : since * 1000)
+
+  if (since === undefined || seconds < LIVE_ELAPSED_MIN_S) {
+    return null
+  }
+
+  return (
+    <span className={cn(SCAFFOLD_META_CLASS, 'tabular-nums')}>
+      {Math.floor(seconds / 60)}m {seconds % 60}s
+    </span>
   )
 }
 
@@ -915,6 +944,8 @@ interface ToolRunState {
   entryIds: readonly string[]
   key: string
   live: boolean
+  /** The turn moved on to its reply, which is held until done: the line stays lit until it lands. */
+  awaitingReply: boolean
   startedAt?: number
   summary: string
 }
@@ -940,14 +971,17 @@ function useToolRun(startIndex: number, endIndex: number): ToolRunState {
     //
     // The tail bound is what keeps this honest — a turn that ends, or an agent
     // that moves on to later parts, leaves the run settled and collapsible.
-    const live = selectMessageRunning(state) && endIndex >= parts.length - 1
+    const running = selectMessageRunning(state)
+    const live = running && endIndex >= parts.length - 1
+    const after = parts.slice(endIndex + 1)
+    const awaitingReply = running && after.length > 0 && after.every(part => part.type === 'text')
 
     const signature = timelineTools
       .map(
         tool =>
           `${tool.toolCallId}:${tool.result === undefined ? 0 : 1}:${tool.timestamp ?? ''}:${tool.completedAt ?? ''}`
       )
-      .concat(String(live), state.message.id, locale)
+      .concat(String(live), String(awaitingReply), state.message.id, locale)
       .join('|')
 
     // The arguments may arrive after tool.start. Compare references rather
@@ -984,6 +1018,7 @@ function useToolRun(startIndex: number, endIndex: number): ToolRunState {
           entryIds: tools.map(tool => toolEntryDisclosureId(state.message.id, tool)),
           key: `${state.message.id}:${tools[0]?.toolCallId ?? ''}`,
           live,
+          awaitingReply,
           startedAt: timelineTools.reduce<number | undefined>(
             (earliest, tool) =>
               tool.timestamp === undefined
@@ -1016,14 +1051,16 @@ function useToolRun(startIndex: number, endIndex: number): ToolRunState {
  * the whole of it until the user opens it. `ToolEmbedContext` is false so each
  * row still owns its own chrome (timer / copy) when shown.
  */
-const ToolRun: FC<PropsWithChildren<{ endIndex: number; startIndex: number }>> = ({
+export const ToolRun: FC<PropsWithChildren<{ endIndex: number; liveStep?: null | string; startIndex: number }>> = ({
   children,
   endIndex,
+  liveStep,
   startIndex
 }) => {
   const messageRunning = useAuiState(selectMessageRunning)
+  const heldReply = useStore($replyReveal) === 'reveal'
 
-  const { completedAt, count, entryIds, key, live, startedAt, summary, approvalActivity } = useToolRun(
+  const { awaitingReply, completedAt, count, entryIds, key, live, startedAt, summary, approvalActivity } = useToolRun(
     startIndex,
     endIndex
   )
@@ -1059,11 +1096,12 @@ const ToolRun: FC<PropsWithChildren<{ endIndex: number; startIndex: number }>> =
         {count > 0 && !representedByApproval && (
           <ToolRunHeader
             completedAt={completedAt}
-            live={live}
+            live={live || (awaitingReply && heldReply)}
             onToggle={() => setToolDisclosureOpen(disclosureId, !expanded)}
             open={expanded}
             startedAt={startedAt}
-            summary={summary}
+            // Live, the line names the exact step: a thought in progress reads as its headline.
+            summary={live && liveStep ? liveStep : summary}
           />
         )}
         {expanded && <div className="grid min-w-0 max-w-full gap-(--tool-row-gap) rounded-xl border border-(--ui-stroke-tertiary) bg-(--ui-bg-elevated) px-3 py-2">{children}</div>}
@@ -1074,7 +1112,7 @@ const ToolRun: FC<PropsWithChildren<{ endIndex: number; startIndex: number }>> =
 
 // The name the run splitter classifies a part by: connector and MCP calls are cards, and so is set_theme
 // reached through the tool_call bridge (a reloaded transcript).
-function toolGroupKey(toolName: string, args: ToolCallMessagePartProps['args']): string {
+export function toolGroupKey(toolName: string, args: ToolCallMessagePartProps['args']): string {
   if (connectorCalls(toolName, args).length || mcpTargets(toolName, args).length) {
     return CONNECTION_CARD_KEY
   }
