@@ -1475,6 +1475,7 @@ export const jaOverrides = {
     searchPlaceholder: 'セッション、ビュー、アクションを検索',
     goTo: '移動',
     goToSession: 'セッションへ移動',
+    inMessages: 'メッセージ内',
     branches: 'ブランチ',
     startInBranch: branch => `${branch} で新しい会話`,
     commandCenter: 'コマンドセンター',

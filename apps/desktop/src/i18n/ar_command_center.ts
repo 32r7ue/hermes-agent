@@ -9,6 +9,7 @@ export const arCommandCenter = {
     searchPlaceholder: 'ابحث عن أمر أو إعداد...',
     goTo: 'انتقال إلى',
     goToSession: 'الانتقال إلى الجلسة',
+    inMessages: 'في الرسائل',
     branches: 'الفروع',
     startInBranch: branch => `محادثة جديدة في ${branch}`,
     commandCenter: 'مركز الأوامر',

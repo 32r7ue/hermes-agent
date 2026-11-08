@@ -1633,6 +1633,7 @@ export const ruOverrides = {
     searchPlaceholder: 'Поиск сеансов, представлений и действий',
     goTo: 'Перейти',
     goToSession: 'Перейти к сеансу',
+    inMessages: 'В сообщениях',
     branches: 'Ветви',
     projects: 'Проекты',
     openFolder: 'Открыть папку как проект…',

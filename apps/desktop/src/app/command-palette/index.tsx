@@ -42,6 +42,7 @@ import {
   KeyRound,
   Layers3,
   MessageCircle,
+  MessageSquareText,
   Monitor,
   Moon,
   Package,
@@ -75,6 +76,7 @@ import { $bindings, bindingsFor } from '@/store/keybinds'
 import { $dismissedAutoProjectIds, $pinnedSessionIds, filterVisibleProjects } from '@/store/layout'
 import { openPetGenerate } from '@/store/pet-generate'
 import { toggleBrowserTab } from '@/store/preview'
+import { $profileScope } from '@/store/profile'
 import { $projectTree, goToProject, openFolderAsProject, requestStartWorkSession } from '@/store/projects'
 import { $cronSessions, $messagingSessions, $sessions } from '@/store/session'
 import { $unconfirmedPinWrites } from '@/store/session-pin-sync'
@@ -89,6 +91,7 @@ import { type ThemeMode, useTheme } from '@/themes/context'
 import { isUserTheme, resolveTheme } from '@/themes/user-themes'
 
 import { buildSessionByAnyId, resolvePinnedSessions } from '../chat/sidebar/session-index'
+import { useServerSessionSearch } from '../chat/sidebar/use-server-session-search'
 import { openSessionFromPicker, openSessionIntentFromModifiers } from '../open-session'
 import {
   AGENTS_ROUTE,
@@ -107,6 +110,7 @@ import { SECTIONS } from '../settings/constants'
 import { type SettingsSearchEntry, settingsSearchTargetQuery } from '../settings/settings-search'
 import { useSettingsSearchCatalog } from '../settings/use-settings-search'
 
+import { contentHitLabel, SnippetLine } from './content-hits'
 import { usePaletteContributions } from './contrib'
 import { HighlightWatcher } from './highlight-watcher'
 import { MarketplaceThemePage } from './marketplace-theme-page'
@@ -145,6 +149,11 @@ interface PaletteItem {
   runWithEvent?: (event?: { ctrlKey?: boolean; metaKey?: boolean; shiftKey?: boolean }) => void
   /** Action to run when selected. Mutually exclusive with `to`. */
   run?: () => void
+  /** Matched message text (FTS markers intact), shown under the label. */
+  snippet?: string
+  /** Fixed rank for rows the server already matched (message content), which
+   *  the label/keyword matcher can't see. */
+  score?: number
   /** Open a nested palette page (VS Code-style "choose X → options"). */
   to?: string
 }
@@ -190,6 +199,10 @@ interface SessionEntry {
 // word prefix > substring > scattered terms > keyword-only — so typing "tools"
 // selects the row that says Tools, not a row that hides it in keywords.
 const scoreItem = (item: PaletteItem, needle: string): number => {
+  if (item.score !== undefined) {
+    return item.score
+  }
+
   const label = item.label.toLowerCase()
   const keys = (item.keywords ?? []).join(' ').toLowerCase()
   const terms = needle.split(/\s+/).filter(Boolean)
@@ -354,7 +367,7 @@ const PaletteRow = memo(function PaletteRow({
       value={paletteValue(item)}
     >
       <Icon className="size-3.5 shrink-0 text-muted-foreground" />
-      <span className={cn('truncate', modPreview && 'text-muted-foreground/80')}>
+      <span className={cn('min-w-0 truncate', modPreview && 'text-muted-foreground/80')}>
         {modPreview ? (
           item.modLabel
         ) : (
@@ -362,6 +375,7 @@ const PaletteRow = memo(function PaletteRow({
              shows exactly which words earned the row its rank. */
           <HighlightMatches query={search.split(/\s+/)} text={item.label} />
         )}
+        {item.snippet && <SnippetLine snippet={item.snippet} />}
       </span>
       {item.detail && (
         <span className={cn(HUD_NOTE, HUD_NOTE_VARIANT[item.detailVariant ?? 'muted'])}>{item.detail}</span>
@@ -645,6 +659,16 @@ function CommandPaletteBody({ onExited }: { onExited: () => void }) {
     queryFn: () => listAllProfileSessions(200, 0, 'only'),
     staleTime: 0
   })
+
+  // Message-content search (FTS over every stored message, the sidebar's
+  // search backend): "that chat where I said X". Root page only.
+  const profileScope = useStore($profileScope)
+  const contentQuery = page ? '' : search.trim()
+
+  const { serverMatches: contentHits } = useServerSessionSearch(
+    contentQuery.length >= 2 ? contentQuery : '',
+    profileScope
+  )
 
   const liveSessions = useStore($sessions)
   const liveCronSessions = useStore($cronSessions)
@@ -1232,6 +1256,29 @@ function CommandPaletteBody({ onExited }: { onExited: () => void }) {
       })
     }
 
+    // Below a label match (0.7+), above keyword-only rows (0.4). A chat whose
+    // title already matches is listed under Sessions; don't repeat it here.
+    const titleHits = new Set(
+      [...pinnedSessions, ...sessions]
+        .filter(session => scoreItem({ icon: MessageCircle, id: '', label: session.title }, normalize(search)) > 0)
+        .map(session => session.id)
+    )
+
+    const contentItems = contentHits
+      .filter(hit => !titleHits.has(hit.session_id) && !titleHits.has(hit.lineage_root ?? ''))
+      .map(hit => ({
+        icon: MessageSquareText,
+        id: `content-${hit.session_id}`,
+        label: contentHitLabel(hit),
+        runWithEvent: goSession(hit.session_id),
+        score: 0.5,
+        snippet: hit.title?.trim() ? hit.snippet : undefined
+      }))
+
+    if (contentItems.length > 0) {
+      result.push({ heading: t.commandCenter.inMessages, items: contentItems })
+    }
+
     const fieldItems = [
       ...settingsCatalog.subpageEntries,
       ...settingsCatalog.settingEntries,
@@ -1293,6 +1340,7 @@ function CommandPaletteBody({ onExited }: { onExited: () => void }) {
   }, [
     archivedSessions,
     availableThemes,
+    contentHits,
     go,
     goSession,
     mcpServers,

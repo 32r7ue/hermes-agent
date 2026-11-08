@@ -9,6 +9,7 @@ export const zhHantCommandCenter = {
     searchPlaceholder: '搜尋工作階段、檢視和動作',
     goTo: '前往',
     goToSession: '前往工作階段',
+    inMessages: '訊息中',
     branches: '分支',
     startInBranch: branch => `在 ${branch} 中開始新對話`,
     commandCenter: '命令中心',

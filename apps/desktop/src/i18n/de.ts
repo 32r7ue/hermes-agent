@@ -2705,6 +2705,7 @@ export const deOverrides = {
     searchPlaceholder: 'Sessions, Ansichten und Aktionen durchsuchen',
     goTo: 'Wechseln zu',
     goToSession: 'Zur Session gehen',
+    inMessages: 'In Nachrichten',
     branches: 'Branches',
     projects: 'Projekte',
     openFolder: 'Ordner als Projekt öffnen…',

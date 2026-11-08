@@ -2695,6 +2695,7 @@ export const esOverrides = {
     searchPlaceholder: 'Buscar sesiones, vistas y acciones',
     goTo: 'Ir a',
     goToSession: 'Ir a la sesión',
+    inMessages: 'En mensajes',
     branches: 'Ramas',
     projects: 'Proyectos',
     openFolder: 'Abrir carpeta como proyecto…',

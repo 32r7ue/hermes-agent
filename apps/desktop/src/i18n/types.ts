@@ -2133,6 +2133,7 @@ export interface Translations extends NoticeTranslations {
     searchPlaceholder: string
     goTo: string
     goToSession: string
+    inMessages: string
     branches: string
     projects: string
     openFolder: string

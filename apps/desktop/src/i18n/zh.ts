@@ -2269,6 +2269,7 @@ export const zhOverrides = {
     searchPlaceholder: '搜索会话、视图与操作',
     goTo: '前往',
     goToSession: '前往会话',
+    inMessages: '消息中',
     branches: '分支',
     projects: '项目',
     openFolder: '打开文件夹为项目…',
