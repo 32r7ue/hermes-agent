@@ -2612,10 +2612,13 @@ button[data-slot='aui_msg-reactions'] {
   opacity: 0.5;
 }
 
-/* The empty reaction slot sits outside the bar but must fade with it, on the bar's own curve: it used
-   to inherit Button's 100ms transition-all while the bar switched instantly, so it trailed the bar. */
+/* The empty reaction slot sits outside the bar but must fade with it, on the bar's own curve. The bar
+   uses Tailwind's ease-out (0, 0, 0.2, 1); the CSS keyword ease-out (0, 0, 0.58, 1) starts far slower,
+   so the slot visibly trailed the bar's icons through the first ~100ms. */
 button[data-slot='aui_msg-reactions'] {
-  transition: opacity 150ms ease-out, color 100ms ease-out;
+  transition:
+    opacity 150ms var(--ease-out, cubic-bezier(0, 0, 0.2, 1)),
+    color 100ms var(--ease-out, cubic-bezier(0, 0, 0.2, 1));
 }
 
 [data-slot='aui_msg-actions'] button:not(:focus-visible),

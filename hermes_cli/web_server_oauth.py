@@ -55,6 +55,18 @@ def _anthropic_oauth_status() -> dict[str, Any]:
     if hermes_creds and hermes_creds.get("accessToken"):
         return _token_status("hermes_pkce", f"Hermes PKCE ({_get_hermes_oauth_file()})", hermes_creds)
 
+    # A Hermes login can live only in the credential pool (``hermes auth add anthropic``) with no PKCE
+    # file; requests use it, so the card must count it too. Borrowed Claude Code rows have their own card.
+    try:
+        from agent.credential_pool import AUTH_TYPE_OAUTH, load_pool
+        entry = next((e for e in load_pool("anthropic").entries()
+                      if e.auth_type == AUTH_TYPE_OAUTH and e.source != "claude_code" and e.access_token), None)
+    except Exception:
+        entry = None
+    if entry is not None:
+        return _token_status("credential_pool", f"Hermes login ({entry.label})", {
+            "accessToken": entry.access_token, "refreshToken": entry.refresh_token, "expiresAt": entry.expires_at_ms})
+
     env_var_order: tuple = ("ANTHROPIC_API_KEY", "ANTHROPIC_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN")
     try:
         from hermes_cli.auth import PROVIDER_REGISTRY
