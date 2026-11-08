@@ -8,6 +8,7 @@ import { PALETTE_AREA, type PaletteContribution, paletteToggle } from '@/app/com
 import { type StatusbarItem } from '@/app/shell/statusbar-controls'
 import { UsagePanel } from '@/app/shell/usage-panel'
 import { InlinePreviewDirective } from '@/components/assistant-ui/inline-preview-directive'
+import { NextStepAsk } from '@/components/assistant-ui/next-step-ask'
 import { IdleMount } from '@/components/idle-mount'
 import { $layoutEditMode, toggleLayoutEditMode } from '@/components/pane-shell/edit-mode'
 import { allPaneIds } from '@/components/pane-shell/tree/model'
@@ -370,6 +371,16 @@ registry.registerMany([
     data: {
       name: 'preview',
       render: ({ attrs, streaming }) => <InlinePreviewDirective attrs={attrs} streaming={streaming} />
+    } satisfies TranscriptDirectiveContribution
+  },
+  // `::ask{q="…" action="…"}` — the agent's one pending decision at the end of a reply, answered with
+  // one button (⌘↩) or by simply writing the next message.
+  {
+    id: 'transcript.ask',
+    area: TRANSCRIPT_DIRECTIVE_AREA,
+    data: {
+      name: 'ask',
+      render: ({ attrs, streaming }) => <NextStepAsk attrs={attrs} streaming={streaming} />
     } satisfies TranscriptDirectiveContribution
   },
   {

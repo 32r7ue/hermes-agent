@@ -33,6 +33,7 @@ import { POPOUT_WIDTH_REM } from '@/store/composer-popout'
 import { parkQueuedPrompts } from '@/store/composer-queue'
 import { $hudMode } from '@/store/hud'
 import { $showsAdvancedChrome } from '@/store/interface-mode'
+import { takeNextStepAsk } from '@/store/next-step-ask'
 import { $chatOnboardingSolo } from '@/store/onboarding-intro'
 import { sessionBlockingPrompt } from '@/store/prompts'
 import { toggleReview } from '@/store/review'
@@ -988,6 +989,11 @@ export function ChatBar({
     // a text-only draft, so both live-turn actions stay reachable by keyboard.
     if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && !event.shiftKey) {
       event.preventDefault()
+
+      // Idle with an empty draft: ⌘↩ answers the last reply's ::ask panel.
+      if (!busy && !liveComposerDraft(editorRef.current, draftRef.current).trim() && takeNextStepAsk(surfaceId)) {
+        return
+      }
 
       if (busy && !disabled) {
         // As with plain Enter, source the just-typed content from the DOM so a

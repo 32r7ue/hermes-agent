@@ -1346,8 +1346,10 @@ export const $sessionTileEdgeHover = computed(
 
 /**
  * Adopt panes present in `source` but missing from `target`: each joins the
- * group its source siblings map to in the target (first group as a last
- * resort). Layout changes never lose panes.
+ * group its source siblings map to in the target. A pane with no sibling there
+ * is left to `adoptContributedPanes`, which places it by its own declared
+ * placement — the old "first group" fallback was the sessions sidebar, which is
+ * how a terminal whose own zone had gone ended up as a third tab beside Sessions/Bots.
  */
 function adoptMissingPanes(target: LayoutNode, source: LayoutNode): LayoutNode {
   const have = new Set(allPaneIds(target))
@@ -1359,7 +1361,7 @@ function adoptMissingPanes(target: LayoutNode, source: LayoutNode): LayoutNode {
     }
 
     const sibling = findGroupOfPane(source, paneId)?.panes.find(p => have.has(p))
-    const targetId = (sibling ? findGroupOfPane(next, sibling)?.id : undefined) ?? groupLeafIds(next)[0]
+    const targetId = sibling ? findGroupOfPane(next, sibling)?.id : undefined
 
     if (targetId) {
       // Silent adoption: don't steal the target zone's active tab (logs).
@@ -1570,12 +1572,13 @@ export function adoptContributedPanes(): void {
     const dock = dataOf(pane.id)?.dock
     const placement = placementOf(pane.id) ?? 'right'
 
-    const anchor =
-      (dock && allPaneIds(next).includes(dock.pane) ? dock.pane : undefined) ??
-      allPaneIds(next).find(id => id !== pane.id && placementOf(id) === placement) ??
-      mainId
+    const peer = allPaneIds(next).find(id => id !== pane.id && placementOf(id) === placement)
+
+    const anchor = (dock && allPaneIds(next).includes(dock.pane) ? dock.pane : undefined) ?? peer ?? mainId
 
     const target = findGroupOfPane(next, anchor ?? '')?.id
+    // A bottom tool panel with no zone of its own opens one under the chat, never a tab over it.
+    const edge: DropPosition | undefined = !dock && !peer && placement === 'bottom' ? 'bottom' : undefined
 
     if (target) {
       // Silent adoption: don't front over the zone's active tab — a reveal
@@ -1592,7 +1595,7 @@ export function adoptContributedPanes(): void {
           next,
           target,
           pane.id,
-          dock?.pos ?? 'center',
+          dock?.pos ?? edge ?? 'center',
           dock?.before,
           false,
           recalledEdgeWeights(pane.id, anchor)

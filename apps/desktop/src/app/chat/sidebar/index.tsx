@@ -153,7 +153,7 @@ import { SidebarSectionAddButton } from './chrome'
 import { SidebarCronJobsSection } from './cron-jobs-section'
 import { SidebarFilterMenu } from './filter-menu'
 import { buildGatewaySessionGroups, scopeGatewaySessionGroups, useGatewaySessionGroups } from './gateway-group-model'
-import { SidebarLoadMoreRow } from './load-more-row'
+import { SidebarLoadMoreRow, SidebarShowMoreRow } from './load-more-row'
 import { orderByIds, reconcileOrderIds, resolveManualSessionOrderIds, sameIds } from './order'
 import { filterSessionsByProfileScope } from './profile-scope'
 import { ProfileRail } from './profile-switcher'
@@ -199,6 +199,8 @@ import { useServerSessionSearch } from './use-server-session-search'
 // dominating the sidebar before the user asks to see it.
 const NON_SESSION_INITIAL_ROWS = 3
 const NON_SESSION_LOAD_STEP = 10
+// The flat session list's resting length, and how many more each "Show more" reveals.
+const SIDEBAR_RECENTS_STEP = 20
 
 // How long after connecting to warm the project tree for someone who isn't in
 // the grouped view. Long enough that the flat list — the thing actually on
@@ -1356,9 +1358,11 @@ export function ChatSidebar({
   const connectionsRegistry = useStore($connectionsRegistry)
   const profileColors = useStore($profileColors)
 
-  // The flat Sessions list always shows ALL recent sessions; Projects is a
-  // parallel grouped view, not a filter on this one — nothing is hidden here.
-  const displayAgentSessions = agentSessions
+  // The flat list rests at one screenful; "Show more" at its end reveals the next step, fetching
+  // from the backend once what's loaded runs out. Grouped views page themselves.
+  const [recentsShown, setRecentsShown] = useState(SIDEBAR_RECENTS_STEP)
+  const capRecents = !agentsGrouped
+  const displayAgentSessions = capRecents ? agentSessions.slice(0, recentsShown) : agentSessions
 
   // Pagination is scope-aware. In "All profiles" mode it tracks the global
   // unified set; scoped to one profile it tracks that profile's own truncation
@@ -1377,7 +1381,8 @@ export function ChatSidebar({
 
   const displayRecentsCountRef = useRef(0)
   const loadedRecentsCountRef = useRef(0)
-  displayRecentsCountRef.current = displayAgentSessions.length
+  // Loaded rows, not displayed ones: the display cap must not read as a page that revealed nothing.
+  displayRecentsCountRef.current = agentSessions.length
   loadedRecentsCountRef.current = loadedSessionCount
 
   const onLoadMoreRecents = useCallback(async () => {
@@ -1417,6 +1422,16 @@ export function ChatSidebar({
       setRecentsLoadMorePending(false)
     }
   }, [onLoadMoreSessions, recentsLoadMorePending])
+
+  const showMoreRecents = () => {
+    const next = recentsShown + SIDEBAR_RECENTS_STEP
+    setRecentsShown(next)
+
+    if (agentSessions.length < next && hasMoreSessions) {
+      void onLoadMoreRecents()
+    }
+  }
+
 
   // Archived rows are excluded from the sessions query, so the view has to
   // fetch its own set.
@@ -1690,7 +1705,8 @@ export function ChatSidebar({
 
         {showSessionSections && (
           <div
-            className={cn('flex min-h-0 flex-1 flex-col pb-1.75', SCROLL_Y, SCROLL_GUTTER)}
+            // No bottom padding: the list scrolls right down to the bottom bar, as it always did.
+            className={cn('flex min-h-0 flex-1 flex-col', SCROLL_Y, SCROLL_GUTTER)}
             data-sessions-mode={sessionsMode}
             data-sessions-project={inProject ? (enteredProjectId ?? undefined) : undefined}
           >
@@ -1798,15 +1814,8 @@ export function ChatSidebar({
                   // Hidden only when workspace-grouped — those groups page
                   // themselves. Profile groups don't: this one footer fetches the
                   // next page, which grows every profile at once.
-                  !agentsGrouped && !showSessionSkeletons && hasMoreSessions ? (
-                    <SidebarLoadMoreRow
-                      loading={sessionsLoading || recentsLoadMorePending}
-                      onClick={() => void onLoadMoreRecents()}
-                      // Recents are post-filtered to non-project sessions, so a
-                      // backend page size (50) is not a truthful "rows you'll
-                      // see" count. Use the generic label instead of a fake N.
-                      step={0}
-                    />
+                  !agentsGrouped && !showSessionSkeletons && (hasMoreSessions || agentSessions.length > recentsShown) ? (
+                    <SidebarShowMoreRow loading={recentsLoadMorePending} onShowMore={showMoreRecents} />
                   ) : null
                 }
                 forceEmptyState={showSessionSkeletons}

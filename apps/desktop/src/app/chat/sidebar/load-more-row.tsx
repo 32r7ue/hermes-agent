@@ -3,6 +3,8 @@ import { GlyphSpinner } from '@/components/ui/glyph-spinner'
 import { Tip } from '@/components/ui/tooltip'
 import { useI18n } from '@/i18n'
 
+import { SidebarRowBody, SidebarRowLabel, SidebarRowShell } from './chrome'
+
 interface SidebarLoadMoreRowProps {
   step: number
   onClick: () => void
@@ -34,5 +36,28 @@ export function SidebarLoadMoreRow({ step, onClick, loading = false }: SidebarLo
         )}
       </button>
     </Tip>
+  )
+}
+
+interface SidebarShowMoreRowProps {
+  loading: boolean
+  onShowMore: () => void
+}
+
+/** The end of a capped list: a quiet text row, the same height and inset as the sessions above it. */
+export function SidebarShowMoreRow({ loading, onShowMore }: SidebarShowMoreRowProps) {
+  const { t } = useI18n()
+
+  return (
+    <SidebarRowShell>
+      <SidebarRowBody
+        className="group/more w-full"
+        data-slot="sidebar-show-more"
+        disabled={loading}
+        onClick={onShowMore}
+      >
+        <SidebarRowLabel className="text-(--ui-text-tertiary) [mask-image:none] group-hover/more:text-(--ui-text-primary)">{loading ? t.sidebar.loading : t.sidebar.showMore}</SidebarRowLabel>
+      </SidebarRowBody>
+    </SidebarRowShell>
   )
 }

@@ -78,6 +78,23 @@ async function preparePackagingTools({ source, out, cache, target = `${process.p
  * @param {{ source: string, out: string, cache: string, target: string, formats: string[], builderRoot: string, config: import('app-builder-lib').Configuration, dmgbuild: string | null }} options
  * @returns {Promise<string>}
  */
+/**
+ * The installed `electron` package's own SHASUMS for the version being packaged. Without them
+ * @electron/get re-downloads SHASUMS256.txt from GitHub to verify even a cached zip, and when that
+ * request fails it discards the cache and re-downloads the whole zip, so a GitHub outage breaks
+ * every offline-capable rebuild. Same verification, local source; undefined on a version mismatch.
+ * @param {string} source @param {string} version
+ */
+function electronChecksums(source, version) {
+  try {
+    const require = createRequire(path.join(source, 'apps/desktop/package.json'))
+    if (require('electron/package.json').version !== version) return undefined
+    return { checksums: require('electron/checksums.json') }
+  } catch {
+    return undefined
+  }
+}
+
 async function acquirePackagingTools({ source, out, cache, target, formats, builderRoot, config, dmgbuild }) {
   /** @param {string} relative */
   const load = (relative) => import(pathToFileURL(path.join(builderRoot, 'dist', relative)).href)
@@ -87,7 +104,7 @@ async function acquirePackagingTools({ source, out, cache, target, formats, buil
   const resourcesDir = path.join(source, 'apps/desktop', config.directories?.buildResources || 'build')
   const [archive, archiveTool, iconTools] = await Promise.all([
     electronGet.downloadElectronArtifactZip({ version: config.electronVersion, platformName: process.platform, arch: packagingTargetArch(target),
-      artifactName: 'electron', cacheDir: path.join(cache, 'electron') }),
+      artifactName: 'electron', cacheDir: path.join(cache, 'electron'), options: electronChecksums(source, config.electronVersion) }),
     sevenZip.getPath7za(), icons.getIconsToolsetPath(config.toolsets?.icons, resourcesDir),
   ])
   const electron = copyTool(archive, path.join(out, 'electron.zip'))

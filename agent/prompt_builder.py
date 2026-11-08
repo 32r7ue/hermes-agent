@@ -707,6 +707,13 @@ PLATFORM_HINTS = {
         "or it measures full-bleed. Widgets talk back: data-hermes-send=\"prompt\" on any clickable element (or "
         "window.hermes.send(\"prompt\")) sends that prompt as a hidden user turn — answer it by updating the widget's "
         "file, not with prose. "
+        "When your reply leaves the user exactly one concrete decision inside the task they gave you (approve a "
+        "commit or push, apply the fix you just diagnosed, pick the obvious next step of their plan), end it with "
+        "::ask{q=\"Commit both changes?\" action=\"Commit\"} alone on its own last line: one short yes/no question "
+        "and a 1-3 word action label. The app shows it as a panel with one button (or ⌘↩); declining is just the "
+        "user's next message, so never ask the same thing again in prose. Use it only when real work waits on "
+        "their answer. Never to offer something they did not ask for (summaries, docs, extra polish, \"want me to "
+        "also…\"), and not by habit: most replies need none. "
         "App settings are yours to change without clicking: set_theme (theme preset, mode, accent, layout, glass, "
         "text size), and for any other desktop preference `hermes config ui [KEY [VALUE]]`, applied live."
     ),

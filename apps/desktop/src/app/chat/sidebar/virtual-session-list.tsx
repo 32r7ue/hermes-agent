@@ -56,6 +56,8 @@ export interface VirtualSessionListProps {
   pinned: boolean
   showProfileTags?: boolean
   sortable: boolean
+  /** After the last row, inside this scroller: reached by scrolling to the end, not pinned below it. */
+  trailing?: React.ReactNode
 }
 
 // Matches the card's typical rendered height (four lines when a preview
@@ -66,6 +68,7 @@ const DIVIDER_ESTIMATE_PX = 28
 const OVERSCAN_ROWS = 12
 
 export const VirtualSessionList: FC<VirtualSessionListProps> = ({
+  trailing,
   activeSessionId,
   card = false,
   className,
@@ -213,9 +216,11 @@ export const VirtualSessionList: FC<VirtualSessionListProps> = ({
       className={cn('scrollbar-fade relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto', className)}
       ref={scrollerRef}
     >
-      <div className="relative" style={{ height: `${totalSize}px` }}>
+      {/* shrink-0: as a flex child of the scroller it would squeeze to fit, pulling `trailing` up over rows. */}
+      <div className="relative shrink-0" style={{ height: `${totalSize}px` }}>
         {rows}
       </div>
+      {trailing}
     </div>
   )
 }

@@ -624,7 +624,7 @@ function MarkdownParagraph({
           segment.kind === 'directive' ? (
             <TranscriptDirectiveLeaf key={index} streaming={streaming} text={segment.source} />
           ) : (
-            <p className={paragraphClass} key={index} {...props}>
+            <p className={cn(paragraphClass, 'whitespace-pre-line')} key={index} {...props}>
               {segment.text.trim()}
             </p>
           )

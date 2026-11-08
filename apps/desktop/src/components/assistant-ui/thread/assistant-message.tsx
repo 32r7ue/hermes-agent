@@ -41,7 +41,6 @@ import { useMessageReactions } from '@/components/assistant-ui/thread/use-messag
 import { AGENT_MESSAGE_RE } from '@/components/assistant-ui/thread/user-message'
 import { isApprovalActivity, isCurrentTurnMessage } from '@/components/assistant-ui/tool/approval-activity'
 import { TooltipIconButton } from '@/components/assistant-ui/tooltip-icon-button'
-import { formatElapsed } from '@/components/chat/activity-timer'
 import { PreviewAttachment } from '@/components/chat/preview-attachment'
 import { ActionsMenu, renderActionItem } from '@/components/ui/actions-menu'
 import { Button } from '@/components/ui/button'
@@ -265,10 +264,6 @@ const AssistantMessageBody: FC<AssistantMessageProps & { collapsedNotice?: null 
   // ChatMessage.interim).
   const isInterim = useAuiState(s => s.message.metadata?.custom?.interim === true)
 
-  // Whole-turn wall-clock seconds (set once at completion — referentially
-  // stable across the 30 Hz delta stream, so this adds no per-token renders).
-  const turnDurationS = useAuiState(s => s.message.metadata?.custom?.durationS as number | undefined)
-
   // Response-scope text accessors (#118864). The DEFAULT copy/read-aloud reads
   // only THIS message's text: joining the whole response group mixed sealed
   // interim narration and mid-turn commentary into the final reply's clipboard
@@ -338,7 +333,6 @@ const AssistantMessageBody: FC<AssistantMessageProps & { collapsedNotice?: null 
             responseTail &&
             (!isInterim || (responseIds.length > 0 && responseIds.at(-1) === messageId)) && (
               <AssistantFooter
-                durationS={turnDurationS}
                 fullResponseAvailable={fullResponseAvailable}
                 getFullResponseText={getFullResponseText}
                 getMessageText={getMessageText}
@@ -364,12 +358,14 @@ const StoppedNotice: FC = () => {
   const { t } = useI18n()
   const { target } = useComposerScope()
 
+  // Only while the stopped reply is still the end of the thread: once anything continues after it
+  // (Resume, or the next message), the work went on and the marker is history noise.
   const stopped = useAuiState(
-    s => s.message.status?.type !== 'running' && s.message.metadata?.custom?.interrupted === true
+    s => s.message.isLast && s.message.status?.type !== 'running' && s.message.metadata?.custom?.interrupted === true
   )
 
-  // Resume belongs to the latest stopped reply only, and only while idle.
-  const resumable = useAuiState(s => s.message.isLast && !s.thread.isRunning)
+  // Resume only while idle.
+  const resumable = useAuiState(s => !s.thread.isRunning)
 
   if (!stopped) {
     return null
@@ -1345,8 +1341,7 @@ function useReadAloudAction({
   }
 }
 
-const AssistantActionBar: FC<MessageActionProps & { durationS?: number }> = ({
-  durationS,
+const AssistantActionBar: FC<MessageActionProps> = ({
   fullResponseAvailable,
   getFullResponseText,
   messageId,
@@ -1405,15 +1400,6 @@ const AssistantActionBar: FC<MessageActionProps & { durationS?: number }> = ({
 
   return (
     <div className="relative flex w-full shrink-0 items-center justify-start gap-1.5">
-      {durationS !== undefined && (
-        <span
-          className="select-none px-0.5 text-[0.6875rem] leading-5 tabular-nums text-muted-foreground"
-          data-slot="aui_turn-duration"
-          title={t.assistant.thread.turnDuration(formatElapsed(durationS))}
-        >
-          ⏱ {formatElapsed(durationS)}
-        </span>
-      )}
       {/* ONE slot, Slack-style: the picker trigger and the landed reaction are
           the same element, so reacting never shifts layout. Empty → ☺, hidden
           until hover like its action-bar neighbors (state lives in styles.css
@@ -1541,7 +1527,7 @@ const ReadAloudButton: FC<{ action: ReadAloudActionState }> = ({ action }) => {
   )
 }
 
-const AssistantFooter: FC<MessageActionProps & { durationS?: number }> = ({ durationS, ...props }) => {
+const AssistantFooter: FC<MessageActionProps> = props => {
   return (
     <div className="flex min-h-6 flex-col items-start gap-1 pr-(--message-text-indent) pl-(--message-text-indent)">
       <BranchPickerPrimitive.Root
@@ -1558,7 +1544,7 @@ const AssistantFooter: FC<MessageActionProps & { durationS?: number }> = ({ dura
           <Codicon name="chevron-right" size="0.875rem" />
         </BranchPickerPrimitive.Next>
       </BranchPickerPrimitive.Root>
-      <AssistantActionBar durationS={durationS} {...props} />
+      <AssistantActionBar {...props} />
     </div>
   )
 }

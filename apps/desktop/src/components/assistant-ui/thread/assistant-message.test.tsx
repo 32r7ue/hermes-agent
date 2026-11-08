@@ -9,9 +9,12 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { MemoryRouter, useLocation } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { NextStepAsk } from '@/components/assistant-ui/next-step-ask'
+import { registry } from '@/contrib/registry'
 import { en } from '@/i18n/en'
 import type { ErrorCardCopy } from '@/i18n/types'
 import { $touchPointer } from '@/lib/touch-interaction'
+import { TRANSCRIPT_DIRECTIVE_AREA, type TranscriptDirectiveContribution } from '@/lib/transcript-directives'
 import { $displayTimestamps } from '@/store/display-timestamps'
 import { $activeSessionId } from '@/store/session'
 import { type SessionTileDelegate, setSessionTileDelegate } from '@/store/session-states'
@@ -199,8 +202,10 @@ function Harness({
   onRestoreToMessage,
   onReload,
   isRunning = false,
-  isDisabled = false
+  isDisabled = false,
+  after = []
 }: {
+  after?: ThreadMessage[]
   assistant?: ThreadMessage
   onBranchInNewChat?: (messageId: string) => void
   onCancel?: () => void
@@ -211,7 +216,7 @@ function Harness({
   isDisabled?: boolean
 }) {
   const runtime = useExternalStoreRuntime<ThreadMessage>({
-    messages: [userMessage(), assistant],
+    messages: [userMessage(), assistant, ...after],
     isRunning,
     isDisabled,
     onNew: async () => {},
@@ -349,11 +354,78 @@ describe('stopped reply marker', () => {
     expect(await screen.findByText(en.assistant.thread.responseStopped)).toBeTruthy()
   })
 
+  it('drops the marker once the work continued after it (Resume)', async () => {
+    const base = assistantMessage()
+    const stopped = { ...base, metadata: { ...base.metadata, custom: { interrupted: true } } } as ThreadMessage
+    const resumed = { ...base, id: 'assistant-2', content: [{ type: 'text', text: 'picked it back up' }] } as ThreadMessage
+    render(<Harness after={[resumed]} assistant={stopped} />)
+    await screen.findByText('picked it back up')
+
+    expect(screen.queryByText(en.assistant.thread.responseStopped)).toBeNull()
+  })
+
   it('leaves a finished reply unmarked', async () => {
     render(<Harness />)
     await screen.findByText('done')
 
     expect(screen.queryByText(en.assistant.thread.responseStopped)).toBeNull()
+  })
+})
+
+describe('next-step ask panel', () => {
+  const withAsk = (id = 'assistant-1') => {
+    const base = assistantMessage()
+
+    return {
+      ...base,
+      id,
+      content: [{ type: 'text', text: 'Both fixes are in.\n::ask{q="Commit both changes?" action="Commit"}' }]
+    } as ThreadMessage
+  }
+
+  const claim = () =>
+    registry.register({
+      id: 'test:ask',
+      area: TRANSCRIPT_DIRECTIVE_AREA,
+      data: { name: 'ask', render: ({ attrs, streaming }) => <NextStepAsk attrs={attrs} streaming={streaming} /> } satisfies
+        TranscriptDirectiveContribution
+    })
+
+  it('shows the question and one action on the last reply', async () => {
+    const dispose = claim()
+
+    try {
+      render(<Harness assistant={withAsk()} />)
+      expect(await screen.findByText('Commit both changes?')).toBeTruthy()
+      expect(screen.getAllByRole('button', { name: /Commit/ })).toHaveLength(1)
+    } finally {
+      dispose()
+    }
+  })
+
+  it('disappears once anything follows the reply', async () => {
+    const dispose = claim()
+    const next = { ...assistantMessage(), id: 'assistant-2', content: [{ type: 'text', text: 'moved on' }] } as ThreadMessage
+
+    try {
+      render(<Harness after={[next]} assistant={withAsk()} />)
+      await screen.findByText('moved on')
+      expect(screen.queryByText('Commit both changes?')).toBeNull()
+    } finally {
+      dispose()
+    }
+  })
+
+  it('stays hidden while a turn runs', async () => {
+    const dispose = claim()
+
+    try {
+      render(<Harness assistant={withAsk()} isRunning />)
+      await screen.findByText('Both fixes are in.')
+      expect(screen.queryByText('Commit both changes?')).toBeNull()
+    } finally {
+      dispose()
+    }
   })
 })
 

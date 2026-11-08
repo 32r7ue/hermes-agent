@@ -212,6 +212,9 @@ export const resolveThreadScrollTarget: GetTargetScrollTop = (targetScrollTop, {
  *  off the bottom should still track, but a reader in history must not yank. */
 export const RUN_START_SNAP_THRESHOLD_PX = 64
 
+/** How long after a send the move down stays a glide (see `gliding` in the thread list). */
+const SEND_GLIDE_MS = 700
+
 export function shouldSnapOnRunStart(remainingPx: number, thresholdPx = RUN_START_SNAP_THRESHOLD_PX): boolean {
   return remainingPx < thresholdPx
 }
@@ -543,9 +546,38 @@ const ThreadMessageListInner: FC<ThreadMessageListProps> = ({
   // spring can't tell live-token growth from a session-switch bulk relayout, and
   // chasing the latter reads as the view scrolling to random spots before
   // settling. Its refs hang off our own DOM so the sticky human bubbles survive.
+  // Set for a moment after the user sends: the move down to their message is a glide, so content
+  // growing meanwhile (the reply placeholder, the loader) must follow smoothly, not snap.
+  // A ref, read when content resizes, so starting and ending a glide re-renders nothing.
+  const glideTimerRef = useRef<null | number>(null)
+
+  // Instant follow keeps up with streaming at the bottom. A view well above it (a held reply, a
+  // send's rows landing a commit before the send is seen here) glides down instead of snapping.
+  const followAnimation = () => {
+    const el = scrollRef.current
+
+    if (glideTimerRef.current !== null) {
+      return 'smooth'
+    }
+
+    const gap = el ? el.scrollHeight - el.clientHeight - el.scrollTop : 0
+
+    return loadSettledRef.current && gap > RUN_START_SNAP_THRESHOLD_PX ? 'smooth' : 'instant'
+  }
+
   const { scrollRef, contentRef, isAtBottom, scrollToBottom, stopScroll } = useStickToBottom({
-    initial: 'instant',
-    resize: 'instant',
+    // A stiffer spring than the library's (0.05 / 1.25): a glide down to a sent message lands in
+    // ~250ms instead of trailing on for a second.
+    damping: 0.7,
+    mass: 1,
+    stiffness: 0.12,
+    // `initial` too: the content element remounting under a send restarts the hook's observer.
+    get initial() {
+      return glideTimerRef.current === null ? 'instant' : 'smooth'
+    },
+    get resize() {
+      return followAnimation()
+    },
     targetScrollTop: resolveThreadScrollTarget
   })
 
@@ -890,13 +922,56 @@ const ThreadMessageListInner: FC<ThreadMessageListProps> = ({
   // New run → snap to the latest turn only when already near the bottom.
   useAuiEvent('thread.runEnd', () => markRunEnded())
 
+  // A follow-up just sent: glide down to it the moment it lands, rather than holding the previous
+  // reply's anchor until the run starts (~170ms later) and snapping there in one frame. Only for a
+  // message added to the thread on screen; a session switch re-keys and restores instead.
+  // The newest user message wherever it sits: a send appends it together with the reply placeholder.
+  // Only while nothing finished follows it: history arriving brings whole, completed turns.
+  const trailingUserId = useAuiState(s => {
+    const messages = s.thread.messages
+    const index = messages.findLastIndex(message => message.role === 'user')
+    const after = messages[index + 1]
+
+    return index >= 0 && (!after || after.status?.type !== 'complete') ? messages[index].id : null
+  })
+
+  const [seenSend, setSeenSend] = useState({ id: trailingUserId, session: scrollSessionId, glides: 0 })
+
+  if (seenSend.id !== trailingUserId || seenSend.session !== scrollSessionId) {
+    const sent = Boolean(trailingUserId) && seenSend.session === scrollSessionId
+    setSeenSend({ id: trailingUserId, session: scrollSessionId, glides: seenSend.glides + (sent ? 1 : 0) })
+  }
+
+  // Layout phase, before the load-restore below would snap the same commit to the bottom.
+  const glidedRef = useRef(0)
+
+  useLayoutEffect(() => {
+    const el = scrollRef.current
+
+    if (seenSend.glides === glidedRef.current || !el || !loadSettledRef.current) {
+      return
+    }
+
+    glidedRef.current = seenSend.glides
+    clearReplyAnchor()
+    el.setAttribute('data-gliding', '')
+    window.clearTimeout(glideTimerRef.current ?? undefined)
+    glideTimerRef.current = window.setTimeout(() => {
+      glideTimerRef.current = null
+      el.removeAttribute('data-gliding')
+    }, SEND_GLIDE_MS)
+    void scrollToBottomUnlessSelecting('smooth')
+  }, [scrollRef, scrollToBottomUnlessSelecting, seenSend.glides])
+
+  useEffect(() => () => window.clearTimeout(glideTimerRef.current ?? undefined), [])
+
   useAuiEvent('thread.runStart', () => {
     clearReplyAnchor()
     cancelRestoreRef.current?.()
     const el = scrollRef.current
 
     if (el && shouldSnapOnRunStart(el.scrollHeight - el.scrollTop - el.clientHeight)) {
-      scrollToBottomUnlessSelecting()
+      scrollToBottomUnlessSelecting('smooth')
     }
   })
 
@@ -967,6 +1042,7 @@ const ThreadMessageListInner: FC<ThreadMessageListProps> = ({
       if (
         isRunningRef.current &&
         !el.hasAttribute('data-editing') &&
+        !el.hasAttribute('data-gliding') &&
         shouldReapplyFrozenThreadScrollOffset(THREAD_SCROLL_BOTTOM, true, previousResizeMetrics, nextResizeMetrics) &&
         threadScrollStateFromMetrics({ ...previousResizeMetrics, scrollTop: el.scrollTop }).kind === 'bottom' &&
         !hasTranscriptTextSelection(el)
@@ -1055,6 +1131,11 @@ const ThreadMessageListInner: FC<ThreadMessageListProps> = ({
     const storageKey = scrollStorageKey
     const sessionSwitched = settleKeyRef.current !== sessionKey || restoredStorageKeyRef.current !== storageKey
     restoredStorageKeyRef.current = storageKey
+
+    if (sessionSwitched) {
+      // A hold belongs to the reply it was set on, never to the next session's restore.
+      clearReplyAnchor()
+    }
 
     const plan = planThreadScrollRestore(
       sessionSwitched ? undefined : restoredContentKeyRef.current,
@@ -1536,7 +1617,11 @@ const ThreadMessageListInner: FC<ThreadMessageListProps> = ({
     windowCommitRef.current = null
 
     // Apply load intent in the commit, without spending an unchanged anchor.
-    if (paneVisible && (restoreFromBottom == null || liveScrollStateRef.current.kind === 'bottom')) {
+    if (
+      paneVisible &&
+      !el?.hasAttribute('data-gliding') &&
+      (restoreFromBottom == null || liveScrollStateRef.current.kind === 'bottom')
+    ) {
       applyRestoreRef.current?.()
     }
 

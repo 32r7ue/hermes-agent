@@ -1,6 +1,6 @@
 import { useStore } from '@nanostores/react'
 import type { FC, ReactNode } from 'react'
-import { useMemo } from 'react'
+import { isValidElement, useMemo } from 'react'
 
 import { useSessionView } from '@/app/chat/session-view'
 import { type Contribution, useContributions } from '@/contrib'
@@ -26,13 +26,17 @@ import {
 
 /** Extract the paragraph's text when it is text-only — directives never carry
  *  inline markup, so any non-string child disqualifies the paragraph. */
+const isLineBreak = (node: ReactNode) => isValidElement(node) && node.type === 'br'
+
 export function paragraphPlainText(children: ReactNode): string | null {
   if (typeof children === 'string') {
     return children
   }
 
-  if (Array.isArray(children) && children.length > 0 && children.every(child => typeof child === 'string')) {
-    return children.join('')
+  // A soft line break renders as <br>: a directive written on the line under its sentence is still
+  // the same paragraph, and must not fall back to raw text for it.
+  if (Array.isArray(children) && children.length > 0 && children.every(child => typeof child === 'string' || isLineBreak(child))) {
+    return children.map(child => (typeof child === 'string' ? child : '\n')).join('')
   }
 
   return null

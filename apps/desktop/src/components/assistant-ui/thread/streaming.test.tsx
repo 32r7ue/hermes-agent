@@ -716,6 +716,32 @@ describe('assistant-ui streaming renderer', () => {
     expect(container.querySelector('[data-slot="aui_reasoning-text"]')).toBeNull()
   })
 
+  it('shows a live summary title as the header alone, with nothing to expand', () => {
+    function TitleOnlyHarness() {
+      const runtime = useExternalStoreRuntime<ThreadMessage>({
+        messages: [assistantReasoningMessage('**Selecting river examples**', true)],
+        isRunning: true,
+        onNew: async () => {}
+      })
+
+      return (
+        <AssistantRuntimeProvider runtime={runtime}>
+          <Thread />
+        </AssistantRuntimeProvider>
+      )
+    }
+
+    const { container } = render(<TitleOnlyHarness />)
+    const disclosure = container.querySelector('[data-slot="aui_thinking-disclosure"]')!
+
+    expect(disclosure.textContent).toContain('Selecting river examples')
+    const row = within(disclosure as HTMLElement).getByRole('button')
+
+    expect(row.hasAttribute('disabled')).toBe(true)
+    expect(row.hasAttribute('aria-expanded')).toBe(false)
+    expect(container.querySelector('[data-slot="aui_thinking-body"]')).toBeNull()
+  })
+
   it('renders reasoning text without a leading token space', () => {
     const { container } = render(<ReasoningHarness />)
     const ui = within(container)

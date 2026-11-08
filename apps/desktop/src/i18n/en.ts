@@ -3286,6 +3286,7 @@ export const en: Translations = {
     showMoreIn: (count, label) => `Show ${count} more in ${label}`,
     loading: 'Loading…',
     loadMore: 'Load more',
+    showMore: 'Show more',
     loadCount: step => `Load ${step} more`,
     messageCount: count => `${count} ${count === 1 ? 'message' : 'messages'}`,
     toolCallCount: count => `${count} ${count === 1 ? 'tool call' : 'tool calls'}`,

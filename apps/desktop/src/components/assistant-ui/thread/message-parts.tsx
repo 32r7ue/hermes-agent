@@ -330,7 +330,8 @@ const ThinkingDisclosure: FC<{
     thoughtLabel = headline ?? t.assistant.thread.thought
   }
 
-  const expandable = pending || !titleOnly
+  // A body of summary titles alone only repeats the headline, live or finished: no chevron, no body.
+  const expandable = !titleOnly
 
   // Follow new tokens until the user scrolls up to read earlier reasoning.
   useEffect(() => {

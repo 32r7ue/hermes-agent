@@ -2891,6 +2891,7 @@ export interface Translations extends NoticeTranslations {
     showMoreIn: (count: number, label: string) => string
     loading: string
     loadMore: string
+    showMore: string
     loadCount: (step: number) => string
     messageCount: (count: number) => string
     toolCallCount: (count: number) => string

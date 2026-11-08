@@ -5,23 +5,40 @@
  * run starts.
  */
 let anchor: HTMLElement | null = null
+// The scroller the anchor last held, so a hold survives the reply being remounted under it.
+let heldIn: HTMLElement | null = null
 
 // Room above the reply for the summary line that led into it.
 const ANCHOR_OFFSET_PX = 72
 
 export function setReplyAnchor(element: HTMLElement | null): void {
   anchor = element
+  heldIn = null
 }
 
 export function clearReplyAnchor(): void {
   anchor = null
+  heldIn = null
 }
 
 /** The highest scrollTop the view may follow to, or null when nothing holds it. Never above where it is. */
 export function replyAnchorCap(scrollElement: HTMLElement): null | number {
-  if (!anchor?.isConnected || !scrollElement.contains(anchor)) {
+  if (!anchor) {
     return null
   }
+
+  // The held reply was remounted (a send re-renders the turn, a finished reply is swapped for its
+  // stored copy): keep holding where the view is until a scroll, a send or a run releases it,
+  // instead of letting the next resize snap the view to the bottom.
+  if (!anchor.isConnected) {
+    return heldIn === scrollElement ? scrollElement.scrollTop : null
+  }
+
+  if (!scrollElement.contains(anchor)) {
+    return null
+  }
+
+  heldIn = scrollElement
 
   const top =
     anchor.getBoundingClientRect().top - scrollElement.getBoundingClientRect().top + scrollElement.scrollTop

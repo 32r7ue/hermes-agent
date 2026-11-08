@@ -602,6 +602,7 @@ export function SidebarSessionsSection({
         rows={visibleRows}
         showProfileTags={showProfileTags}
         sortable={sessionsDraggable}
+        trailing={footer}
       />
     )
 
@@ -642,7 +643,8 @@ export function SidebarSessionsSection({
       {sectionOpen && (
         <SidebarGroupContent className={resolvedContentClassName}>
           {inner}
-          {footer}
+          {/* A virtualized list scrolls on its own: its footer rides at the end of that scroller. */}
+          {flatVirtualized ? null : footer}
         </SidebarGroupContent>
       )}
     </SidebarGroup>
