@@ -2714,6 +2714,7 @@ export const frOverrides = {
     searchPlaceholder: 'Rechercher des sessions, vues et actions',
     goTo: 'Aller à',
     goToSession: 'Aller à la session',
+    inMessages: 'Dans les messages',
     branches: 'Branches',
     projects: 'Projets',
     openFolder: 'Ouvrir un dossier en tant que projet…',

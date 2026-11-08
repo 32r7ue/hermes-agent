@@ -2356,6 +2356,7 @@ export const en: Translations = {
     searchPlaceholder: 'Search sessions, views, and actions',
     goTo: 'Go to',
     goToSession: 'Go to session',
+    inMessages: 'In messages',
     branches: 'Branches',
     projects: 'Projects',
     openFolder: 'Open folder as project…',
