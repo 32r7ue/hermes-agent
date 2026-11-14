@@ -26,7 +26,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Optional
 
-from agent.context_compressor import LEGACY_SUMMARY_PREFIX, ContextCompressor
+from agent.context_compressor import LEGACY_SUMMARY_PREFIX, ContextCompressor, _content_text_for_contains
 
 logger = logging.getLogger(__name__)
 
@@ -50,10 +50,50 @@ def handoff_text(session_id: str) -> str:
             "find exact lines with session_search"
         )
     return (
-        f"{LEGACY_SUMMARY_PREFIX} You are continuing {where}. Retrieve key context from it as you go. "
+        f"{LEGACY_SUMMARY_PREFIX} You are continuing {where}. Look things up in it when you need them. "
         "The messages after this note are its latest part, verbatim. "
         "Carry on seamlessly; do not mention this note."
     )
+
+
+# Progress survives the cut: one line per earlier tool call (name + arguments, no result). Without it
+# the model could not tell which steps of a list were done and re-ran them (2026-11-14: one run
+# re-read two 100K-char files three times and took 31 calls where 13 sufficed).
+_ACTIONS_HEAD = "Your tool calls before this point, in order (results are in the stored session):"
+_ACTION_ARGS_MAX_CHARS = 160
+_ACTIONS_MAX = 60
+
+
+def _action_lines(message: Any) -> list[str]:
+    lines = []
+    for call in (message.get("tool_calls") or []) if isinstance(message, dict) else []:
+        fn = (call.get("function") or {}) if isinstance(call, dict) else {}
+        args = " ".join(str(fn.get("arguments") or "").split())
+        if len(args) > _ACTION_ARGS_MAX_CHARS:
+            args = args[:_ACTION_ARGS_MAX_CHARS] + "…"
+        lines.append(f"- {fn.get('name') or '?'} {args}".rstrip())
+    return lines
+
+
+def actions_block(messages: list, turns: list, summary_indices) -> str:
+    """Prior handoff's action lines + the tool calls cut now; the newest ``_ACTIONS_MAX`` are kept."""
+    lines: list[str] = []
+    if summary_indices:
+        text = _content_text_for_contains(messages[max(summary_indices)].get("content"))
+        if _ACTIONS_HEAD in text:
+            lines = [ln for ln in text.split(_ACTIONS_HEAD, 1)[1].lstrip("\n").split("\n\n", 1)[0].splitlines()
+                     if ln.startswith("- ")]
+    for msg in turns:
+        lines += _action_lines(msg)
+    if not lines:
+        return ""
+    omitted = int(lines.pop(0).split()[2]) if lines[0].startswith("- … ") else 0
+    if len(lines) > _ACTIONS_MAX - 1:
+        omitted += len(lines) - (_ACTIONS_MAX - 1)
+        lines = lines[-(_ACTIONS_MAX - 1):]
+    if omitted:
+        lines.insert(0, f"- … {omitted} earlier calls")
+    return "\n\n" + _ACTIONS_HEAD + "\n" + "\n".join(lines)
 
 
 def _rollover_config() -> dict[str, Any]:
@@ -95,7 +135,8 @@ class RolloverEngine(ContextCompressor):
 
     def _summarize_window(self, messages, turns_to_summarize, scan, focus_topic, memory_context, bypass_cooldown):
         self._previous_summary = None
-        return handoff_text(getattr(self, "_session_id", "") or "")
+        return handoff_text(getattr(self, "_session_id", "") or "") + actions_block(
+            messages, turns_to_summarize, scan.summary_indices)
 
     # The built-in compressor skips the summarizer after weak or failed rounds to save model calls,
     # then writes a generic fallback summary. Rollover makes no model call, so a skip saves nothing and

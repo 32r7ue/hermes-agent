@@ -98,3 +98,52 @@ def test_manual_compress_of_a_resident_session_uses_the_rollover_engine():
 
     builtin = type("Agent", (), {"context_compressor": ContextCompressor(model="", quiet_mode=True)})()
     assert _plugin_engine(None, None, {}, "m", {}, builtin, "s1") is None
+
+
+# --- handoff variants ---------------------------------------------------------------------------
+
+def _engine_with(handoff: str, session_id: str = "parent-123") -> RolloverEngine:
+    with patch("plugins.context_engine.rollover._rollover_config", return_value={"handoff": handoff}):
+        engine = RolloverEngine()
+    engine.update_model(model="test-model", context_length=200_000)
+    engine.bind_session_state(session_db=None, session_id=session_id)
+    return engine
+
+
+def _goal_transcript(reads: int, size: int = 20_000) -> list[dict]:
+    """Opening goal + constraint, a later correction, a long stretch of tool work, an in-flight ask."""
+    messages = [{"role": "system", "content": "system prompt"},
+                {"role": "user", "content": "GOAL: audit the repo. CONSTRAINT: never write outside /tmp/audit."},
+                {"role": "assistant", "content": "ok"},
+                {"role": "user", "content": "correction: name the report REPORT.md"},
+                {"role": "assistant", "content": "noted"},
+                {"role": "user", "content": "now read the files and write the report"}]
+    for i in range(reads):
+        messages.append({"role": "assistant", "content": "", "tool_calls": [{
+            "id": f"r{i}", "type": "function", "function": {"name": "read_file", "arguments": f'{{"path": "f{i}"}}'}}]})
+        messages.append({"role": "tool", "tool_call_id": f"r{i}", "content": f"file {i} " + "z" * size})
+    return messages
+
+
+def _carrier(out: list[dict]) -> dict:
+    return next(m for m in out if ContextCompressor._is_context_summary_message(m))
+
+
+def _compress(engine, messages):
+    with patch.object(ContextCompressor, "_call_summary_llm", side_effect=AssertionError("no LLM")):
+        return engine.compress(messages, current_tokens=190_000, force=True)
+
+
+def test_handoff_lists_the_cut_tool_calls_once_across_cuts():
+    """Without its earlier calls the model could not tell which files of a list it had read and
+    re-read them after every cut (2026-11-14 live run: 31 calls instead of 13)."""
+    engine = _engine_with("pointer")
+    out = _compress(engine, _goal_transcript(5, size=100_000))
+    text = str(_carrier(out)["content"]).split("--- END OF CONTEXT SUMMARY")[0]
+    cut = [i for i in range(5) if f'{{"path": "f{i}"}}' in text]
+    assert cut and cut == list(range(len(cut)))  # the oldest calls, in order
+    assert f'- read_file {{"path": "f{cut[0]}"}}' in text
+
+    out2 = _compress(engine, out + _goal_transcript(5, size=100_000)[6:])
+    text2 = str(_carrier(out2)["content"]).split("--- END OF CONTEXT SUMMARY")[0]
+    assert text2.count(f'{{"path": "f{cut[0]}"}}') == 2  # once per real call (first and second batch)
