@@ -44,6 +44,28 @@ def readiness_failure(exc) -> dict:
     return {'ok': False, 'error': str(exc), **code}
 
 
+def rate_limited_readiness(config, model):
+    """``ok`` verdict when the pinned provider is signed in and every credential is only in a
+    usage-limit cooldown, else None. A subscription that hit its limit is not an unusable setup:
+    the limit surfaces on the turn that meets it, and other providers keep working, so the status
+    must not read "inference unavailable" (or send the user to provider sign-in) meanwhile."""
+    cfg_model = config.get('model')
+    pinned = str(cfg_model.get('provider') or '').strip() if isinstance(cfg_model, dict) else ''
+    if not pinned:
+        return None
+    try:
+        from agent.credential_pool import load_pool
+        pool = load_pool(pinned)
+        entries = pool.entries()
+        if not entries or pool.has_available() or any(e.last_status != 'exhausted' for e in entries):
+            return None
+        return {'ok': True, 'provider': pinned, 'model': model, 'source': 'rate_limited',
+                'rate_limited_until': pool.next_available_at(), 'free_tier_route': False}
+    except Exception:  # health: allow BLE001 -- a probe helper; the caller reports the original failure
+        logger.warning("rate-limit readiness probe failed for %s", pinned, exc_info=True)
+        return None
+
+
 def check_runtime_readiness(requested=None, *, strict_profile_scope=False, resolve=None):
     """ok/error verdict for the runtime a session would be built with.
 
@@ -71,7 +93,13 @@ def check_runtime_readiness(requested=None, *, strict_profile_scope=False, resol
         model = configured_model
         runtime = resolve_runtime_provider(requested=requested, target_model=configured_model)
     else:
-        runtime, entry = resolve_runtime_with_fallback(config, target_model=configured_model)
+        try:
+            runtime, entry = resolve_runtime_with_fallback(config, target_model=configured_model)
+        except Exception:
+            limited = rate_limited_readiness(config, configured_model)
+            if limited is None:
+                raise
+            return limited
         model = (entry or {}).get('model') or configured_model or runtime.get('model')
     configured = bool(_has_any_provider_configured(strict_profile_scope=strict_profile_scope))
     provider = runtime.get('provider') or 'provider'
@@ -90,6 +118,9 @@ def check_runtime_readiness(requested=None, *, strict_profile_scope=False, resol
     api_key_text = '' if callable(api_key) else str(api_key or '').strip()
     if not (callable(api_key) or api_key_text in {'aws-sdk', 'no-key-required'}
             or has_usable_secret(api_key_text) or bool(runtime.get('command'))):
+        limited = None if requested or resolve is not None else rate_limited_readiness(config, model)
+        if limited is not None:
+            return limited
         return fail(f'No usable credentials found for {blamed}.{missing_credentials_suffix(blamed)}', runtime.get('source'))
     from hermes_cli.anon_auth import route_is_welcome_host
     # free_tier_route is keyed on the SELECTED route (the welcome host serves only nous/welcome), not
