@@ -171,7 +171,9 @@ def _plugin_engine(authority, policy, config, model, runtime, resident, target):
     from agent.context_compressor import ContextCompressor
     if resident is not None:
         engine = getattr(resident, 'context_compressor', None)
-        return None if engine is None or isinstance(engine, ContextCompressor) else engine
+        # Exact type, not isinstance: an engine that subclasses the built-in compressor (rollover) is
+        # still the session's engine; isinstance sent it to the LLM summarizer below instead.
+        return None if engine is None or type(engine) is ContextCompressor else engine
     if policy.safe_mode:
         return None
     from agent.agent_init import _select_context_engine

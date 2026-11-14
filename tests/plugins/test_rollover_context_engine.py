@@ -85,3 +85,16 @@ def test_automatic_compaction_after_weak_rounds_still_hands_off_the_pointer():
     blob = "\n".join(str(m.get("content")) for m in out)
     assert 'session_search(session_id="parent-123")' in blob
     assert engine._fallback_summary_for_window({}, [], 3, True) == handoff_text("parent-123")
+
+
+def test_manual_compress_of_a_resident_session_uses_the_rollover_engine():
+    """Regression (2026-11-08): the gateway treated a resident RolloverEngine as the built-in
+    compressor because it subclasses it, and wrote an LLM summary instead of the pointer."""
+    from gateway.session_mutation_compress import _plugin_engine
+
+    engine = RolloverEngine()
+    resident = type("Agent", (), {"context_compressor": engine})()
+    assert _plugin_engine(None, None, {}, "m", {}, resident, "s1") is engine
+
+    builtin = type("Agent", (), {"context_compressor": ContextCompressor(model="", quiet_mode=True)})()
+    assert _plugin_engine(None, None, {}, "m", {}, builtin, "s1") is None

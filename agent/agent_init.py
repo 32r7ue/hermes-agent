@@ -1819,7 +1819,8 @@ def _select_context_engine(_agent_cfg):
         from plugins.context_engine import load_context_engine
         _selected_engine = load_context_engine(_engine_name)
     except Exception as _ce_load_err:
-        _ra().logger.debug("Context engine load from plugins/context_engine/: %s", _ce_load_err)
+        # The user picked this engine; a load error must not hide behind the built-in summarizer.
+        _ra().logger.error("Context engine '%s' failed to load: %s", _engine_name, _ce_load_err, exc_info=True)
 
     if _selected_engine is None:
         try:
@@ -1846,7 +1847,7 @@ def _select_context_engine(_agent_cfg):
                 )
 
     if _selected_engine is None and not _copy_failed:
-        _ra().logger.warning(
+        _ra().logger.error(
             "Context engine '%s' not found — falling back to built-in compressor", _engine_name
         )
     return _selected_engine

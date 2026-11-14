@@ -63,7 +63,7 @@ def _rollover_config() -> dict[str, Any]:
         section = ((load_config_readonly() or {}).get("context") or {}).get("rollover") or {}
         return section if isinstance(section, dict) else {}
     except Exception:
-        logger.debug("rollover: config unreadable, using defaults", exc_info=True)
+        logger.warning("rollover: config unreadable, using defaults", exc_info=True)
         return {}
 
 
