@@ -42,7 +42,7 @@ def handoff_text(session_id: str) -> str:
         where = (
             f'session {session_id}. Its full record (every message, tool call and tool result) '
             f'is stored verbatim; read exact lines from it with session_search(session_id="{session_id}"), '
-            "adding around_message_id to scroll"
+            "which lists its message ids; scroll from one with around_message_id"
         )
     else:
         where = (

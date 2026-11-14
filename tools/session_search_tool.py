@@ -38,6 +38,10 @@ _DEMOTED_SESSION_SOURCES = ("cron",)
 # Bounding message COUNT (head/tail) is not enough when content per message is
 # unbounded; the agent can scroll around a message for detail (#114344).
 _READ_MAX_CONTENT = 2000
+# Scroll caps: neighbours like the read shape (2000); the anchor gets more and pages through
+# ``offset``, so a huge stored tool result never comes back whole (one scroll returned 233K chars).
+_SCROLL_MAX_CONTENT = 2000
+_SCROLL_ANCHOR_MAX_CONTENT = 8000
 # FTS rows scanned before dedup-by-lineage — well above the distinct sessions a query
 # returns, so interactive matches buried under cron hits survive the demotion pass.
 _DISCOVER_SCAN_LIMIT = 300
@@ -449,8 +453,10 @@ def _read_session(db, session_id: str, head: int = 20, tail: int = 10, link_prof
     meta = _get_session_meta(db, session_id)
     if not meta:
         return tool_error(f"session_id not found: {session_id}", success=False)
-    rows, err = _loud(lambda: db.get_messages(session_id), "get_messages failed for %s: %s", "failed to load session",
-                      session_id)
+    # include_compacted: a session rolled over in place keeps its history as archived rows;
+    # without them the read returns only what is already in the caller's context.
+    rows, err = _loud(lambda: db.get_messages(session_id, include_compacted=True),
+                      "get_messages failed for %s: %s", "failed to load session", session_id)
     if err:
         return err
     shaped = [_shape_message(m, max_content_len=_READ_MAX_CONTENT) for m in rows]
@@ -528,8 +534,24 @@ def _anchor_in_live_context(db, anchor_state, anchor_sid: str, current_session_i
     return (anchor_state is not None and anchor_state["active"] == 0) or not _session_left_live_context(db, anchor_sid)
 
 
+def _scroll_entry(m: dict[str, Any], anchor_id: int, offset: int) -> dict[str, Any]:
+    """Capped scroll row; the anchor reads from *offset* and says where the next page starts."""
+    if m.get("id") != anchor_id:
+        return _shape_message(m, anchor_id=anchor_id, max_content_len=_SCROLL_MAX_CONTENT)
+    content = m.get("content")
+    total = len(content) if isinstance(content, str) else 0
+    if total <= offset + _SCROLL_ANCHOR_MAX_CONTENT and not offset:
+        return _shape_message(m, anchor_id=anchor_id)
+    end = min(total, offset + _SCROLL_ANCHOR_MAX_CONTENT)
+    entry = _shape_message({**m, "content": content[offset:end]}, anchor_id=anchor_id)
+    entry.update(content_offset=offset, original_content_chars=total)
+    if end < total:
+        entry["next_offset"] = end
+    return entry
+
+
 def _scroll(db, session_id: str, around_message_id: int, window: int = 5,
-            current_session_id: str | None = None) -> str:
+            current_session_id: str | None = None, offset: int = 0) -> str:
     """Scroll shape: a window centered on an anchor (no FTS5, no bookends)."""
     try:
         around_message_id = int(around_message_id)
@@ -566,21 +588,22 @@ def _scroll(db, session_id: str, around_message_id: int, window: int = 5,
     return _ok(
         mode="scroll", session_id=session_id, around_message_id=around_message_id,
         session_meta=_session_meta_block(session_meta), window=window,
-        messages=[_shape_message(m, anchor_id=around_message_id) for m in messages],
+        messages=[_scroll_entry(m, around_message_id, _clamp_int(offset, 0, 0, 1 << 40)) for m in messages],
         messages_before=view.get("messages_before", 0), messages_after=view.get("messages_after", 0),
         hint=("Scroll forward: re-call with around_message_id = the LAST message's "
               "id; backward: the FIRST message's id (the boundary message repeats "
               "as an orientation marker). messages_before/messages_after < window "
-              "means you've hit that end of the session."), **extra)
+              "means you've hit that end of the session. A truncated message reads on "
+              "as the anchor: around_message_id = its id, offset = its next_offset."), **extra)
 
 
 def _dispatch(query, role_filter, limit, db, current_session_id, session_id,
               around_message_id, window, sort, profile, detail,
-              after=None, before=None, exclude_session_ids=None) -> str:
+              after=None, before=None, exclude_session_ids=None, offset=0) -> str:
     """Mode dispatch (see module docstring); scroll wins when an anchor is set."""
     if isinstance(session_id, str) and session_id.strip():
         if around_message_id is not None:
-            return _scroll(db, session_id.strip(), around_message_id, window, current_session_id)
+            return _scroll(db, session_id.strip(), around_message_id, window, current_session_id, offset)
         return _read_scoped(db, session_id.strip(), profile)
     browse = not query or not isinstance(query, str) or not query.strip()
     # Browse lists enough recent sessions to pick from; discovery returns a few ranked hits.
@@ -603,7 +626,8 @@ def _dispatch(query, role_filter, limit, db, current_session_id, session_id,
 def session_search(query: str = "", role_filter: str | None = None, limit: int | None = None, db=None,
                    current_session_id: str | None = None, session_id: str | None = None, around_message_id: int | None = None,
                    window: int = 5, sort: str | None = None, profile: str | None = None, detail: str = "adaptive",
-                   after: str | None = None, before: str | None = None, exclude_session_ids: Optional[list[str]] = None) -> str:
+                   after: str | None = None, before: str | None = None, exclude_session_ids: Optional[list[str]] = None,
+                   offset: int = 0) -> str:
     """Run session search, closing DBs opened here. Positional order is frozen for old callers;
     new parameters are appended after ``detail``."""
     from hermes_constants import get_hermes_home
@@ -646,7 +670,7 @@ def session_search(query: str = "", role_filter: str | None = None, limit: int |
     try:
         return _dispatch(query, role_filter, limit, db, current_session_id, session_id,
                          around_message_id, window, sort, profile, detail,
-                         after=after, before=before, exclude_session_ids=exclude_session_ids)
+                         after=after, before=before, exclude_session_ids=exclude_session_ids, offset=offset)
     finally:
         for owned_db in reversed(owned_dbs):
             _quiet(lambda: release_or_close(owned_db), None, "Failed to close session_search SessionDB")
@@ -761,6 +785,13 @@ SESSION_SEARCH_SCHEMA = {
                     "prior window."
                 ),
             },
+            "offset": {
+                "type": "integer",
+                "description": (
+                    "Scroll shape only. Character offset into the anchor's content, to read "
+                    "past a truncated anchor (use its next_offset)."
+                ),
+            },
             "window": {
                 "type": "integer",
                 "description": (
@@ -801,7 +832,8 @@ registry.register(
     schema=SESSION_SEARCH_SCHEMA,
     handler=lambda args, **kw: session_search(
         query=args.get("query") or "", limit=args.get("limit"), window=args.get("window", 5),
-        detail=args.get("detail", "adaptive"), db=kw.get("db"), current_session_id=kw.get("current_session_id"),
+        detail=args.get("detail", "adaptive"), offset=args.get("offset") or 0,
+        db=kw.get("db"), current_session_id=kw.get("current_session_id"),
         **{k: args.get(k) for k in ("role_filter", "session_id", "around_message_id", "sort", "profile",
                                     "after", "before", "exclude_session_ids")}),
     check_fn=check_session_search_requirements,
