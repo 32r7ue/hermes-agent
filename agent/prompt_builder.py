@@ -1648,13 +1648,29 @@ def _claude_md_candidates(cwd_path: Path) -> list[tuple[str, Path, str]]:
     return found
 
 
+def _mdc_not_always_applied(content: str) -> bool:
+    """True when an .mdc rule's frontmatter carries ``alwaysApply: false``."""
+    lines = content.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return False
+    for line in lines[1:]:
+        if line.strip() == "---":
+            return False
+        key, _, value = line.partition(":")
+        if key.strip() == "alwaysApply" and value.strip().lower() == "false":
+            return True
+    return False
+
+
 def _cursorrules_candidates(cwd_path: Path) -> list[tuple[str, Path, str]]:
-    """.cursorrules + .cursor/rules/*.mdc — cwd only; every non-empty file is concatenated."""
+    """.cursorrules + .cursor/rules/*.mdc — cwd only; every non-empty file is concatenated, except an
+    .mdc whose frontmatter says ``alwaysApply: false`` (Cursor applies those on request, never always)."""
     candidates: list[tuple[str, Path]] = [(".cursorrules", cwd_path / ".cursorrules")]
     cursor_rules_dir = cwd_path / ".cursor" / "rules"
     if _is_dir_or_denied(cursor_rules_dir):
         candidates += [(f".cursor/rules/{f.name}", f) for f in sorted(cursor_rules_dir.glob("*.mdc"))]
-    return [(label, path, _read_context_file(path)) for label, path in candidates if _exists_or_denied(path)]
+    found = [(label, path, _read_context_file(path)) for label, path in candidates if _exists_or_denied(path)]
+    return [entry for entry in found if not _mdc_not_always_applied(entry[2])]
 
 
 # Project-context types in priority order: the first type with any non-empty file wins, later types are

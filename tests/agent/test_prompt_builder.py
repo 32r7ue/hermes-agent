@@ -619,6 +619,16 @@ class TestCursorrulesCandidates:
             locked.chmod(0o700)
         assert [label for label, _p, _c in _cursorrules_candidates(proj)] == [".cursor/rules/a.mdc"]
 
+    def test_mdc_with_always_apply_false_is_not_loaded(self, tmp_path):
+        rules = tmp_path / ".cursor" / "rules"
+        rules.mkdir(parents=True)
+        (rules / "always.mdc").write_text("---\ndescription: x\nalwaysApply: true\n---\nalways rule")
+        (rules / "plain.mdc").write_text("plain rule")
+        (rules / "scoped.mdc").write_text("---\nglobs: a.md\nalwaysApply: false\n---\nscoped rule")
+        (rules / "body.mdc").write_text("---\ndescription: y\n---\nalwaysApply: false in the body")
+        labels = [label for label, _p, _c in _cursorrules_candidates(tmp_path)]
+        assert labels == [".cursor/rules/always.mdc", ".cursor/rules/body.mdc", ".cursor/rules/plain.mdc"]
+
 
 class TestStripYamlFrontmatter:
     def test_strips_frontmatter(self):
