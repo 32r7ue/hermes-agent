@@ -15,6 +15,13 @@ Select it with ``context.engine: rollover`` in config.yaml. Optional knobs::
       rollover:
         threshold_tokens: 450000   # absolute trigger cap
         threshold_percent: 0.90    # trigger for windows below the cap
+        handoff: pointer           # pointer | user_messages | summary (see below)
+
+Handoff variants (one is kept once compared; the others get deleted):
+- ``pointer``: the pointer line alone.
+- ``user_messages``: the pointer plus every real user message cut away so far, verbatim and in
+  order (each capped), so the opening goal and later constraints survive every cut.
+- ``summary``: the built-in compressor's LLM summary plus the pointer line.
 
 The trigger is checked between model calls, so a rollover always lands on a finished
 step (a complete model action plus its tool results). The model is never told about the
@@ -24,14 +31,19 @@ limit beforehand.
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any, Optional
 
-from agent.context_compressor import LEGACY_SUMMARY_PREFIX, ContextCompressor, _content_text_for_contains
+from agent.context_compressor import (
+    LEGACY_SUMMARY_PREFIX, ContextCompressor, _content_text_for_contains, _restated_request_text,
+    _synthetic_user_row, _typed_user_text,
+)
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_THRESHOLD_TOKENS = 450_000
 DEFAULT_THRESHOLD_PERCENT = 0.90
+HANDOFF_MODES = ("pointer", "user_messages", "summary")
 
 
 def handoff_text(session_id: str) -> str:
@@ -96,6 +108,45 @@ def actions_block(messages: list, turns: list, summary_indices) -> str:
     return "\n\n" + _ACTIONS_HEAD + "\n" + "\n".join(lines)
 
 
+# --- handoff: user_messages ---------------------------------------------------------------------
+# 2000 chars: every typed part of a real user message in state.db fits (max 1987, p90 183 on
+# 2026-11-14); only pasted attachments run longer, and their rest stays in the stored session.
+USER_MESSAGE_MAX_CHARS = 2000
+_USER_BLOCK_HEAD = "The user's messages so far, verbatim and in order (the latest request follows below):"
+_USER_OPEN, _USER_CLOSE = "<user_message>", "</user_message>"
+_USER_CUT = "[cut: the rest of this message is in the stored session]"
+_USER_RE = re.compile(re.escape(_USER_OPEN) + r"\n(.*?)\n" + re.escape(_USER_CLOSE), re.DOTALL)
+
+
+def _real_user_text(message: Any) -> str:
+    """The user's own words in *message*, or "" for handoffs, hidden rows and runtime scaffolding."""
+    from agent.conversation_compression import _is_real_user_message
+
+    if (not isinstance(message, dict) or message.get("display_kind")
+            or ContextCompressor._is_context_summary_message(message) or not _is_real_user_message(message)):
+        return ""
+    text = _typed_user_text(_restated_request_text(message.get("content")))
+    return "" if _synthetic_user_row(text) else text.strip()
+
+
+def user_messages_block(engine: ContextCompressor, messages: list, turns: list, summary_indices) -> str:
+    """Prior handoff's carried messages + the real user messages cut now, minus the in-flight request
+    (restated after the handoff anyway). The tail is outside *turns*, so nothing in it repeats."""
+    carried: list[str] = []
+    if summary_indices:  # the newest earlier handoff already carries everything before it
+        carried = _USER_RE.findall(_content_text_for_contains(messages[max(summary_indices)].get("content")))
+    inflight = engine._find_inflight_user_task(messages)
+    skip = _restated_request_text(inflight.get("content")) if inflight else None
+    for msg in turns:
+        text = _real_user_text(msg)
+        if text and text != skip:
+            carried.append(text if len(text) <= USER_MESSAGE_MAX_CHARS
+                           else text[:USER_MESSAGE_MAX_CHARS] + "\n" + _USER_CUT)
+    if not carried:
+        return ""
+    return "\n\n" + _USER_BLOCK_HEAD + "".join(f"\n{_USER_OPEN}\n{t}\n{_USER_CLOSE}" for t in carried)
+
+
 def _rollover_config() -> dict[str, Any]:
     try:
         from hermes_cli.config import load_config_readonly
@@ -125,6 +176,10 @@ class RolloverEngine(ContextCompressor):
             protect_first_n=0,
             quiet_mode=True,
         )
+        self.handoff = str(cfg.get("handoff") or "pointer").strip().lower()
+        if self.handoff not in HANDOFF_MODES:
+            logger.warning("rollover: unknown handoff %r, using pointer", self.handoff)
+            self.handoff = "pointer"
 
     # No "turns were compacted" note on the system prompt: the pointer is the whole handoff.
     _COMPRESSION_NOTE = ""
@@ -134,9 +189,17 @@ class RolloverEngine(ContextCompressor):
         return "rollover"
 
     def _summarize_window(self, messages, turns_to_summarize, scan, focus_topic, memory_context, bypass_cooldown):
+        pointer = handoff_text(getattr(self, "_session_id", "") or "")
+        if self.handoff == "summary":
+            summary = super()._summarize_window(
+                messages, turns_to_summarize, scan, focus_topic, memory_context, bypass_cooldown)
+            # The summary keeps its own handoff prefix; the pointer line rides after it.
+            return f"{summary}\n\n{pointer.removeprefix(LEGACY_SUMMARY_PREFIX).strip()}" if summary else pointer
         self._previous_summary = None
-        return handoff_text(getattr(self, "_session_id", "") or "") + actions_block(
-            messages, turns_to_summarize, scan.summary_indices)
+        pointer += actions_block(messages, turns_to_summarize, scan.summary_indices)
+        if self.handoff == "user_messages":
+            return pointer + user_messages_block(self, messages, turns_to_summarize, scan.summary_indices)
+        return pointer
 
     # The built-in compressor skips the summarizer after weak or failed rounds to save model calls,
     # then writes a generic fallback summary. Rollover makes no model call, so a skip saves nothing and

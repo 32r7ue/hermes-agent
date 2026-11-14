@@ -147,3 +147,47 @@ def test_handoff_lists_the_cut_tool_calls_once_across_cuts():
     out2 = _compress(engine, out + _goal_transcript(5, size=100_000)[6:])
     text2 = str(_carrier(out2)["content"]).split("--- END OF CONTEXT SUMMARY")[0]
     assert text2.count(f'{{"path": "f{cut[0]}"}}') == 2  # once per real call (first and second batch)
+
+
+def test_user_messages_handoff_carries_every_cut_user_message_once_across_cuts():
+    engine = _engine_with("user_messages")
+    out = _compress(engine, _goal_transcript(12))
+    text = str(_carrier(out)["content"])
+    goal, fix, ask = ("GOAL: audit the repo. CONSTRAINT: never write outside /tmp/audit.",
+                      "correction: name the report REPORT.md", "now read the files and write the report")
+    assert text.index(goal) < text.index(fix)  # verbatim, in order
+    # The in-flight request is restated after the handoff, never duplicated inside the block.
+    assert text.split("--- END OF CONTEXT SUMMARY")[0].count(ask) == 0
+
+    # Second cut: the first cut's block is carried, not stacked.
+    again = out + _goal_transcript(12)[6:]
+    out2 = _compress(engine, again)
+    text2 = str(_carrier(out2)["content"]).split("--- END OF CONTEXT SUMMARY")[0]
+    assert text2.count(goal) == 1 and text2.count(fix) == 1 and text2.count(ask) == 0
+
+    # Hidden like the pointer: the desktop projection shows none of it.
+    projected = project_compaction_message_for_display(_carrier(out2))
+    assert projected is None or goal not in str(projected.get("content"))
+
+
+def test_user_messages_handoff_cuts_a_pasted_document():
+    from plugins.context_engine.rollover import USER_MESSAGE_MAX_CHARS
+    engine = _engine_with("user_messages")
+    messages = _goal_transcript(12)
+    messages[1]["content"] = "keep this goal\n" + "log line\n" * 5000
+    text = str(_carrier(_compress(engine, messages))["content"])
+    assert "keep this goal" in text and "rest of this message is in the stored session" in text
+    assert len(text) < USER_MESSAGE_MAX_CHARS + 3000
+
+
+def test_summary_handoff_is_the_compressor_summary_plus_the_pointer():
+    engine = _engine_with("summary")
+    with patch.object(ContextCompressor, "_summarize_window", return_value="[CONTEXT COMPACTION — REFERENCE ONLY] S") as s:
+        out = engine.compress(_goal_transcript(12), current_tokens=190_000, force=True)
+    assert s.called
+    text = str(_carrier(out)["content"])
+    assert text.startswith("[CONTEXT COMPACTION") and 'session_search(session_id="parent-123")' in text
+
+
+def test_pointer_handoff_stays_the_default():
+    assert RolloverEngine().handoff == "pointer"
