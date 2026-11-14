@@ -1,12 +1,12 @@
-"""Rollover context engine: no summaries, ever.
+"""Rollover context engine: no separate summarizer.
 
 When the context reaches its trigger, the session rolls over the same way the built-in
 compressor rotates sessions (the parent ends with ``end_reason='compression'``, a child
-continues the lineage, nothing is deleted). The difference is the handoff: instead of an
-LLM-written summary, the child gets one short pointer to the parent session plus the
-verbatim recent tail. The agent pulls whatever else it needs from the parent with
-``session_search`` (exact stored messages, tool calls and results included), when it
-needs it. No summarizer call, so the rollover is instant and nothing is paraphrased.
+continues the lineage, nothing is deleted). The difference is the handoff: instead of a
+summarizer's text, the child gets a pointer to the parent session, the user's messages
+verbatim, the cut tool calls (one line each) and the verbatim recent tail. The agent can read
+anything else from the parent with ``session_search`` (exact stored messages, tool calls and
+results included).
 
 Select it with ``context.engine: rollover`` in config.yaml. Optional knobs::
 
@@ -15,13 +15,14 @@ Select it with ``context.engine: rollover`` in config.yaml. Optional knobs::
       rollover:
         threshold_tokens: 450000   # absolute trigger cap
         threshold_percent: 0.90    # trigger for windows below the cap
-        handoff: pointer           # pointer | user_messages | summary (see below)
+        handoff: user_messages     # user_messages | hybrid (see below)
 
-Handoff variants (one is kept once compared; the others get deleted):
-- ``pointer``: the pointer line alone.
-- ``user_messages``: the pointer plus every real user message cut away so far, verbatim and in
-  order (each capped), so the opening goal and later constraints survive every cut.
-- ``summary``: the built-in compressor's LLM summary plus the pointer line.
+Handoff modes:
+- ``user_messages`` ("Rollover"): the pointer, one line per cut tool call, and every real user
+  message cut away so far, verbatim and in order (each capped). No model call at the cut.
+- ``hybrid``: the same plus a handoff note the session's own model writes at the cut, inside its
+  own conversation (one extra request on the warm prompt cache). Any failure of that request
+  falls back to ``user_messages`` for that cut.
 
 The trigger is checked between model calls, so a rollover always lands on a finished
 step (a complete model action plus its tool results). The model is never told about the
@@ -43,7 +44,8 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_THRESHOLD_TOKENS = 450_000
 DEFAULT_THRESHOLD_PERCENT = 0.90
-HANDOFF_MODES = ("pointer", "user_messages", "summary")
+HANDOFF_MODES = ("user_messages", "hybrid")
+DEFAULT_HANDOFF = "user_messages"
 
 
 def handoff_text(session_id: str) -> str:
@@ -176,10 +178,10 @@ class RolloverEngine(ContextCompressor):
             protect_first_n=0,
             quiet_mode=True,
         )
-        self.handoff = str(cfg.get("handoff") or "pointer").strip().lower()
+        self.handoff = str(cfg.get("handoff") or DEFAULT_HANDOFF).strip().lower()
         if self.handoff not in HANDOFF_MODES:
-            logger.warning("rollover: unknown handoff %r, using pointer", self.handoff)
-            self.handoff = "pointer"
+            logger.warning("rollover: unknown handoff %r, using %s", self.handoff, DEFAULT_HANDOFF)
+            self.handoff = DEFAULT_HANDOFF
 
     # No "turns were compacted" note on the system prompt: the pointer is the whole handoff.
     _COMPRESSION_NOTE = ""
@@ -189,17 +191,10 @@ class RolloverEngine(ContextCompressor):
         return "rollover"
 
     def _summarize_window(self, messages, turns_to_summarize, scan, focus_topic, memory_context, bypass_cooldown):
-        pointer = handoff_text(getattr(self, "_session_id", "") or "")
-        if self.handoff == "summary":
-            summary = super()._summarize_window(
-                messages, turns_to_summarize, scan, focus_topic, memory_context, bypass_cooldown)
-            # The summary keeps its own handoff prefix; the pointer line rides after it.
-            return f"{summary}\n\n{pointer.removeprefix(LEGACY_SUMMARY_PREFIX).strip()}" if summary else pointer
         self._previous_summary = None
-        pointer += actions_block(messages, turns_to_summarize, scan.summary_indices)
-        if self.handoff == "user_messages":
-            return pointer + user_messages_block(self, messages, turns_to_summarize, scan.summary_indices)
-        return pointer
+        return (handoff_text(getattr(self, "_session_id", "") or "")
+                + actions_block(messages, turns_to_summarize, scan.summary_indices)
+                + user_messages_block(self, messages, turns_to_summarize, scan.summary_indices))
 
     # The built-in compressor skips the summarizer after weak or failed rounds to save model calls,
     # then writes a generic fallback summary. Rollover makes no model call, so a skip saves nothing and

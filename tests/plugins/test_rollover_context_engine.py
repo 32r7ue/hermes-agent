@@ -137,7 +137,7 @@ def _compress(engine, messages):
 def test_handoff_lists_the_cut_tool_calls_once_across_cuts():
     """Without its earlier calls the model could not tell which files of a list it had read and
     re-read them after every cut (2026-11-14 live run: 31 calls instead of 13)."""
-    engine = _engine_with("pointer")
+    engine = _engine_with("user_messages")
     out = _compress(engine, _goal_transcript(5, size=100_000))
     text = str(_carrier(out)["content"]).split("--- END OF CONTEXT SUMMARY")[0]
     cut = [i for i in range(5) if f'{{"path": "f{i}"}}' in text]
@@ -180,14 +180,9 @@ def test_user_messages_handoff_cuts_a_pasted_document():
     assert len(text) < USER_MESSAGE_MAX_CHARS + 3000
 
 
-def test_summary_handoff_is_the_compressor_summary_plus_the_pointer():
-    engine = _engine_with("summary")
-    with patch.object(ContextCompressor, "_summarize_window", return_value="[CONTEXT COMPACTION — REFERENCE ONLY] S") as s:
-        out = engine.compress(_goal_transcript(12), current_tokens=190_000, force=True)
-    assert s.called
-    text = str(_carrier(out)["content"])
-    assert text.startswith("[CONTEXT COMPACTION") and 'session_search(session_id="parent-123")' in text
-
-
-def test_pointer_handoff_stays_the_default():
-    assert RolloverEngine().handoff == "pointer"
+def test_user_messages_is_the_default_and_an_unknown_or_removed_mode_falls_back_to_it(caplog):
+    assert RolloverEngine().handoff == "user_messages"
+    for removed in ("pointer", "summary", "bogus"):
+        caplog.clear()
+        assert _engine_with(removed).handoff == "user_messages"
+        assert any("unknown handoff" in r.getMessage() for r in caplog.records)
