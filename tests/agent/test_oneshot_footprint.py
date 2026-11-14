@@ -28,7 +28,7 @@ def test_oneshot_skills_prompt_drops_authoring_coaching(oneshot, interactive_pro
     prompt = build_skills_system_prompt(available_tools={"skill_view", "skills_list"}, skills_dir_override=_skills_dir(tmp_path))
     assert "demo-skill" in prompt and "skill_view" in prompt
     assert "skill_manage" not in prompt and "offer to save as a skill" not in prompt
-    assert "skill_manage" in interactive_prompt and "offer to save as a skill" in interactive_prompt
+    assert "skill_manage" not in interactive_prompt and "demo-skill" in interactive_prompt
 
 
 def _skills_dir(tmp_path):
