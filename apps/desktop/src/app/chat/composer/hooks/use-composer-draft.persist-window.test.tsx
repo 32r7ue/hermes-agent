@@ -88,6 +88,21 @@ describe('useComposerDraft — the draft stash window starts at the keystroke', 
     clearSessionDraft(THIRD_SCOPE)
   })
 
+  it('keeps independent drafts across a new-chat → session → new-chat round trip before debounce', () => {
+    const fresh = '__new__:round-trip'
+    clearSessionDraft(fresh)
+    const { getByTestId, rerender } = render(<Harness scope={fresh} />)
+    getByTestId('editor').textContent = 'unfinished new prompt'
+    rerender(<Harness scope={SCOPE} />)
+    expect(getByTestId('editor').textContent).toBe('')
+    getByTestId('editor').textContent = 'unfinished session prompt'
+    rerender(<Harness scope={fresh} />)
+    expect(getByTestId('editor').textContent).toBe('unfinished new prompt')
+    rerender(<Harness scope={SCOPE} />)
+    expect(getByTestId('editor').textContent).toBe('unfinished session prompt')
+    clearSessionDraft(fresh)
+  })
+
   it('stashes typed text one persist debounce after the keystroke, while its store write still coalesces', () => {
     stashSessionDraft(SCOPE, 'hello', [])
     const { getByTestId } = render(<Harness />)

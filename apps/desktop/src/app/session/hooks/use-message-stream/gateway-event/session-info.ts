@@ -12,6 +12,7 @@ import { followActiveSessionCwd } from '@/store/projects'
 import { clearAllPrompts } from '@/store/prompts'
 import {
   $activeSessionId,
+  $contextEngine,
   $currentCwd,
   $currentModel,
   $currentProvider,
@@ -265,6 +266,10 @@ export function handleSessionInfoEvent(ctx: GatewayEventContext): boolean {
 
       if (typeof payload?.terminal_backend === 'string') {
         setTerminalBackend(payload.terminal_backend)
+      }
+
+      if (typeof payload?.context_engine === 'string' && payload.context_engine) {
+        $contextEngine.set(payload.context_engine)
       }
 
       if (typeof payload?.personality === 'string') {

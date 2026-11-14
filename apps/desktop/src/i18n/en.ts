@@ -632,6 +632,7 @@ export const en: Translations = {
       'view.toggleHud': 'Toggle HUD mode',
       'hud.snapToPointer': 'Move HUD to pointer (global, while HUD is open)',
       'view.showTerminal': 'Toggle terminal',
+      'view.toggleTerminalPanel': 'Toggle terminal panel',
       'view.newTerminal': 'New terminal',
       'view.nextTerminal': 'Next terminal',
       'view.prevTerminal': 'Previous terminal',
@@ -681,6 +682,7 @@ export const en: Translations = {
       'composer.send': 'Send message',
       'composer.newline': 'Insert newline',
       'composer.steer': 'Steer the running turn',
+      'composer.sendNow': 'Send now — stop the current step',
       'composer.queue': 'Queue message',
       'composer.sendQueued': 'Send next queued turn',
       'composer.mention': 'Reference files, folders, URLs',
@@ -4256,6 +4258,10 @@ export const en: Translations = {
           hint: 'Summarize older context to make room. Continue in this same conversation.',
           question: 'Compress this chat into a summary?',
           questionNamed: title => `Compress “${title}” into a summary?`,
+          rolloverHint:
+            'Continues in a fresh session that keeps the latest messages word for word and points back to this one. Nothing is summarized or deleted.',
+          rolloverQuestion: 'Roll this chat over?',
+          rolloverQuestionNamed: title => `Roll “${title}” over?`,
           working: 'Compacting…'
         },
         empty: 'No context data yet',

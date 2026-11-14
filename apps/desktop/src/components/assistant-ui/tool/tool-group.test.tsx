@@ -395,23 +395,45 @@ describe('settled tool run', () => {
     expect(toggle).not.toBeNull()
     fireEvent.click(toggle)
     await waitFor(() => expect(container.querySelectorAll('[data-tool-row]')).toHaveLength(1))
+    expect(screen.getByText('127.0.0.1 localhost')).toBeTruthy()
+    fireEvent.click(toggle)
+    expect(screen.queryByText('127.0.0.1 localhost')).toBeNull()
   })
 })
 
-// A diff is what the user reviews, so it is never what gets summarized away.
-// It stays on screen at the point in the turn where it happened, with the
-// activity either side of it collapsing around it.
+// An edit is a level-2 step of the run around it, not a level-1 row of its
+// own: the run's one line carries the turn's +/- and opens to the edit row,
+// which opens to its diff (level 3).
 describe('a file edit among ordinary activity', () => {
-  it('stays visible between the two runs it interrupted', async () => {
+  it('folds into the run around it, with the run carrying its +/-', async () => {
     const { container } = render(<GroupHarness message={editBetweenRunsMessage()} />)
 
-    await screen.findByText('Explored 2 files')
+    await waitFor(() => expect(container.querySelector('[data-tool-summary]')).not.toBeNull())
 
-    const shape = [...container.querySelectorAll('[data-tool-summary],[data-tool-row]')].map(node =>
-      node.hasAttribute('data-tool-summary') ? 'summary' : 'row'
-    )
+    const shape = () =>
+      [...container.querySelectorAll('[data-tool-summary],[data-tool-row]')].map(node =>
+        node.hasAttribute('data-tool-summary') ? 'summary' : 'row'
+      )
 
-    expect(shape).toEqual(['summary', 'row', 'summary'])
+    expect(shape()).toEqual(['summary'])
+    const summary = container.querySelector('[data-tool-summary]')!
+    expect(summary.textContent).toContain('Edited wiring.tsx')
+    expect(summary.textContent).toContain('+1')
+    expect(summary.textContent).toContain('−1')
+
+    fireEvent.click(summary.querySelector('button[aria-expanded]')!)
+    const editRow = () =>
+      [...container.querySelectorAll('[data-tool-row]')].find(row => row.textContent?.includes('wiring.tsx'))
+
+    await waitFor(() => expect(editRow()).toBeTruthy())
+    expect(shape()[0]).toBe('summary')
+    expect(shape().filter(kind => kind === 'row').length).toBe(5)
+    const edit = editRow()!
+    const toggle = edit.querySelector('button[aria-expanded]')!
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    expect(edit.textContent).not.toContain('added line')
+    fireEvent.click(toggle)
+    expect(edit.textContent).toContain('added line')
   })
 })
 

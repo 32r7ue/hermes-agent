@@ -7,8 +7,8 @@ import { completeFlow } from './desktop-metrics'
 import { $selectedStoredSessionId, $sessions } from './session'
 import { $sessionDotStateById, type SessionDotState } from './session-dot-state'
 
-// Mac-style session switcher (^Tab). Quick tap jumps on keydown; the HUD opens
-// only when Tab is held past REVEAL_MS or tapped again while Ctrl is down.
+// Mac-style session switcher (^Tab). Keydown only moves the highlight;
+// releasing Ctrl commits. A held chord reveals the HUD after a short delay.
 
 export const SWITCHER_REVEAL_MS = 220
 
@@ -78,14 +78,7 @@ const wrap = (index: number, length: number): number => ((index % length) + leng
 
 let pendingBrowse = false
 let revealTimer: ReturnType<typeof setTimeout> | null = null
-let tabHeld = false
 let closedAt = 0
-// The physical key (`code`) of the keydown being dispatched, and of the one that
-// stepped the switcher: only the step key's keyup ends the hold, so another key
-// lifting mid-hold can't hide the HUD. A missing code on either side releases on
-// any key, as before.
-let keyDown = ''
-let stepKey = ''
 
 function clearRevealTimer(): void {
   if (revealTimer) {
@@ -104,36 +97,25 @@ function scheduleReveal(): void {
   revealTimer = setTimeout(() => {
     revealTimer = null
 
-    if (pendingBrowse && tabHeld) {
+    if (pendingBrowse) {
       revealOverlay()
     }
   }, SWITCHER_REVEAL_MS)
 }
 
-export function noteSwitcherKeyDown(code: string): void {
-  keyDown = code
-}
-
-export function onSwitcherTabDown(): void {
-  tabHeld = true
-  stepKey = keyDown
-}
-
-export function onSwitcherTabUp(code = ''): void {
-  if (code && stepKey && code !== stepKey) {
-    return
-  }
-
-  tabHeld = false
-
-  if (!$switcherOpen.get()) {
-    clearRevealTimer()
-  }
-}
-
-// First Tab returns a session id to jump to immediately; later Tabs move the
-// highlight (Ctrl↑ commits when the HUD is open).
+// Freeze candidates for the whole chord; incoming activity must not reorder
+// the selection under a held modifier. Navigation happens only on release.
 export function openOrAdvanceSwitcher(direction: 1 | -1): string | null {
+  if (switcherActive()) {
+    const length = $switcherSessions.get().length
+
+    if (length) {
+      $switcherIndex.set(wrap($switcherIndex.get() + direction, length))
+    }
+
+    return null
+  }
+
   const sessions = switcherCandidates(
     $sessions.get(),
     $sessionDotStateById.get(),
@@ -145,16 +127,6 @@ export function openOrAdvanceSwitcher(direction: 1 | -1): string | null {
     return null
   }
 
-  if ($switcherOpen.get()) {
-    const { length } = $switcherSessions.get()
-
-    if (length) {
-      $switcherIndex.set(wrap($switcherIndex.get() + direction, length))
-    }
-
-    return null
-  }
-
   const current = sessions.findIndex(session => session.id === $selectedStoredSessionId.get())
   const start = current === -1 ? (direction === 1 ? -1 : 0) : current
   const nextIndex = wrap(start + direction, sessions.length)
@@ -162,18 +134,10 @@ export function openOrAdvanceSwitcher(direction: 1 | -1): string | null {
   $switcherSessions.set(sessions)
   $switcherIndex.set(nextIndex)
 
-  if (pendingBrowse) {
-    clearRevealTimer()
-    $switcherIndex.set(wrap($switcherIndex.get() + direction, sessions.length))
-    revealOverlay()
-
-    return null
-  }
-
   pendingBrowse = true
   scheduleReveal()
 
-  return sessions[nextIndex]?.id ?? null
+  return null
 }
 
 export const highlightedSessionId = (): string | null => $switcherSessions.get()[$switcherIndex.get()]?.id ?? null
@@ -185,15 +149,11 @@ export function closeSwitcher(): void {
   closedAt = Date.now()
   clearRevealTimer()
   pendingBrowse = false
-  tabHeld = false
   $switcherOpen.set(false)
 }
 
 export function commitOnCtrlUp(): string | null {
-  clearRevealTimer()
-  pendingBrowse = false
-
-  if (!$switcherOpen.get()) {
+  if (!switcherActive()) {
     return null
   }
 

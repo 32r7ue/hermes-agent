@@ -7,11 +7,11 @@ vi.mock('@/themes/context', () => ({
   useTheme: () => ({ resolvedMode: 'dark' as const, setMode: () => undefined })
 }))
 
-const toggleTerminalPane = vi.hoisted(() => vi.fn())
+const toggleTerminalColumn = vi.hoisted(() => vi.fn())
 
 vi.mock('@/app/right-sidebar/terminal/reveal-focus', async importOriginal => ({
   ...(await importOriginal<object>()),
-  toggleTerminalPane
+  toggleTerminalColumn
 }))
 
 import { useKeybinds } from '@/app/hooks/use-keybinds'
@@ -38,7 +38,7 @@ beforeAll(() => {
 })
 
 beforeEach(() => {
-  toggleTerminalPane.mockClear()
+  toggleTerminalColumn.mockClear()
   unmountKeybinds = renderHook(
     () =>
       useKeybinds({
@@ -58,8 +58,8 @@ afterEach(() => {
   $layoutTree.set(null)
 })
 
-describe('⌘J (view.showTerminal)', () => {
-  it('toggles the terminal even with a Browser column on the right', () => {
+describe('⌘J (view.toggleTerminalPanel)', () => {
+  it('toggles the terminal panel even with a Browser column on the right', () => {
     $layoutTree.set(split('row', [group(['sessions', 'files']), group(['workspace']), group([BROWSER])]))
 
     window.dispatchEvent(
@@ -74,6 +74,6 @@ describe('⌘J (view.showTerminal)', () => {
     )
 
     expect(findGroupOfPane($layoutTree.get() as LayoutNode, BROWSER)?.minimized).toBeFalsy()
-    expect(toggleTerminalPane).toHaveBeenCalledTimes(1)
+    expect(toggleTerminalColumn).toHaveBeenCalledTimes(1)
   })
 })

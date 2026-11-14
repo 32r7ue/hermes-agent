@@ -748,6 +748,13 @@
     opacity: 1 !important;
   }
 
+  /* Graphite light keeps its canvas and reading ink literal rather than
+     washing them through the shared chrome/text mixes. */
+  :root[data-hermes-theme='graphite'][data-hermes-mode='light'] {
+    --ui-bg-chrome: var(--theme-background-seed);
+    --ui-text-primary: var(--ui-base);
+  }
+
   [data-slot='sidebar'] {
     --ui-base: var(--dt-sidebar-foreground, var(--theme-foreground));
   }
@@ -4120,6 +4127,19 @@ html[data-hermes-desktop-host='browser'] [data-slot='sidebar-container'] {
 }
 [data-slot='aui_user-attachments'] [data-slot='aui_embedded-images'] {
   justify-content: flex-end;
+}
+/* Images the user sent read as one row of equal thumbnails, whatever their
+   shape: a wide screenshot and a tall one take the same square. Click zooms
+   to the full image. */
+[data-slot='aui_user-message-root']
+  :is([data-slot='aui_directive-image'], [data-slot='aui_embedded-image'])
+  img,
+[data-slot='aui_user-message-root'] [data-slot='aui_embedded-images'] > .animate-pulse {
+  width: 5.5rem;
+  height: 5.5rem;
+  max-height: none;
+  object-fit: cover;
+  object-position: top left;
 }
 
 /* ── Error card (Error System Overhaul · Figma "Error handling", node 222:7762) ──

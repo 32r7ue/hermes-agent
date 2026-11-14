@@ -1,5 +1,12 @@
 import { paletteToggle } from '@/app/command-palette/contrib'
-import { isPaneVisible, togglePaneVisible } from '@/components/pane-shell/tree/store'
+import { allPaneIds, findGroup, groupLeafIds } from '@/components/pane-shell/tree/model'
+import {
+  $layoutTree,
+  isPaneVisible,
+  restoreTreePane,
+  rootRow,
+  togglePaneVisible
+} from '@/components/pane-shell/tree/store'
 import { Terminal } from '@/lib/icons'
 import { isFocusWithin } from '@/lib/keybinds/combo'
 import { trackArea } from '@/store/desktop-metrics'
@@ -59,6 +66,65 @@ export function toggleTerminalPane(): void {
   if (revealed) {
     focusRevealedTerminal()
   }
+}
+
+// The tool panes ⌘J carries with the terminal when they share its column.
+const COLUMN_TOOL_PANES = new Set(['terminal', 'files', 'review', 'logs'])
+
+const isMainColumnPane = (paneId: string) =>
+  paneId === 'workspace' || paneId.startsWith('session-tile:') || paneId.startsWith('route-tile:')
+
+/**
+ * ⌘J: the terminal's whole panel — every tool zone in the root column the
+ * terminal lives in (Files and Review beside or above it), not the terminal
+ * alone. Keyed on the terminal: on screen → close every tool in the column;
+ * off → each tool zone shows the tab it had in front, and the terminal opens
+ * with the keyboard. Other panes sharing the column (the session panel) are
+ * left as they are. When the terminal sits under the chat (Basic / Focus),
+ * its column is the main one and only the terminal toggles — a Files or
+ * Review tab there would cover the conversation.
+ */
+export function toggleTerminalColumn(): void {
+  const tree = $layoutTree.get()
+  const column = rootRow()?.children.find(child => allPaneIds(child).includes('terminal'))
+
+  if (!tree || !column || allPaneIds(column).some(isMainColumnPane)) {
+    toggleTerminalPane()
+
+    return
+  }
+
+  const tools = allPaneIds(column).filter(id => COLUMN_TOOL_PANES.has(id))
+
+  if (isPaneVisible('terminal')) {
+    for (const id of tools) {
+      if (isPaneVisible(id)) {
+        togglePaneVisible(id)
+      }
+    }
+
+    trackArea('terminal_pane', false)
+
+    return
+  }
+
+  for (const groupId of groupLeafIds(column)) {
+    const group = findGroup(tree, groupId)
+    const groupTools = group?.panes.filter(id => COLUMN_TOOL_PANES.has(id)) ?? []
+
+    if (!group || groupTools.length === 0 || groupTools.includes('terminal')) {
+      continue
+    }
+
+    const pane = group.active && groupTools.includes(group.active) ? group.active : groupTools[0]!
+
+    if (!isPaneVisible(pane)) {
+      restoreTreePane(pane)
+    }
+  }
+
+  // Last, so the terminal's reveal owns the keyboard.
+  toggleTerminalPane()
 }
 
 /**

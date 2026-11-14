@@ -306,6 +306,16 @@ describe('AssistantMessage branch button visibility (bug #2 fix)', () => {
     $touchPointer.set(true)
     const onReload = vi.fn(async () => {})
     render(<Harness onReload={onReload} {...state} />)
+
+    if ('isRunning' in state && state.isRunning) {
+      await screen.findByText('done')
+      expect(screen.queryByRole('button', { name: 'Refresh' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'More actions' })).toBeNull()
+      expect(onReload).not.toHaveBeenCalled()
+
+      return
+    }
+
     expect((await screen.findByRole('button', { name: 'Refresh' })).hasAttribute('disabled')).toBe(true)
     fireEvent.pointerDown(screen.getByRole('button', { name: 'More actions' }), { button: 0, pointerType: 'touch' })
     const refresh = await screen.findByRole('menuitem', { name: 'Refresh' })

@@ -630,6 +630,7 @@ export const deOverrides = {
       'view.toggleHud': 'HUD-Modus umschalten',
       'hud.snapToPointer': 'HUD zum Zeiger bewegen (global, während HUD offen ist)',
       'view.showTerminal': 'Terminal umschalten',
+      'view.toggleTerminalPanel': 'Terminal-Bereich umschalten',
       'view.newTerminal': 'Neues Terminal',
       'view.nextTerminal': 'Nächstes Terminal',
       'view.prevTerminal': 'Vorheriges Terminal',
@@ -679,6 +680,7 @@ export const deOverrides = {
       'composer.send': 'Nachricht senden',
       'composer.newline': 'Neue Zeile einfügen',
       'composer.steer': 'Laufenden Turn steuern',
+      'composer.sendNow': 'Jetzt senden — aktuellen Schritt stoppen',
       'composer.queue': 'Nachricht in Warteschlange',
       'composer.sendQueued': 'Nächsten eingereihten Turn senden',
       'composer.mention': 'Dateien, Ordner, URLs referenzieren',
@@ -4669,6 +4671,10 @@ export const deOverrides = {
           hint: 'Älteren Kontext zusammenfassen, um Platz zu schaffen. Dieses Gespräch wird fortgesetzt.',
           question: 'Diese Unterhaltung zu einer Zusammenfassung verdichten?',
           questionNamed: title => `„${title}“ zu einer Zusammenfassung verdichten?`,
+          rolloverHint:
+            'Geht in einer neuen Sitzung weiter, die die letzten Nachrichten wörtlich behält und auf diese verweist. Nichts wird zusammengefasst oder gelöscht.',
+          rolloverQuestion: 'Diesen Chat übertragen?',
+          rolloverQuestionNamed: title => `„${title}“ übertragen?`,
           working: 'Verdichte …'
         },
         empty: 'Noch keine Kontext-Daten',

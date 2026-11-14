@@ -23,6 +23,9 @@ export function responseMessageRole(message: GroupMessage): string {
 
 export const ResponseMessageIds = createContext<readonly string[]>([])
 
+/** Thread indices of every assistant message in this response (text or not), in order. */
+export const ResponseAssistantIndices = createContext<readonly number[]>([])
+
 interface ResponseMessagesProps {
   components: ComponentProps<typeof ThreadPrimitive.MessageByIndex>['components']
   indices: readonly number[]
@@ -38,6 +41,7 @@ interface ResponseRow {
 interface ResponseSection {
   key: string
   indices: number[]
+  assistantIndices: number[]
   assistantIds: string[]
   response: boolean
 }
@@ -73,13 +77,19 @@ export function ResponseMessages({ components, indices }: ResponseMessagesProps)
       const previous = result.at(-1)
 
       const section: ResponseSection =
-        response && previous?.response ? previous : { key: row.id, indices: [], assistantIds: [], response }
+        response && previous?.response
+          ? previous
+          : { key: row.id, indices: [], assistantIndices: [], assistantIds: [], response }
 
       if (section !== previous) {
         result.push(section)
       }
 
       section.indices.push(row.index)
+
+      if (row.role === 'assistant') {
+        section.assistantIndices.push(row.index)
+      }
 
       if (row.role === 'assistant' && row.hasText) {
         section.assistantIds.push(row.id)
@@ -92,11 +102,13 @@ export function ResponseMessages({ components, indices }: ResponseMessagesProps)
   return sections.map(section =>
     section.response ? (
       <ResponseMessageIds.Provider key={section.key} value={section.assistantIds}>
-        <div className="group flex min-w-0 flex-col gap-(--turn-block-gap)" data-slot="aui_response-group">
-          {section.indices.map(index => (
-            <ThreadPrimitive.MessageByIndex components={components} index={index} key={index} />
-          ))}
-        </div>
+        <ResponseAssistantIndices.Provider value={section.assistantIndices}>
+          <div className="group flex min-w-0 flex-col gap-(--turn-block-gap)" data-slot="aui_response-group">
+            {section.indices.map(index => (
+              <ThreadPrimitive.MessageByIndex components={components} index={index} key={index} />
+            ))}
+          </div>
+        </ResponseAssistantIndices.Provider>
       </ResponseMessageIds.Provider>
     ) : (
       <ThreadPrimitive.MessageByIndex components={components} index={section.indices[0]!} key={section.key} />

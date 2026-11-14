@@ -12,7 +12,11 @@ export function Backdrop({ visible = true }: { visible?: boolean }) {
   }
 
   return (
-    <div aria-hidden className="pointer-events-none absolute inset-0 z-2 opacity-[0.025] mix-blend-difference">
+    <div
+      aria-hidden
+      className="pointer-events-none absolute inset-0 z-2 opacity-[0.04] mix-blend-difference dark:opacity-[0.025]"
+      data-slot="new-chat-backdrop"
+    >
       <img
         alt=""
         className="h-[160dvh] w-auto min-w-dvw object-cover object-left-top [filter:invert(var(--backdrop-invert-mul,1))]"

@@ -10,8 +10,6 @@ import {
   $switcherSessions,
   closeSwitcher,
   commitOnCtrlUp,
-  onSwitcherTabDown,
-  onSwitcherTabUp,
   openOrAdvanceSwitcher,
   slotSessionId,
   SWITCHER_LIMIT,
@@ -32,9 +30,7 @@ const seed = (ids: string[], selected: null | string) => {
 }
 
 const tabTap = (direction: 1 | -1 = 1) => {
-  onSwitcherTabDown()
   const target = openOrAdvanceSwitcher(direction)
-  onSwitcherTabUp()
 
   return target
 }
@@ -53,60 +49,56 @@ afterEach(() => {
 describe('openOrAdvanceSwitcher', () => {
   it('does nothing with fewer than two sessions', () => {
     seed(['a'], 'a')
-    onSwitcherTabDown()
 
     expect(openOrAdvanceSwitcher(1)).toBeNull()
   })
 
-  it('jumps immediately on a quick Tab tap without opening the HUD', () => {
+  it('arms a quick tap without navigating and commits only on Ctrl release', () => {
     seed(['a', 'b', 'c'], 'a')
-
-    expect(tabTap()).toBe('b')
+    expect(tabTap()).toBeNull()
     expect($switcherOpen.get()).toBe(false)
-    expect(commitOnCtrlUp()).toBeNull()
+    expect($selectedStoredSessionId.get()).toBe('a')
+    expect(commitOnCtrlUp()).toBe('b')
+    expect($switcherOpen.get()).toBe(false)
   })
 
-  it('does not open the HUD when Ctrl stays down but Tab was released quickly', () => {
+  it('reveals while Ctrl stays held even after Tab is released', () => {
     vi.useFakeTimers()
     seed(['a', 'b', 'c'], 'a')
 
     tabTap()
     vi.advanceTimersByTime(SWITCHER_REVEAL_MS)
 
-    expect($switcherOpen.get()).toBe(false)
+    expect($switcherOpen.get()).toBe(true)
+    expect($selectedStoredSessionId.get()).toBe('a')
+    expect(commitOnCtrlUp()).toBe('b')
   })
 
   it('opens the HUD when Tab stays held past the reveal delay', () => {
     vi.useFakeTimers()
     seed(['a', 'b', 'c'], 'a')
 
-    onSwitcherTabDown()
     openOrAdvanceSwitcher(1)
     vi.advanceTimersByTime(SWITCHER_REVEAL_MS)
 
     expect($switcherOpen.get()).toBe(true)
-    onSwitcherTabUp()
   })
 
-  it('opens on a second Tab while Ctrl is still down', () => {
+  it('steps without navigating or flashing the HUD on a second quick Tab', () => {
     seed(['a', 'b', 'c'], 'a')
 
-    expect(tabTap()).toBe('b')
-    onSwitcherTabDown()
+    expect(tabTap()).toBeNull()
     openOrAdvanceSwitcher(1)
-    onSwitcherTabUp()
 
-    expect($switcherOpen.get()).toBe(true)
+    expect($switcherOpen.get()).toBe(false)
     expect($switcherIndex.get()).toBe(2)
   })
 
   it('commits the HUD highlight on Ctrl up', () => {
     seed(['a', 'b', 'c'], 'a')
 
-    expect(tabTap()).toBe('b')
-    onSwitcherTabDown()
+    expect(tabTap()).toBeNull()
     openOrAdvanceSwitcher(1)
-    onSwitcherTabUp()
 
     expect(commitOnCtrlUp()).toBe('c')
   })

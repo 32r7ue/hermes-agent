@@ -141,7 +141,7 @@ it('steps the session switcher with Alt+] and commits when Alt is released', asy
   vi.spyOn(navigator, 'platform', 'get').mockReturnValue('Linux x86_64')
   const { $selectedStoredSessionId, $sessions } = await import('@/store/session')
   const { $switcherOpen, switcherActive } = await import('@/store/session-switcher')
-  $sessions.set(['a', 'b', 'c'].map(id => ({ id }) as never))
+  $sessions.set(['a', 'b', 'c'].map(id => ({ id, started_at: Date.now() / 1000 }) as never))
   $selectedStoredSessionId.set('a')
   const { press } = await mountKeybinds()
 
@@ -152,10 +152,11 @@ it('steps the session switcher with Alt+] and commits when Alt is released', asy
 
   expect(press({ key: ']', code: 'BracketRight', altKey: true, ctrlKey: false }).defaultPrevented).toBe(true)
   expect(press({ key: ']', code: 'BracketRight', altKey: true, ctrlKey: false }).defaultPrevented).toBe(true)
-  expect($switcherOpen.get()).toBe(true)
+  expect($switcherOpen.get()).toBe(false)
+  expect(switcherActive()).toBe(true)
 
   release(']', { altKey: true })
-  expect($switcherOpen.get()).toBe(true)
+  expect($switcherOpen.get()).toBe(false)
   release('Alt')
   expect($switcherOpen.get()).toBe(false)
   expect(switcherActive()).toBe(false)
@@ -165,7 +166,7 @@ it('keeps the switcher step held while another key is released', async () => {
   vi.spyOn(navigator, 'platform', 'get').mockReturnValue('Linux x86_64')
   const { $selectedStoredSessionId, $sessions } = await import('@/store/session')
   const { $switcherOpen, SWITCHER_REVEAL_MS } = await import('@/store/session-switcher')
-  $sessions.set(['a', 'b', 'c'].map(id => ({ id }) as never))
+  $sessions.set(['a', 'b', 'c'].map(id => ({ id, started_at: Date.now() / 1000 }) as never))
   $selectedStoredSessionId.set('a')
   const { press } = await mountKeybinds()
   vi.useFakeTimers()
@@ -184,10 +185,48 @@ it('keeps the switcher step held while another key is released', async () => {
   release('Alt', 'AltLeft')
   expect($switcherOpen.get()).toBe(false)
 
-  // A quick tap of the step key itself, Alt still down: no HUD.
+  // Releasing the step key leaves the modifier chord armed: holding Alt shows the HUD.
   press({ key: ']', code: 'BracketRight', altKey: true, ctrlKey: false })
   release(']', 'BracketRight', { altKey: true })
   act(() => vi.advanceTimersByTime(SWITCHER_REVEAL_MS))
+  expect($switcherOpen.get()).toBe(true)
+  release('Alt', 'AltLeft')
+})
+
+it('native Ctrl+Tab selects only on Control release, with no HUD for a quick chord', async () => {
+  window.document.documentElement.dataset.hermesDesktopHost = 'electron'
+  const open = await import('@/app/open-session')
+  const openSession = vi.spyOn(open, 'openSession').mockImplementation(() => undefined)
+  const { $selectedStoredSessionId, $sessions } = await import('@/store/session')
+  const { $switcherOpen, SWITCHER_REVEAL_MS } = await import('@/store/session-switcher')
+  const { setBinding } = await import('@/store/keybinds')
+  $sessions.set(['a', 'b', 'c'].map((id, i) => ({ id, started_at: Date.now() / 1000 - i }) as never))
+  $selectedStoredSessionId.set('a')
+  const { press } = await mountKeybinds()
+  act(() => setBinding('session.next', ['ctrl+tab']))
+  vi.useFakeTimers()
+
+  const release = (key: string, ctrlKey = false) => act(() => {
+    window.dispatchEvent(new KeyboardEvent('keyup', { key, ctrlKey, bubbles: true }))
+  })
+
+  press({ key: 'Tab', code: 'Tab' })
+  release('Tab', true)
+  expect(openSession).not.toHaveBeenCalled()
+  release('Control')
+  expect(openSession).toHaveBeenCalledExactlyOnceWith('b', expect.any(Function))
+  expect($switcherOpen.get()).toBe(false)
+  act(() => vi.advanceTimersByTime(SWITCHER_REVEAL_MS))
+  expect($switcherOpen.get()).toBe(false)
+
+  openSession.mockClear()
+  press({ key: 'Tab', code: 'Tab' })
+  release('Tab', true)
+  act(() => vi.advanceTimersByTime(SWITCHER_REVEAL_MS))
+  expect($switcherOpen.get()).toBe(true)
+  expect(openSession).not.toHaveBeenCalled()
+  release('Control')
+  expect(openSession).toHaveBeenCalledExactlyOnceWith('b', expect.any(Function))
   expect($switcherOpen.get()).toBe(false)
 })
 

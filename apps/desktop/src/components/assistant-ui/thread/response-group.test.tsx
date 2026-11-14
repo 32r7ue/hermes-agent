@@ -81,7 +81,7 @@ it('keeps background continuations in one response with one action bar and the o
       </ThreadRuntime>
     )
     await waitFor(() => expect(container.querySelectorAll('[data-role="assistant"]')).toHaveLength(3))
-    expect(container.querySelectorAll('[data-slot="aui_msg-actions"]')).toHaveLength(1)
+    expect(container.querySelectorAll('[data-slot="aui_msg-actions"]')).toHaveLength(0)
 
     unmount()
 
@@ -94,6 +94,52 @@ it('keeps background continuations in one response with one action bar and the o
     expect(reloaded.container.querySelectorAll('[data-slot="aui_msg-actions"]')).toHaveLength(1)
     reloaded.unmount()
   }
+})
+
+it('does not show a completion footer under sealed commentary while tools continue', async () => {
+  const messages = toChatMessages([
+    { role: 'user', content: 'Previous question', timestamp: 1 },
+    { role: 'assistant', content: 'Previous finished answer', timestamp: 2 },
+    { role: 'user', content: 'Fix the layout', timestamp: 3 },
+    { role: 'assistant', content: 'Checking the layout.', timestamp: 4 }
+  ] as SessionMessage[]).map(toRuntimeMessage)
+
+  const commentary = messages.at(-1)!
+
+  const pending = [
+    ...messages,
+    {
+      ...commentary,
+      id: 'pending-tools',
+      content: [
+        {
+          type: 'tool-call',
+          toolCallId: 'live-read',
+          toolName: 'read_file',
+          args: { path: '/repo/ui.tsx' },
+          argsText: '{}'
+        }
+      ],
+      status: { type: 'running' }
+    } as ThreadMessage
+  ]
+
+  const { container, rerender } = render(
+    <ThreadRuntime messages={pending}>
+      <Thread />
+    </ThreadRuntime>
+  )
+
+  const current = () => container.querySelector(`[data-message-id="${commentary.id}"]`)!
+  expect(current().querySelector('[data-slot="aui_msg-actions"]')).toBeNull()
+  // Old responses retain their affordances while the current response works.
+  expect(container.querySelectorAll('[data-slot="aui_msg-actions"]')).toHaveLength(1)
+  rerender(
+    <ThreadRuntime messages={messages}>
+      <Thread />
+    </ThreadRuntime>
+  )
+  await waitFor(() => expect(current().querySelector('[data-slot="aui_msg-actions"]')).not.toBeNull())
 })
 
 it('ends the response at a real user prompt or unrelated system event', () => {
@@ -119,12 +165,22 @@ it('ends the response at a real user prompt or unrelated system event', () => {
 it('keeps narration between collapsed tool runs after a hydrated turn completes', async () => {
   const messages = toChatMessages([
     { role: 'user', content: 'Check the project', timestamp: 1 },
-    { role: 'assistant', content: 'Checking the files.', timestamp: 2, tool_calls: [{ id: 'cmd', type: 'function', function: { name: 'terminal', arguments: '{"command":"pwd"}' } }] },
+    {
+      role: 'assistant',
+      content: 'Checking the files.',
+      timestamp: 2,
+      tool_calls: [{ id: 'cmd', type: 'function', function: { name: 'terminal', arguments: '{"command":"pwd"}' } }]
+    },
     { role: 'tool', tool_call_id: 'cmd', content: '{"output":"project","exit_code":0}', timestamp: 3 },
     { role: 'assistant', content: 'Everything is ready.', timestamp: 4 }
   ] as SessionMessage[]).map(toRuntimeMessage)
 
-  const { container } = render(<ThreadRuntime messages={messages}><Thread /></ThreadRuntime>)
+  const { container } = render(
+    <ThreadRuntime messages={messages}>
+      <Thread />
+    </ThreadRuntime>
+  )
+
   expect(within(container).queryByRole('button', { name: 'Work details' })).toBeNull()
   expect(within(container).getByText('Checking the files.')).toBeTruthy()
   expect(within(container).getByText('Everything is ready.')).toBeTruthy()

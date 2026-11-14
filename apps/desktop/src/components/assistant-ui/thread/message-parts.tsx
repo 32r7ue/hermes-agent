@@ -37,7 +37,7 @@ import { useI18n } from '@/i18n'
 import { mcpTargets, toolLabels } from '@/lib/connector-tools'
 import { generatedImageFromResult } from '@/lib/generated-images'
 import { separateGluedReasoningBlocks } from '@/lib/reasoning-blocks'
-import { reasoningHeadline } from '@/lib/reasoning-headline'
+import { reasoningHeadline, reasoningPreview } from '@/lib/reasoning-headline'
 import { runEndedRecently, setReplyAnchor } from '@/lib/reply-anchor'
 import { isTodoToolName } from '@/lib/todos'
 import { type CardToolName, isCardTool, isCardToolName } from '@/lib/tool-render-class'
@@ -325,13 +325,17 @@ const ThinkingDisclosure: FC<{
   // Live: the model's current step ("Clarifying the move count") instead of a bare "Thinking".
   let thoughtLabel = headline ?? t.assistant.thread.thinking
 
-  // No durations: a finished thought reads as its headline, else "Thought".
+  // No durations: a finished thought reads as its headline, else its opening
+  // sentence, and only an empty one as "Thought".
+  const preview = !pending && !headline ? reasoningPreview(reasoningText) : null
+
   if (!pending) {
-    thoughtLabel = headline ?? t.assistant.thread.thought
+    thoughtLabel = headline ?? preview?.text ?? t.assistant.thread.thought
   }
 
-  // A body of summary titles alone only repeats the headline, live or finished: no chevron, no body.
-  const expandable = !titleOnly
+  // A body that only repeats the line — summary titles alone, or a one-sentence
+  // thought shown whole — has nothing more to open: no chevron, no body.
+  const expandable = !titleOnly && !preview?.whole
 
   // Follow new tokens until the user scrolls up to read earlier reasoning.
   useEffect(() => {
@@ -397,7 +401,7 @@ const ThinkingDisclosure: FC<{
           </span>
         }
       >
-        <span className={cn(SCAFFOLD_LABEL_CLASS, pending && 'shimmer')}>{thoughtLabel}</span>
+        <span className={cn(SCAFFOLD_LABEL_CLASS, 'truncate', pending && 'shimmer')}>{thoughtLabel}</span>
       </ScaffoldRow>
       {expandable && open && (
         <div

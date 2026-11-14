@@ -1,9 +1,9 @@
 import { useStore } from '@nanostores/react'
-import { type FC, useMemo } from 'react'
+import type { FC } from 'react'
 
 import { useComposerScope } from '@/app/chat/composer/scope'
 import { useSessionView } from '@/app/chat/session-view'
-import { deriveChangedFiles } from '@/components/assistant-ui/thread/changed-files'
+import type { ChangedFile } from '@/components/assistant-ui/thread/changed-files'
 import { WIDGET_SHELL_CLASS } from '@/components/chat/widget-shell'
 import { DiffCount } from '@/components/ui/diff-count'
 import { FadeScroll } from '@/components/ui/fade-scroll'
@@ -19,17 +19,16 @@ import { openReviewForPath, revealReview } from '@/store/review'
 const MAX_ROWS_HEIGHT = '9.375rem'
 
 /**
- * Cursor-style "N files changed" summary closing out the newest assistant turn:
+ * Cursor-style "N files changed" summary closing out an assistant turn:
  * one row per file it edited with that file's +/-, and a Review action opening
  * the diff pane (⌘G). A row click opens that file's diff directly.
  *
  * Wears the shared `WIDGET_SHELL_CLASS` so it reads as the same panel as the
  * transcript's other inline widgets rather than inventing its own chrome.
  */
-export const ChangedFilesCard: FC<{ parts: readonly unknown[] }> = ({ parts }) => {
+export const ChangedFilesCard: FC<{ files: readonly ChangedFile[] }> = ({ files }) => {
   const { t } = useI18n()
   const copy = t.assistant.thread
-  const files = useMemo(() => deriveChangedFiles(parts), [parts])
   // Review THIS surface's repo: a tile transcript pins the pane to the tile's
   // worktree; the primary passes null (follow the active session, as before).
   const view = useSessionView()

@@ -4,15 +4,10 @@ import { useLocation, useNavigate } from 'react-router'
 import { closeActiveTab } from '@/app/chat/close-tab'
 import { hudTargetSessionId } from '@/app/hud/handoff'
 import { setTerminalTakeover } from '@/app/right-sidebar/store'
-import { toggleTerminalPane } from '@/app/right-sidebar/terminal/reveal-focus'
+import { toggleTerminalColumn, toggleTerminalPane } from '@/app/right-sidebar/terminal/reveal-focus'
 import { closeActiveTerminal, createTerminal, cycleTerminal } from '@/app/right-sidebar/terminal/terminals'
 import { appViewForPath, isOverlayView } from '@/app/routes'
-import {
-  activateTreeTabSlot,
-  cycleTreeTabInFocusedZone,
-  isPaneVisible,
-  toggleTargetZoneTabStrip
-} from '@/components/pane-shell/tree/store'
+import { activateTreeTabSlot, isPaneVisible, toggleTargetZoneTabStrip } from '@/components/pane-shell/tree/store'
 import { setWorkspaceScope } from '@/components/pane-shell/workspace-scope'
 import { onReleaseTypingFocus } from '@/components/ui/keyboard-first'
 import { translateNow } from '@/i18n/runtime'
@@ -81,9 +76,6 @@ import {
   $switcherOpen,
   closeSwitcher,
   commitOnCtrlUp,
-  noteSwitcherKeyDown,
-  onSwitcherTabDown,
-  onSwitcherTabUp,
   openOrAdvanceSwitcher,
   slotSessionId,
   switcherActive,
@@ -215,21 +207,7 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
   commitSwitcherRef.current = () => goToSession(commitOnCtrlUp())
 
   const stepSession = (direction: 1 | -1) => {
-    onSwitcherTabDown()
     goToSession(openOrAdvanceSwitcher(direction))
-  }
-
-  // ⌃Tab cycles the focused session/main tab strip; only a non-tabbed focus
-  // falls through to the recent-session switcher. Landing on the workspace
-  // under a full page routes back to the chat (same as view.tabSlot.1).
-  const cycleTab = (direction: 1 | -1) => {
-    const pane = cycleTreeTabInFocusedZone(direction)
-
-    if (pane) {
-      leavePageForWorkspaceChat(pane)
-    } else {
-      stepSession(direction)
-    }
   }
 
   const showFiles = () => {
@@ -329,8 +307,8 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
     },
     'session.newTab': () => deps.openNewSessionTab(),
     'session.newWindow': () => void openNewWindow(),
-    'session.next': () => cycleTab(1),
-    'session.prev': () => cycleTab(-1),
+    'session.next': () => stepSession(1),
+    'session.previous': () => stepSession(-1),
     ...sessionSlotHandlers,
     ...tabSlotHandlers,
     'session.focusSearch': requestSessionSearchFocus,
@@ -363,6 +341,7 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
     'view.showBrowser': toggleBrowserTab,
     'view.toggleHud': () => toggleHud(hudTargetSessionId()),
     'view.showTerminal': () => toggleTerminalPane(),
+    'view.toggleTerminalPanel': () => toggleTerminalColumn(),
     // Create first so the pane's open-effect ensure sees a non-empty set and
     // doesn't also spawn one — net effect is exactly one fresh terminal.
     'view.newTerminal': () => {
@@ -485,8 +464,6 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      noteSwitcherKeyDown(event.code)
-
       // An active IME composition owns the keyboard. Windows Chinese IMEs
       // (Microsoft Pinyin, Sogou) use Ctrl+, as their punctuation-mode toggle,
       // so without this guard that keystroke ALSO matched `nav.settings` and
@@ -638,11 +615,15 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
       }
 
       // The cycle chord is ⌃Tab natively but Alt+] / ⌃⌘] in a browser tab:
-      // releasing its step key ends the hold, and releasing the last
-      // non-Shift modifier commits.
-      if (!SWITCHER_MODIFIER_KEYS.has(event.key)) {
-        onSwitcherTabUp(event.code)
-      } else if (event.key !== 'Shift' && !event.ctrlKey && !event.altKey && !event.metaKey) {
+      // only releasing the last non-Shift modifier commits. Releasing Tab
+      // leaves the chord armed so holding Ctrl can still reveal the HUD.
+      if (
+        SWITCHER_MODIFIER_KEYS.has(event.key) &&
+        event.key !== 'Shift' &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        !event.metaKey
+      ) {
         commitSwitcherRef.current()
       }
     }

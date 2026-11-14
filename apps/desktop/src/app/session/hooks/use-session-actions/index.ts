@@ -907,7 +907,10 @@ export function useSessionActions({
       if (item.action === 'new-session') {
         prepareDefaultNewSession()
         setWorkspaceScope('sessions')
-        startFreshSessionDraft()
+        // The sidebar is the return door to the pending new-chat composer,
+        // not a request to discard it. Explicit fresh-chat lifecycles still
+        // rotate their key through startFreshSessionDraft's default path.
+        startFreshSessionDraft({ rotateFreshDraftKey: false })
 
         return
       }

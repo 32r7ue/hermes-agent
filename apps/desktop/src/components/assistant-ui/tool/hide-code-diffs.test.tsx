@@ -51,12 +51,16 @@ it('keeps edit counts without code in either display mode and restores disclosur
       </ThreadRuntime>
     )
 
-    await waitFor(() => expect(container.querySelector('[data-tool-row][data-file-edit]')).not.toBeNull())
-    const row = container.querySelector('[data-tool-row]')!
+    // A lone edit is a level-2 step of its run: the summary line carries the
+    // counts, and opening it opens the edit too.
+    await waitFor(() => expect(container.querySelector('[data-tool-summary]')).not.toBeNull())
+    expect(container.querySelector('[data-tool-row]')).toBeNull()
+    expect(container.querySelector('[data-tool-summary]')!.textContent).toContain('+2')
     // An explicitly open historical row must not override the preference.
-    const toggle = row.querySelector('button[aria-expanded]')!
-    fireEvent.click(toggle)
-    fireEvent.click(toggle)
+    fireEvent.click(container.querySelector('[data-tool-summary] button[aria-expanded]')!)
+    await waitFor(() => expect(container.querySelector('[data-tool-row]')).not.toBeNull())
+    const row = container.querySelector('[data-tool-row]')!
+    await waitFor(() => expect(row.hasAttribute('data-tool-open')).toBe(true))
 
     for (const mode of ['product', 'technical'] as const) {
       act(() => {
@@ -89,9 +93,8 @@ it('still discloses failed edits when code diffs are hidden', async () => {
     </ThreadRuntime>
   )
 
-  const toggle = container.querySelector('[data-tool-row] button[aria-expanded]')!
-  expect(toggle).not.toBeNull()
-  fireEvent.click(toggle)
+  await waitFor(() => expect(container.querySelector('[data-tool-summary] button[aria-expanded]')).not.toBeNull())
+  fireEvent.click(container.querySelector('[data-tool-summary] button[aria-expanded]')!)
   expect(await screen.findByText('File is read-only')).toBeTruthy()
   expect(container.textContent).not.toContain('afterEdit')
 })

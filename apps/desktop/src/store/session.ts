@@ -1447,6 +1447,8 @@ export const $workspaceCwdOwner = atom<null | string>(null)
 // backends have their own filesystem, so a dropped host path must be uploaded
 // as bytes and staged into a bind-mounted cache dir (#76577).
 export const $terminalBackend = atom('')
+/** The active agent's context engine, from session.info: decides what Compact says it does. */
+export const $contextEngine = atom('')
 export const $newChatWorkspaceTarget = atom<NewChatWorkspaceTarget>(undefined)
 export const $newChatWorkspaceTargetGeneration = atom(0)
 export const $currentBranch = atom('')

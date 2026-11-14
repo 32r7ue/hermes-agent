@@ -640,6 +640,25 @@ export function TreeGroup({
   // the zone and take the tab with it.
   const toggleCollapse = () => (node.minimized ? restoreTreePane(activeId) : collapseTreePane(activeId))
 
+  // Keep Close distinct from Minimize, including on the resting rail. A
+  // hover-only tab cross left a docked terminal looking impossible to remove.
+  const zoneClose =
+    minimizable && closeableTab(activeId) ? (
+      <button
+        aria-label={`${t.common.close} ${tabText(activeId)}`}
+        className="mx-1 grid size-5 shrink-0 place-items-center self-center rounded-md text-(--ui-text-tertiary) hover:bg-(--ui-control-hover-background) hover:text-foreground focus-visible:outline-2 focus-visible:outline-(--ui-accent) [-webkit-app-region:no-drag]"
+        data-zone-close={activeId}
+        onClick={event => {
+          event.stopPropagation()
+          closeTab(activeId)
+        }}
+        onPointerDown={event => event.stopPropagation()}
+        type="button"
+      >
+        <Codicon name="close" size="0.75rem" />
+      </button>
+    ) : null
+
   // Same menu on the header strip and the edit veil — one prop bag.
   const minimizeLabel = paneChrome(active).lifecycleKeepAlive ? t.preview.hide : t.zones.minimize
 
@@ -718,6 +737,7 @@ export function TreeGroup({
               </PaneTab>
             )
           })}
+          {zoneClose}
         </CollapsedZoneRail>
       )}
 
@@ -787,6 +807,7 @@ export function TreeGroup({
                         <Codicon name={node.minimized ? 'chevron-up' : 'chevron-down'} size="0.75rem" />
                       </button>
                     )}
+                    {zoneClose}
                     <StripDropCaret groupId={node.id} stripRef={stripRef} />
                   </>
                 }

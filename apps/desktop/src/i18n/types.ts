@@ -3719,6 +3719,10 @@ export interface Translations extends NoticeTranslations {
           hint: string
           question: string
           questionNamed: (title: string) => string
+          /** Rollover engine: no summary, a fresh session that points back at this one. */
+          rolloverHint?: string
+          rolloverQuestion?: string
+          rolloverQuestionNamed?: (title: string) => string
           working: string
         }
         empty: string

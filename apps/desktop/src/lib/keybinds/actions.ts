@@ -247,7 +247,9 @@ export const KEYBIND_ACTIONS: readonly KeybindActionMeta[] = [
   // cycling app windows, so VS Code/Cursor/Zed bind the terminal to Ctrl+` on
   // every platform. Off macOS `ctrl` folds to `mod` (= Ctrl), so it's unchanged.
   // Toggle reveals the terminal (opening one if none exist); Shift spawns a new one.
-  { id: 'view.showTerminal', category: 'view', defaults: ['mod+j', 'ctrl+`'] },
+  { id: 'view.showTerminal', category: 'view', defaults: ['ctrl+`'] },
+  // ⌘J — the terminal's whole panel: its column with Files/Review beside it.
+  { id: 'view.toggleTerminalPanel', category: 'view', defaults: ['mod+j'] },
   { id: 'view.newTerminal', category: 'view', defaults: ['ctrl+shift+`'] },
   // Same Ctrl(+Shift) terminal family: arrows walk the (vertical) tab rail, W
   // kills the active one. ⌘W is taken (close preview tab) and ⌘⇧[ ] are profiles,
@@ -406,6 +408,7 @@ export const KEYBIND_READONLY: readonly KeybindReadonly[] = [
   { id: 'composer.newline', category: 'composer', keys: ['shift+enter'] },
   { id: 'composer.steer', category: 'composer', keys: ['enter'] },
   { id: 'composer.queue', category: 'composer', keys: ['mod+enter'] },
+  { id: 'composer.sendNow', category: 'composer', keys: ['alt+enter'] },
   { id: 'composer.sendQueued', category: 'composer', keys: ['mod+shift+k'] },
   { id: 'composer.mention', category: 'composer', keys: ['@'] },
   { id: 'composer.slash', category: 'composer', keys: ['/'] },

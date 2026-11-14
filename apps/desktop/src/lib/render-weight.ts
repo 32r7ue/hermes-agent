@@ -1,4 +1,4 @@
-import { isCardTool, isFileEditTool, isSilentTool } from '@/lib/tool-render-class'
+import { breaksToolRun, isSilentTool } from '@/lib/tool-render-class'
 
 /**
  * Render cost of one message's content parts, in budget units.
@@ -167,13 +167,12 @@ function partPaintWeight(part: unknown, measure: (parts: readonly unknown[]) => 
     return 0
   }
 
-  if (!isCardTool(toolName)) {
+  // A file edit is a collapsed row inside its run; its diff mounts only when opened.
+  if (!breaksToolRun(toolName)) {
     return COLLAPSED_ROW_WEIGHT
   }
 
-  // A diff is the one card that scales: `FileDiffPanel` mounts a row per line,
-  // and a big patch really is the expensive thing in the turn.
-  return isFileEditTool(toolName) ? measure([part]) : CARD_WEIGHT
+  return CARD_WEIGHT
 }
 
 /**

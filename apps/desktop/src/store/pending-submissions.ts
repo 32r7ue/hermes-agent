@@ -201,6 +201,11 @@ function collectReceipts(value: RawReceipts, known: Record<string, PendingSubmis
       continue
     }
 
+    // Not a card: a card already shown for it is dropped as no longer listed.
+    if (typeof raw.user === 'string' && isSyntheticPrompt(raw.user)) {
+      continue
+    }
+
     const id = raw.admission_id
     const stale = isStale(raw, known)
 
@@ -276,6 +281,15 @@ function projectQueue(
 
   return inOwnerOrder(next, order)
 }
+
+// Wake-ups the runtime admits on its own (a background process finished, a
+// subagent reported back) wait in the owner's queue like any input, but the
+// user never typed them: they are not cards to send, edit or discard. Mirrors
+// `_SYNTHETIC_PROMPT` in hermes_state_timeline.py.
+const SYNTHETIC_PROMPT_RE =
+  /^\s*(?:\[IMPORTANT: Background process |\[ASYNC (?:DELEGATION )?(?:BATCH )?COMPLETE\b|A background fan-out of \d+ subagent\(s\) you dispatched earlier has finished\.|A background subagent you dispatched earlier has finished\.)/i
+
+export const isSyntheticPrompt = (text: string): boolean => SYNTHETIC_PROMPT_RE.test(text)
 
 /** Listed cards take the owner's order among the slots they hold; every other card keeps its slot. */
 function inOwnerOrder(entries: QueuedPromptEntry[], order: Map<string, number>): QueuedPromptEntry[] {

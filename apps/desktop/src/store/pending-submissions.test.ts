@@ -33,6 +33,29 @@ it('projects resumed runtime pending receipts under durable identity without mak
   expect(getQueuedPrompts('runtime')).toEqual([])
 })
 
+it('never shows a runtime wake-up the owner queued as a card, and drops one already shown', () => {
+  const wake = '[IMPORTANT: Background process proc_1 completed normally (exit code 0).\nCommand: ls]'
+
+  reconcilePendingSubmissions('chat', [
+    { admission_id: 'wake', status: 'queued', user: wake },
+    { admission_id: 'typed', status: 'queued', user: 'mine' }
+  ])
+  expect(getQueuedPrompts('chat').map(entry => entry.id)).toEqual(['typed'])
+
+  // A card a build without the filter already persisted goes on the next listing.
+  $queuedPromptsBySession.set({
+    chat: [
+      { id: 'wake', text: wake, attachments: [], queuedAt: 1, serverStatus: 'queued' },
+      ...getQueuedPrompts('chat')
+    ]
+  })
+  reconcilePendingSubmissions('chat', [
+    { admission_id: 'wake', status: 'queued', user: wake },
+    { admission_id: 'typed', status: 'queued', user: 'mine' }
+  ])
+  expect(getQueuedPrompts('chat').map(entry => entry.id)).toEqual(['typed'])
+})
+
 it('carries the queued-row controls the owner lists onto the card, and none when it lists none (RT-35)', () => {
   reconcilePendingSubmissions('chat', [
     { admission_id: 'served', status: 'queued', user: 'edit me', controls: ['steer', 'replace'] },

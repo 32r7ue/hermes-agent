@@ -8,8 +8,8 @@ import { registry } from '@/contrib/registry'
 import { $tabStripDefault, setTabStripDefault } from '@/store/tabstrip-prefs'
 import { stubMenuDomApis, stubResizeObserver } from '@/test/jsdom'
 
-import type { GroupNode } from '../model'
-import { $treeDragging, NEW_SESSION_DRAG, SESSION_TILE_DRAG } from '../store'
+import { allPaneIds, group, type GroupNode, split } from '../model'
+import { $layoutTree, $treeDragging, NEW_SESSION_DRAG, SESSION_TILE_DRAG } from '../store'
 
 import { TreeGroup } from './tree-group'
 
@@ -255,6 +255,26 @@ describe('TreeGroup', () => {
     expect(strip.style).toHaveProperty('WebkitAppRegion', 'no-drag')
     act(() => $treeDragging.set(null))
     expect(strip.style).toHaveProperty('WebkitAppRegion', '')
+  })
+
+  it.each([false, true])('offers a visible pane close control even when minimized=%s', minimized => {
+    disposePane = registry.register({
+      area: 'panes',
+      data: { placement: 'bottom' },
+      id: 'terminal',
+      render: () => <div>Terminal</div>,
+      title: 'Terminal'
+    })
+    vi.stubGlobal('CSS', { escape: (value: string) => value })
+    stubResizeObserver()
+    const node = terminalGroup(minimized)
+    $layoutTree.set(split('column', [group(['workspace'], { active: 'workspace' }), node]))
+    render(<TreeGroup node={node} parentAxis="column" />)
+    const close = container!.querySelector<HTMLButtonElement>('[data-zone-close="terminal"]')
+    expect(close).not.toBeNull()
+    expect(close!.className).not.toContain('opacity-0')
+    fireEvent.click(close!)
+    expect(allPaneIds($layoutTree.get()!)).toEqual(['workspace'])
   })
 
   // A pane's live tab label is a React element (the terminal's

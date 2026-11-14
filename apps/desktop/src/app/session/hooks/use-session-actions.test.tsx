@@ -7074,6 +7074,25 @@ describe('routed fresh chat keeps its exact owner across turns', () => {
     expect(getSessionOwnerHint(STORED)).toEqual(route)
   })
 
+  it('returns to the unfinished new-chat draft from the sidebar instead of orphaning it', async () => {
+    let handle: HarnessHandle | null = null
+    render(<Harness onReady={h => (handle = h)} requestGateway={vi.fn(async () => ({}) as never)} />)
+    await waitFor(() => expect(handle).not.toBeNull())
+    const before = $freshDraftKey.get()
+    stashSessionDraft(before, 'unfinished new prompt', [])
+    act(() =>
+      handle!.selectSidebarItem({
+        id: 'new-session',
+        action: 'new-session',
+        label: 'New session',
+        icon: (() => null) as never
+      })
+    )
+    expect($freshDraftKey.get()).toBe(before)
+    expect(takeSessionDraft($freshDraftKey.get()).text).toBe('unfinished new prompt')
+    clearSessionDraft(before)
+  })
+
   it('can preserve the current fresh draft key when explicitly requested', async () => {
     let handle: HarnessHandle | null = null
     const requestGateway = vi.fn(async () => ({}) as never)

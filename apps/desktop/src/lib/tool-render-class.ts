@@ -16,11 +16,8 @@ export function isFileEditTool(toolName: string): boolean {
 }
 
 // Tools that draw their own surface and must never be folded into a run's
-// summary. Two kinds, for the same reason — the thing on screen IS the point:
+// summary — the thing on screen IS the point:
 //
-//   - File edits are the deliverable, not scaffolding. The diff is what the
-//     user reviews, so it stays visible at its place in the turn, live and
-//     settled, the way a PR shows its changes.
 //   - `clarify`, `image_generate` and `delegate_task` bypass ToolEntry to
 //     render their own markup: a question the user has to answer, an image
 //     they asked for, the several agents a fan-out is running.
@@ -49,8 +46,19 @@ export function isCardToolName(toolName: string): toolName is CardToolName {
 // Name the run splitter uses for a manage_connections part it has classified as a card.
 export const CONNECTION_CARD_KEY = 'manage_connections:card'
 
+/**
+ * Splits a run of activity: renders its own surface in place. File edits do
+ * NOT — they are level-2 rows inside the run's summary ("Edited 2 files, ran 3
+ * commands +40 −2"), each opening to its diff, so a turn that edits between
+ * reads stays one line instead of a wall of per-file rows.
+ */
+export function breaksToolRun(toolName: string): boolean {
+  return isCardToolName(toolName) || toolName === CONNECTION_CARD_KEY
+}
+
+/** Stays on screen even with the tool feed off: run-breaking cards and file edits. */
 export function isCardTool(toolName: string): boolean {
-  return isCardToolName(toolName) || toolName === CONNECTION_CARD_KEY || isFileEditTool(toolName)
+  return breaksToolRun(toolName) || isFileEditTool(toolName)
 }
 
 // Activity tools that render nothing at all: `todo` parts are hoisted to a

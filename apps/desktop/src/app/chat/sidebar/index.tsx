@@ -1779,7 +1779,9 @@ export function ChatSidebar({
                 card={cardRows}
                 collapsible={!inProject}
                 contentClassName={cn(
-                  'flex min-h-0 flex-1 flex-col gap-px pb-1.75',
+                  // No gap-px: the virtual list stacks rows flush (30px pitch). Under the 20-row cap this
+                  // list renders non-virtual, and a 1px gap pushed row 17 under the bottom bar.
+                  'flex min-h-0 flex-1 flex-col pb-1.75',
                   // The section is the ONE authority on whether the virtual
                   // list owns scrolling: it neutralizes this wrapper scroller
                   // itself (overflow-visible) when it virtualizes. Gating

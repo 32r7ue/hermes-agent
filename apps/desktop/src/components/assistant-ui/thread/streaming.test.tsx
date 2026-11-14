@@ -388,7 +388,7 @@ function renderSettlingReasoning() {
     setRunning = setRunningState
 
     const runtime = useExternalStoreRuntime<ThreadMessage>({
-      messages: [assistantReasoningMessage('The user asked a question.', running)],
+      messages: [assistantReasoningMessage('The user asked a question. It needs a careful answer.', running)],
       isRunning: running,
       onNew: async () => {}
     })
@@ -650,8 +650,8 @@ describe('assistant-ui streaming renderer', () => {
 
     await waitFor(() => {
       expect(
-        within(container)
-          .getByRole('button', { name: /thought/i })
+        container
+          .querySelector('[data-slot="aui_thinking-disclosure"] button')!
           .getAttribute('aria-expanded')
       ).toBe('false')
     })
@@ -673,8 +673,8 @@ describe('assistant-ui streaming renderer', () => {
 
     await waitFor(() => {
       expect(
-        within(container)
-          .getByRole('button', { name: /thought/i })
+        container
+          .querySelector('[data-slot="aui_thinking-disclosure"] button')!
           .getAttribute('aria-expanded')
       ).toBe('false')
     })
@@ -746,12 +746,13 @@ describe('assistant-ui streaming renderer', () => {
     const { container } = render(<ReasoningHarness />)
     const ui = within(container)
 
-    // Settled, so the header is past tense — a running block says "Thinking".
-    fireEvent.click(ui.getByRole('button', { name: /thought/i }))
+    // Settled, the header is the thought's opening sentence — a one-sentence
+    // thought shows whole there, with no body to open.
+    const row = container.querySelector('[data-slot="aui_thinking-disclosure"] button')!
 
-    expect(container.querySelector('[data-slot="aui_reasoning-text"]')?.textContent).toBe(
-      'The user is asking what this file is.'
-    )
+    expect(row.textContent).toBe('The user is asking what this file is.')
+    expect(row.hasAttribute('aria-expanded')).toBe(false)
+    expect(ui.queryByText('Thought')).toBeNull()
   })
 
   it('groups consecutive reasoning parts under one thinking disclosure', () => {
@@ -774,9 +775,10 @@ describe('assistant-ui streaming renderer', () => {
     const disclosures = container.querySelectorAll('[data-slot="aui_thinking-disclosure"]')
     expect(disclosures.length).toBe(2)
 
-    expect(disclosures[0].querySelector('button')?.getAttribute('aria-expanded')).toBe('false')
+    // The finished one-sentence thought is its own header, with no body to reopen.
+    expect(disclosures[0].querySelector('button')?.hasAttribute('aria-expanded')).toBe(false)
+    expect(disclosures[0].querySelector('[data-slot="aui_thinking-body"]')).toBeNull()
     expect(disclosures[1].querySelector('button')?.getAttribute('aria-expanded')).toBe('true')
-    expect(container.textContent).not.toContain('Complete first thought.')
     expect(container.textContent).toContain('Interim answer.')
   })
 
@@ -811,8 +813,8 @@ describe('assistant-ui streaming renderer', () => {
   it('shows the command prompt and exit code for terminal calls', async () => {
     const { container } = render(<MessageHarness message={assistantTerminalMessage()} />)
 
+    // A lone tool's run opens straight to its result.
     fireEvent.click(container.querySelector('[data-tool-group] button')!)
-    fireEvent.click(container.querySelector('[data-tool-row] button')!)
 
     await waitFor(() => {
       expect(container.textContent).toContain('$ npm run check --workspace=apps/desktop')

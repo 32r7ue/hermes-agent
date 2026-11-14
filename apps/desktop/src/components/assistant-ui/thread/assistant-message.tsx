@@ -24,6 +24,7 @@ import { useSessionView } from '@/app/chat/session-view'
 import { SETTINGS_ROUTE } from '@/app/routes'
 import { useBillingApi } from '@/app/settings/billing/api'
 import { dispatchedTo } from '@/components/assistant-ui/thread/agent-delivery'
+import { type ChangedFile, deriveTurnChangedFiles } from '@/components/assistant-ui/thread/changed-files'
 import { ChangedFilesCard } from '@/components/assistant-ui/thread/changed-files-card'
 import {
   contentHasVisibleText,
@@ -33,7 +34,7 @@ import {
 import { MessageHoverTime } from '@/components/assistant-ui/thread/message-hover-time'
 import { AssistantMessageParts } from '@/components/assistant-ui/thread/message-parts'
 import { ReactionPicker } from '@/components/assistant-ui/thread/message-reactions'
-import { ResponseMessageIds } from '@/components/assistant-ui/thread/response-group'
+import { ResponseAssistantIndices, ResponseMessageIds } from '@/components/assistant-ui/thread/response-group'
 import { ResponseLoadingIndicator, TurnActivityIndicator } from '@/components/assistant-ui/thread/status'
 import { threadMessageIndex } from '@/components/assistant-ui/thread/thread-message-index'
 import { MessageTimelineTimestamp } from '@/components/assistant-ui/thread/timeline-timestamp'
@@ -95,9 +96,8 @@ import { sessionTileDelegate } from '@/store/session-states'
 import { notifyThreadEditOpen } from '@/store/thread-scroll'
 import { $voicePlayback } from '@/store/voice-playback'
 
-// Stable empty identity for the settled-parts selector — a fresh [] per render
-// would re-derive the changed-files card on every message re-render.
-const EMPTY_PARTS: readonly unknown[] = []
+// Stable empty identity for the changed-files card's no-files case.
+const EMPTY_FILES: ChangedFile[] = []
 
 // PERF: hoisted to module scope so the element OBJECT is identical on every
 // render of every assistant message. React bails out of re-rendering a child
@@ -502,31 +502,59 @@ const AssistantPreviewEmbeds: FC = () => {
 }
 
 /**
- * PERF leaf: owns the `settledParts` selector so the tail's settle stops
- * re-rendering the message root. This is the one status-derived selector that
- * returns an OBJECT (`s.message.parts`) rather than a primitive, so it cannot
- * bail out on identity churn — keeping it at the root meant every settle
- * re-rendered the root and everything under it.
+ * PERF leaf: the turn's "N files changed" card, closing out each turn under
+ * its action bar.
  *
  * Cursor's changed-files card only appears once the turn settles: while the
  * agent is still editing, the tool rows narrate each patch and a card that
- * grew a row per write would thrash the transcript. `EMPTY_PARTS` while
- * running keeps this selector referentially stable across the 30 Hz delta
- * stream.
+ * grew a row per write would thrash the transcript. It rides the LAST
+ * assistant message of its response and folds every message of that response,
+ * so a turn split over sealed commentary bubbles still reads as one card.
+ * It is a per-turn record: sending the next message leaves it in place.
  *
- * It also only rides the LAST turn. The card is a "here's what just landed"
- * summary, not a per-turn artifact: leaving one behind on every reply would
- * stack a wall of stale cards down the transcript. Sending the next message
- * retires it — the working tree it describes is already history by then.
+ * The selector returns a JSON string, not the derived array: it re-runs on
+ * every store update and is compared with Object.is. Per-message folds are
+ * cached on the (settled, stable) content arrays, so the re-run is a merge.
  */
 const SettledChangedFiles: FC = () => {
-  const settledParts = useAuiState(s => {
-    const isLastMessage = s.thread.messages[s.thread.messages.length - 1]?.id === s.message.id
+  const turnIndices = useContext(ResponseAssistantIndices)
 
-    return s.message.status?.type === 'running' || !isLastMessage ? EMPTY_PARTS : s.message.parts
+  const signature = useAuiState(s => {
+    if (s.message.status?.type === 'running') {
+      return ''
+    }
+
+    const messages = s.thread.messages
+    let contents: (readonly unknown[])[]
+
+    if (turnIndices.length > 0) {
+      // A history replacement can notify before the group's indices update.
+      if (messages[turnIndices.at(-1)!]?.id !== s.message.id) {
+        return ''
+      }
+
+      contents = turnIndices.flatMap(index => {
+        const message = messages[index]
+
+        return message?.role === 'assistant' ? [message.content as readonly unknown[]] : []
+      })
+    } else {
+      contents = [s.message.parts]
+    }
+
+    // The live turn's last bubble can be settled while the next one is coming.
+    if (s.thread.isRunning && isCurrentTurnMessage(messages, s.message.id)) {
+      return ''
+    }
+
+    const files = deriveTurnChangedFiles(contents)
+
+    return files.length > 0 ? JSON.stringify(files) : ''
   })
 
-  return <ChangedFilesCard parts={settledParts} />
+  const files = useMemo<ChangedFile[]>(() => (signature ? JSON.parse(signature) : EMPTY_FILES), [signature])
+
+  return <ChangedFilesCard files={files} />
 }
 
 /**
@@ -1528,6 +1556,14 @@ const ReadAloudButton: FC<{ action: ReadAloudActionState }> = ({ action }) => {
 }
 
 const AssistantFooter: FC<MessageActionProps> = props => {
+  const activeResponse = useAuiState(
+    s => s.thread.isRunning && isCurrentTurnMessage(s.thread.messages, s.message.id)
+  )
+
+  if (activeResponse) {
+    return null
+  }
+
   return (
     <div className="flex min-h-6 flex-col items-start gap-1 pr-(--message-text-indent) pl-(--message-text-indent)">
       <BranchPickerPrimitive.Root

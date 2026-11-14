@@ -69,3 +69,37 @@ export function deriveChangedFiles(parts: readonly unknown[]): ChangedFile[] {
 
   return [...byPath.values()]
 }
+
+// A settled message keeps its content array, so its fold is computed once.
+const messageFoldCache = new WeakMap<readonly unknown[], ChangedFile[]>()
+
+/**
+ * The whole turn's changed files: every assistant message of one response
+ * folded together (a turn spans several bubbles once commentary seals), one
+ * row per file in first-touched order with its +/- summed across messages.
+ */
+export function deriveTurnChangedFiles(contents: readonly (readonly unknown[])[]): ChangedFile[] {
+  const byPath = new Map<string, ChangedFile>()
+
+  for (const content of contents) {
+    let files = messageFoldCache.get(content)
+
+    if (!files) {
+      files = deriveChangedFiles(content)
+      messageFoldCache.set(content, files)
+    }
+
+    for (const file of files) {
+      const existing = byPath.get(file.path)
+
+      if (existing) {
+        existing.added += file.added
+        existing.removed += file.removed
+      } else {
+        byPath.set(file.path, { ...file })
+      }
+    }
+  }
+
+  return [...byPath.values()]
+}

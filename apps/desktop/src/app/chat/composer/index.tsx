@@ -985,6 +985,26 @@ export function ChatBar({
       return
     }
 
+    // Alt+Enter sends directly while a turn runs: the live request stops and
+    // the words go now, instead of waiting for the tool batch (Enter, steer)
+    // or the whole turn (Cmd/Ctrl+Enter, queue).
+    if (event.key === 'Enter' && event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey && busy) {
+      event.preventDefault()
+
+      if (!disabled) {
+        const editorText = liveComposerDraft(editorRef.current, draftRef.current)
+
+        if (editorText !== draftRef.current) {
+          draftRef.current = editorText
+          setComposerText(editorText)
+        }
+
+        steerDraft('interrupt')
+      }
+
+      return
+    }
+
     // Cmd/Ctrl+Enter queues a follow-up while a turn runs. Plain Enter steers
     // a text-only draft, so both live-turn actions stay reachable by keyboard.
     if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && !event.shiftKey) {
@@ -1186,7 +1206,8 @@ export function ChatBar({
         closeTrigger()
         queueDraft()
       }}
-      onSteer={canSteer ? () => steerDraft('steer') : undefined}
+      // The other way to deliver mid-turn: Send now when Enter steers, Steer when Enter redirects.
+      onSteer={canSteer ? () => steerDraft(busyAction === 'steer' ? 'interrupt' : 'steer') : undefined}
       onToggleAutoSpeak={handleToggleAutoSpeak}
       state={state}
       voiceStatus={voiceStatus}

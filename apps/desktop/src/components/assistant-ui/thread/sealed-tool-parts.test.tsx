@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { $activeSessionId } from '@/store/session'
+import { $toolDisclosureStates } from '@/store/tool-view'
 
 import { stubThreadEnvironment, stubThreadViewportSize, ThreadRuntime } from '../test-utils'
 import { Thread } from '../thread'
@@ -55,6 +56,8 @@ const Harness = ({ message }: { message: ThreadMessage }) => (
 
 afterEach(() => {
   cleanup()
+  // Two terminal cases share a message id, so an opened run would leak open.
+  $toolDisclosureStates.set({})
   $activeSessionId.set(null)
 })
 
@@ -89,6 +92,7 @@ describe('tool parts sealed without a result', () => {
   it('renders a call the user interrupted as Interrupted, not as a lost result', async () => {
     render(<Harness message={sealedMessage('terminal', { command: 'ls' }, { interrupted: true })} />)
 
+    // A lone tool's run opens straight to its result.
     fireEvent.click(await screen.findByRole('button', { expanded: false }))
     expect(await screen.findByText('Interrupted')).toBeTruthy()
     expect(screen.queryByText('Result unavailable')).toBeNull()

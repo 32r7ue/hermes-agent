@@ -16,6 +16,19 @@ beforeEach(() => {
 })
 
 describe('recordPreviewArtifact', () => {
+  it('keeps internal scratch probes out of user-facing suggestions', () => {
+    for (const path of [
+      '/Users/benny/.hermes/cache/scratch/ui/probe.html',
+      'file:///Users/benny/.hermes/cache/scratch/ui/probe.html',
+      '/home/user/.hermes/profiles/work/cache/scratch/probe.html'
+    ]) {
+      recordPreviewArtifact('scratch', path, '/work')
+    }
+
+    expect($previewStatusBySession.get().scratch).toBeUndefined()
+    recordPreviewArtifact('scratch', '/work/probe.html', '/work')
+    expect($previewStatusBySession.get().scratch).toHaveLength(1)
+  })
   it('appends new targets newest-last and is idempotent', () => {
     recordPreviewArtifact('s1', '/a/index.html', '/work')
     recordPreviewArtifact('s1', '/a/about.html', '/work')

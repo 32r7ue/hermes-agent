@@ -21,6 +21,7 @@ import { pendingSnapshotFence, reconcilePendingSubmissions } from '@/store/pendi
 import { $activeGatewayProfile, $profiles, normalizeProfileKey } from '@/store/profile'
 import { $projectTree } from '@/store/projects'
 import {
+  $contextEngine,
   $cronSessions,
   $currentCwd,
   $messagingSessions,
@@ -2259,6 +2260,11 @@ export function applyRuntimeInfo(
   }
 
   reportRuntimeInfoAppState(info, owner)
+
+  // Config-wide (one engine per profile), so any session's answer is the app's answer.
+  if (typeof info.context_engine === 'string' && info.context_engine) {
+    $contextEngine.set(info.context_engine)
+  }
 
   const sessionState: SessionRuntimeStatePatch = {}
 

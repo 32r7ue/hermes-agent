@@ -337,7 +337,7 @@ const writePreviews = (sid: string, items: PreviewArtifact[]) => {
 }
 
 function appendPreviewArtifact(sid: string, raw: string, cwd: string, id: string, scope: string): void {
-  if (isDismissed(scope, id)) {
+  if (isDismissed(scope, id) || /\/\.hermes\/(?:profiles\/[^/]+\/)?cache\/scratch\//.test(id.replaceAll('\\', '/'))) {
     return
   }
 

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 
-import { cleanup, render, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it } from 'vitest'
 
 import { parseAnsi } from '@/lib/ansi'
@@ -114,6 +114,10 @@ it.each(Object.entries(receipts))(
     )
 
     if (receipt.changed) {
+      // The lone edit is a level-2 step: its run's summary opens it.
+      const toggle = liveUi.container.querySelector('[data-tool-summary] button[aria-expanded]')!
+      expect(toggle.getAttribute('aria-expanded')).toBe('false')
+      fireEvent.click(toggle)
       await waitFor(() => expect(liveUi.container.querySelector('[data-tool-row][data-file-edit]')).not.toBeNull())
     }
 
@@ -143,6 +147,16 @@ it.each(Object.entries(receipts))(
             <Thread />
           </ThreadRuntime>
         )
+
+        // Cold hydration keeps the edit folded until the user opens it;
+        // the receipt's exact original diff must remain available behind it.
+        if (receipt.changed) {
+          const toggle = ui.container.querySelector('[data-tool-summary] button[aria-expanded]')!
+
+          if (toggle.getAttribute('aria-expanded') === 'false') {
+            fireEvent.click(toggle)
+          }
+        }
 
         await waitFor(() => {
           expect(Boolean(ui.container.querySelector('[data-tool-row][data-file-edit]'))).toBe(receipt.changed)

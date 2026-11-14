@@ -1517,6 +1517,9 @@ def _session_info(agent, session: dict | None = None) -> dict:
         info.update(version=get_version_info().base_version, release_date=__release_date__)
     live_agent = agent is not None and not sess.get("_compute_host_active")
     if live_agent:
+        # What a manual compact will run: "rollover" hands off to a child session with no summary.
+        with contextlib.suppress(Exception):
+            info["context_engine"] = str(getattr(getattr(agent, "context_compressor", None), "name", "") or "")
         with contextlib.suppress(Exception):
             from model_tools import get_toolset_for_tool
             info["tools"] = {}

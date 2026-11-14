@@ -162,10 +162,11 @@ describe('streaming into a settled transcript', () => {
     let body = 'tok0'
     const stream = () => [...settled, prompt, text('a-live', 'assistant', body, true)]
 
-    const { queryByText, rerender } = render(<Harness busy messages={stream()} />)
+    const { container, queryByText, rerender } = render(<Harness busy messages={stream()} />)
 
-    // The live reply is held back until it is done; wait for its row instead.
-    await waitFor(() => expect(rootRenders.get('a-live') ?? 0).toBeGreaterThan(0))
+    // The live reply is held back until it is done, and its action bar (the
+    // render probe) waits for the turn to end; wait for its row instead.
+    await waitFor(() => expect(container.querySelector('[data-message-id="a-live"]')).not.toBeNull())
 
     // Let the render-budget backfill finish mounting older rows, and any async
     // one-shot work (the code plugin swap) re-render them, so the window below

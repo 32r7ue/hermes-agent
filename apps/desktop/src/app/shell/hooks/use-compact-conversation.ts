@@ -5,7 +5,7 @@ import { useI18n } from '@/i18n'
 import { $compactingSessions } from '@/store/compaction'
 import { confirm } from '@/store/confirm'
 import { notifyError } from '@/store/notifications'
-import { $activeSessionId, $busy, $sessions } from '@/store/session'
+import { $activeSessionId, $busy, $contextEngine, $sessions } from '@/store/session'
 import { $focusedRuntimeId, $sessionStates, sessionTileDelegate } from '@/store/session-states'
 
 export interface CompactConversationAction {
@@ -69,11 +69,19 @@ export function useCompactConversation({
 
     void (async () => {
       const title = chatTitle(target)
+      // Say what will actually run: the rollover engine writes no summary.
+      const rollover = $contextEngine.get() === 'rollover' && copy.rolloverHint
 
       const ok = await confirm({
         confirmLabel: copy.confirm,
-        description: copy.hint,
-        title: title ? copy.questionNamed(title) : copy.question
+        description: rollover ? copy.rolloverHint! : copy.hint,
+        title: rollover
+          ? title && copy.rolloverQuestionNamed
+            ? copy.rolloverQuestionNamed(title)
+            : (copy.rolloverQuestion ?? copy.question)
+          : title
+            ? copy.questionNamed(title)
+            : copy.question
       })
 
       if (!ok || $focusedRuntimeId.get() !== target || sessionBusy(target) || $compactingSessions.get()[target]) {

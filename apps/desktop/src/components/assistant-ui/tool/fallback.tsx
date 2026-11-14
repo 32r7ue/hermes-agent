@@ -64,13 +64,13 @@ import {
 
 import { isApprovalActivity, isCurrentTurnMessage } from './approval-activity'
 import {
+  breaksToolRun,
   buildToolView,
   clampForDisplay,
   cleanVisibleText,
   CONNECTION_CARD_KEY,
   countDiffLineStats,
   inlineDiffFromResult,
-  isCardTool,
   isFileEditTool,
   isPreviewableTarget,
   isSilentTool,
@@ -83,7 +83,7 @@ import {
   type ToolStatus,
   type ToolTitleAction
 } from './fallback-model'
-import { isToolCallPart, summarizeToolRun } from './run-summary'
+import { isToolCallPart, summarizeToolRun, type ToolCallLike } from './run-summary'
 
 // `true` when a ToolEntry is rendered inside an embedding wrapper that owns
 // the per-row chrome (timer / preview). The flat ToolGroupSlot sets this
@@ -430,8 +430,7 @@ function ToolEntry({ part }: ToolEntryProps) {
   const isPending = messageRunning && result === undefined && completedAt === undefined
   const inlineDiff = inlineDiffFromResult(toolResultRecord(stablePart))
   const isFileEdit = isFileEditTool(toolName)
-  const defaultOpen = Boolean(inlineDiff) && !hideCodeDiffs
-  const disclosureOpen = useDisclosureOpen(disclosureId, defaultOpen)
+  const disclosureOpen = useDisclosureOpen(disclosureId)
   // A row inside a summary group is a step of that group: it can't be dismissed on its own.
   const canDismiss = !isPending && !embedded && !runDisclosureId
   // Only animate entries that mount while their message is actively
@@ -827,7 +826,7 @@ function TerminalTranscript({ command, exitCode }: TerminalTranscriptProps) {
 }
 
 // Tools that draw their own surface and must never be folded into a run's
-// summary live in `fallback-model` (`isCardTool`) — the DOM render budget
+// summary live in `fallback-model` (`breaksToolRun`) — the DOM render budget
 // prices a turn by the same rule, so both sides have to agree on which rows
 // collapse into a summary line and which mount their own markup.
 
@@ -852,7 +851,7 @@ export function splitRunItems(toolNames: readonly string[]): RunItem[] {
   toolNames.forEach((name, index) => {
     // Silent tools (a reaction, the todo list) render nothing: kept out of runs so
     // they never leave an empty "Used 1 tool" group behind.
-    if (!name || (name !== REASONING_RUN_KEY && (isCardTool(name) || isSilentTool(name)))) {
+    if (!name || (name !== REASONING_RUN_KEY && (breaksToolRun(name) || isSilentTool(name)))) {
       run = null
       items.push({ index, kind: 'card' })
 
@@ -884,6 +883,7 @@ export function splitRunItems(toolNames: readonly string[]): RunItem[] {
 // ticker by default; its toggle can reveal the activity before it settles.
 function ToolRunHeader({
   completedAt,
+  diff,
   live,
   onToggle,
   open,
@@ -891,6 +891,8 @@ function ToolRunHeader({
   summary
 }: {
   completedAt?: number
+  /** Lines the run's file edits added/removed, summed — the run's deliverable at a glance. */
+  diff?: { added: number; removed: number }
   live: boolean
   onToggle?: () => void
   open: boolean
@@ -913,6 +915,12 @@ function ToolRunHeader({
         <FadeText className={cn(SCAFFOLD_LABEL_CLASS, 'truncate')}>
           {live ? <span className="shimmer">{summary}</span> : summary}
         </FadeText>
+        {diff && (diff.added > 0 || diff.removed > 0) && (
+          <span className="flex shrink-0 items-center gap-1 font-mono text-[0.625rem] tabular-nums">
+            {diff.added > 0 && <span className="text-(--ui-green)">+{diff.added}</span>}
+            {diff.removed > 0 && <span className="text-(--ui-red)">−{diff.removed}</span>}
+          </span>
+        )}
       </ScaffoldRow>
     </div>
   )
@@ -940,6 +948,7 @@ interface ToolRunState {
   approvalActivity: boolean
   completedAt?: number
   count: number
+  diff: { added: number; removed: number }
   /** Disclosure id of each row in the run, so the run can tell when one is open. */
   entryIds: readonly string[]
   key: string
@@ -1014,6 +1023,7 @@ function useToolRun(startIndex: number, endIndex: number): ToolRunState {
             undefined
           ),
           count: tools.length,
+          diff: runDiffStats(tools),
           approvalActivity: tools.length > 0 && tools.every(isApprovalActivity),
           entryIds: tools.map(tool => toolEntryDisclosureId(state.message.id, tool)),
           key: `${state.message.id}:${tools[0]?.toolCallId ?? ''}`,
@@ -1035,6 +1045,28 @@ function useToolRun(startIndex: number, endIndex: number): ToolRunState {
 
     return cache.current.value
   })
+}
+
+/** Landed file edits' +/- summed across a run (a pending or failed edit has no diff). */
+function runDiffStats(tools: readonly ToolCallLike[]): { added: number; removed: number } {
+  let added = 0
+  let removed = 0
+
+  for (const tool of tools) {
+    if (!isFileEditTool(tool.toolName)) {
+      continue
+    }
+
+    const diff = inlineDiffFromResult(toolResultRecord(tool as Parameters<typeof toolResultRecord>[0]))
+
+    if (diff) {
+      const stats = countDiffLineStats(diff)
+      added += stats.added
+      removed += stats.removed
+    }
+  }
+
+  return { added, removed }
 }
 
 /**
@@ -1060,7 +1092,7 @@ export const ToolRun: FC<PropsWithChildren<{ endIndex: number; liveStep?: null |
   const messageRunning = useAuiState(selectMessageRunning)
   const heldReply = useStore($replyReveal) === 'reveal'
 
-  const { awaitingReply, completedAt, count, entryIds, key, live, startedAt, summary, approvalActivity } = useToolRun(
+  const { awaitingReply, completedAt, count, diff, entryIds, key, live, startedAt, summary, approvalActivity } = useToolRun(
     startIndex,
     endIndex
   )
@@ -1096,8 +1128,20 @@ export const ToolRun: FC<PropsWithChildren<{ endIndex: number; liveStep?: null |
         {count > 0 && !representedByApproval && (
           <ToolRunHeader
             completedAt={completedAt}
+            diff={diff}
             live={live || (awaitingReply && heldReply)}
-            onToggle={() => setToolDisclosureOpen(disclosureId, !expanded)}
+            onToggle={() => {
+              const next = !expanded
+
+              // A lone tool has nothing to choose at the intermediate level:
+              // opening its group opens the result too. Multi-tool runs keep
+              // their per-row disclosures independent.
+              if (count === 1 && entryIds[0]) {
+                setToolDisclosureOpen(entryIds[0], next)
+              }
+
+              setToolDisclosureOpen(disclosureId, next)
+            }}
             open={expanded}
             startedAt={startedAt}
             // Live, the line names the exact step: a thought in progress reads as its headline.
