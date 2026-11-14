@@ -556,6 +556,23 @@ WEB_EXTRACT_SCHEMA = {
     }
 }
 
+def check_web_extract_ready() -> bool:
+    """``check_fn`` for web_extract alone: when the selected backend is registered and search-only,
+    every call is refused, so the tool is not advertised (field data: 14 of 14 calls refused with
+    ``web.search_backend: nous``). Any other state defers to the shared gate."""
+    if not check_web_api_key():
+        return False
+    try:
+        _ensure_web_plugins_loaded()
+        from agent.web_search_registry import get_provider
+        backend = _get_extract_backend()
+        provider = get_provider(backend) if backend else None
+        return provider is None or bool(provider.supports_extract())
+    except Exception:
+        logger.warning("web_extract readiness check failed", exc_info=True)
+        return True
+
+
 registry.register(
     name="web_search", toolset="web", schema=WEB_SEARCH_SCHEMA,
     handler=lambda args, **kw: web_search_tool(args.get("query", ""), limit=args.get("limit", 5)),
@@ -568,6 +585,6 @@ registry.register(
         args.get("urls", [])[:5] if isinstance(args.get("urls"), list) else [], "markdown",
         char_limit=args.get("char_limit"),
     ),
-    check_fn=check_web_api_key, requires_env=_web_requires_env(), is_async=True, emoji="📄",
+    check_fn=check_web_extract_ready, requires_env=_web_requires_env(), is_async=True, emoji="📄",
     max_result_size_chars=100_000,
 )

@@ -129,7 +129,7 @@ class TestClassification:
 
     def test_core_working_set_never_defers_even_with_mcp_active(self):
         """The bridge activates for MCP, but working-set core tools (terminal,
-        files, memory...) stay direct — the deferral set is the CURATED list,
+        files...) stay direct — the deferral set is the CURATED list,
         not all of core."""
         from tools.registry import discover_builtin_tools, registry
         from tools.tool_search import (
@@ -150,7 +150,7 @@ class TestClassification:
         assembled = assemble_tool_defs(
             [
                 _td("terminal", "Run a command"),
-                _td("memory", "Persistent memory"),
+                _td("read_file", "Read a file"),
                 _td("computer_use", "Drive the OS"),
                 _td(mcp_name, "Deferred MCP capability"),
             ],
@@ -162,7 +162,7 @@ class TestClassification:
         assert assembled.activated
         assert mcp_name not in names
         assert BRIDGE_TOOL_NAMES <= names
-        assert {"terminal", "memory"} <= names
+        assert {"terminal", "read_file"} <= names
         # computer_use IS in the curated defer set → behind the bridge.
         assert "computer_use" not in names
 
