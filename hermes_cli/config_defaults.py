@@ -174,6 +174,15 @@ DEFAULT_CONFIG = {
         # read-only commands) into one batched turn; the runtime already runs them concurrently. ~70
         # cached tokens. False disables.
         "parallel_tool_call_guidance": True,
+        # Optional prompt blocks (benny fork: off unless set). help_guidance = Hermes docs/skill pointer;
+        # steer_channel_note = explains the mid-turn /steer marker; session_search_guidance /
+        # skills_guidance = one-line nudges to recall past sessions / save workflows as skills;
+        # memory_guidance = what belongs in memory vs skills (on by default).
+        "help_guidance": False,
+        "steer_channel_note": False,
+        "session_search_guidance": False,
+        "skills_guidance": False,
+        "memory_guidance": True,
         # Toolchain probe: surfaces Python/pip/uv/PEP-668 state in the system prompt only when
         # something non-default is detected (no pip module, pip/python mismatch, PEP 668 without
         # uv); zero tokens when clean. Skipped for docker/modal/ssh backends (own probe).

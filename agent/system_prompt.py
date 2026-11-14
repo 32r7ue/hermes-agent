@@ -278,7 +278,7 @@ def _tool_guidance_block(agent: Any) -> Optional[str]:
     # would steer the model at a tool that always answers "Memory is not
     # available"; with only USER.md enabled the narrower block is used.
     memory_guidance = None
-    if "memory" in names:
+    if "memory" in names and getattr(agent, "_memory_guidance", True):
         memory_guidance = _pb.build_memory_guidance(
             getattr(agent, "_memory_enabled", True),
             getattr(agent, "_user_profile_enabled", True),
@@ -291,8 +291,8 @@ def _tool_guidance_block(agent: Any) -> Optional[str]:
         _kanban_guidance = KANBAN_GUIDANCE
     tool_guidance = [
         memory_guidance,
-        SESSION_SEARCH_GUIDANCE if "session_search" in names else None,
-        SKILLS_GUIDANCE if "skill_manage" in names else None,
+        SESSION_SEARCH_GUIDANCE if "session_search" in names and getattr(agent, "_session_search_guidance", True) else None,
+        SKILLS_GUIDANCE if "skill_manage" in names and getattr(agent, "_skills_guidance", True) else None,
         _kanban_guidance,
     ]
     return " ".join(g for g in tool_guidance if g) or None
@@ -370,6 +370,10 @@ def _ambient_file_safety_profile_name() -> str:
     return _resolve_active_profile_name()
 
 
+def _profiles_dir_exists(root: Path) -> bool:
+    return (Path(root) / "profiles").is_dir()
+
+
 def _active_profile_line(agent: Any) -> str:
     """Name the running profile so the agent doesn't conflate ``~/.hermes/skills``
     (default) with ``~/.hermes/profiles/<active>/skills``.  Resolved from the
@@ -381,7 +385,10 @@ def _active_profile_line(agent: Any) -> str:
         # With an explicit agent home, the default profile's data lives at the
         # ROOT (get_hermes_home() on a bound profile session is the PROFILE dir).
         # Without one, keep the ambient (patchable) resolution byte-identical.
-        _root_str = str(get_default_hermes_root() if _agent_home_path is not None else get_hermes_home())
+        _root = get_default_hermes_root() if _agent_home_path is not None else get_hermes_home()
+        if not _profiles_dir_exists(_root):
+            return ""  # no other profile can exist, so the warning names nothing
+        _root_str = str(_root)
         return (
             "Active Hermes profile: default. Other profiles (if any) live "
             "under " + _root_str + "/profiles/<name>/. Each profile has its own "
@@ -571,7 +578,7 @@ def _guidance_parts(agent: Any) -> list[str]:
         return parts
     # Steering only lands inside tool results, so only reachable with tools; a one-shot has nobody to steer it.
     from agent.oneshot_footprint import agent_is_oneshot
-    if not agent_is_oneshot(agent):
+    if not agent_is_oneshot(agent) and getattr(agent, "_steer_channel_note", True):
         parts.append(STEER_CHANNEL_NOTE)
     # agent.tool_use_enforcement / agent.execution_guidance: "auto" (default)
     # matches the hardcoded model lists; true/false force; a list gives custom
@@ -751,13 +758,15 @@ def build_system_prompt_parts(agent: Any, system_message: Optional[str] = None) 
     # The skill_view() pointer dangles without skill tools OR without the
     # hermes-agent skill installed, so the variant is chosen after the skills
     # index is built; this slot holds its position.
-    _help_guidance_slot = len(stable_parts)
-    stable_parts.append(HERMES_AGENT_HELP_GUIDANCE_NO_SKILLS)
+    _help_guidance_slot = len(stable_parts) if getattr(agent, "_help_guidance", True) else None
+    if _help_guidance_slot is not None:
+        stable_parts.append(HERMES_AGENT_HELP_GUIDANCE_NO_SKILLS)
     stable_parts.extend(_guidance_parts(agent))
     skills_prompt = _skills_prompt(agent)
     # Skill-pointer variant requires BOTH skill_view AND the hermes-agent skill
     # in the rendered index (pure string check — inherits the index's stability).
-    if "skill_view" in (agent.valid_tool_names or set()) and "- hermes-agent:" in skills_prompt:
+    if _help_guidance_slot is not None and "skill_view" in (agent.valid_tool_names or set()) \
+            and "- hermes-agent:" in skills_prompt:
         stable_parts[_help_guidance_slot] = HERMES_AGENT_HELP_GUIDANCE
     stable_parts.extend(_alibaba_identity_part(agent))
     # Pinned skills are per-agent constants (resolved once), so they live in the stable prefix.
