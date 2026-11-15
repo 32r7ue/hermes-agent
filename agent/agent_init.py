@@ -53,9 +53,6 @@ from utils import base_url_host_matches, is_truthy_value
 # Same logger name as run_agent so caplog/patches on "run_agent" see our records.
 logger = logging.getLogger("run_agent")
 
-# Prompt blocks the benny fork ships off (no measured use); config.yaml agent.<key>: true restores each.
-_DEFAULT_OFF_GATES = frozenset({"help_guidance", "steer_channel_note", "session_search_guidance", "skills_guidance"})
-
 
 def _provider_default_routes(provider: str) -> set[str]:
     """Return known exact default routes for a canonical provider id."""
@@ -1325,10 +1322,9 @@ def _apply_agent_section(agent, _agent_cfg):
     # (ALL models, unlike enforcement), the local toolchain probe, Bot Mode protocol section.
     for _key in (
         "stall_guards", "task_completion_guidance", "parallel_tool_call_guidance",
-        "environment_probe", "bot_mode_protocol", "memory_guidance", "help_guidance", "steer_channel_note",
-        "session_search_guidance", "skills_guidance",
+        "environment_probe", "bot_mode_protocol",
     ):
-        setattr(agent, f"_{_key}", bool(_agent_section.get(_key, _key not in _DEFAULT_OFF_GATES)))
+        setattr(agent, f"_{_key}", bool(_agent_section.get(_key, True)))
     # Warm the probe (~0.5s of subprocesses) off-thread so the first prompt build finds it cached.
     if agent._environment_probe:
         with suppress(Exception):

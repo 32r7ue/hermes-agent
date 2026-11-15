@@ -440,7 +440,7 @@ class TestNamedProfileHintIntegration:
     def test_real_default_home_renders_default_branch(self, tmp_path, monkeypatch):
         """HERMES_HOME at the root resolves to the default profile, unchanged."""
         root = tmp_path / ".hermes"
-        (root / "profiles").mkdir(parents=True)
+        root.mkdir(parents=True)
 
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         monkeypatch.setenv("HERMES_HOME", str(root))
@@ -465,7 +465,7 @@ def test_stable_tier_is_identical_across_homes(tmp_path, monkeypatch):
     tiers = []
     for name in ("a", "b"):
         root = tmp_path / name / ".hermes"
-        (root / "profiles").mkdir(parents=True)
+        root.mkdir(parents=True)
         monkeypatch.setattr(Path, "home", lambda root=root: root.parent)
         monkeypatch.setenv("HERMES_HOME", str(root))
         with patch("agent.coding_context._coding_mode", return_value="off"):
@@ -501,7 +501,6 @@ def test_coding_prompt_orders_shared_context_before_workspace(monkeypatch):
     monkeypatch.setattr(system_prompt, "HERMES_AGENT_HELP_GUIDANCE_NO_SKILLS", "HELP")
     monkeypatch.setattr(system_prompt, "STEER_CHANNEL_NOTE", "STEER")
     monkeypatch.setattr(system_prompt, "get_hermes_home", lambda: Path("/hermes"))
-    monkeypatch.setattr(system_prompt, "_profiles_dir_exists", lambda _root: True)
 
     # Production renders this as str(get_hermes_home()) + "/profiles/<name>/",
     # and str(Path("/hermes")) is platform-dependent (backslash on Windows) —
@@ -893,7 +892,6 @@ def test_conversation_start_uses_session_start_not_build_time(monkeypatch):
     monkeypatch.setattr(system_prompt, "HERMES_AGENT_HELP_GUIDANCE_NO_SKILLS", "HELP")
     monkeypatch.setattr(system_prompt, "STEER_CHANNEL_NOTE", "STEER")
     monkeypatch.setattr(system_prompt, "get_hermes_home", lambda: Path("/hermes"))
-    monkeypatch.setattr(system_prompt, "_profiles_dir_exists", lambda _root: True)
 
     with (
         patch("agent.prompt_builder.load_soul_md", return_value=""),
@@ -958,44 +956,3 @@ class TestConversationStartedTwoLine:
         vol = self._volatile(agent)
         assert "Conversation started:" not in vol
         assert "as of the last context rebuild" not in vol
-
-
-def test_profile_line_absent_without_profiles_dir(tmp_path, monkeypatch):
-    """No <root>/profiles directory means no other profile exists: the warning line is dropped."""
-    root = tmp_path / ".hermes"
-    root.mkdir(parents=True)
-    monkeypatch.setattr(Path, "home", lambda: tmp_path)
-    monkeypatch.setenv("HERMES_HOME", str(root))
-    monkeypatch.delenv("TERMINAL_CWD", raising=False)
-    with patch("agent.coding_context._coding_mode", return_value="off"):
-        prompt = "\n\n".join(_prompt_parts(_make_agent(valid_tool_names=["read_file"])).values())
-    assert "Active Hermes profile" not in prompt
-
-
-@pytest.mark.parametrize("flag, needle", [
-    ("_help_guidance", "HELP_TEXT"),
-    ("_steer_channel_note", "STEER_TEXT"),
-    ("_session_search_guidance", "SEARCH_TEXT"),
-    ("_skills_guidance", "SKILLS_TEXT"),
-    ("_memory_guidance", "MEM_TEXT"),
-])
-def test_optional_prompt_blocks_follow_their_gate(monkeypatch, flag, needle):
-    from agent import system_prompt
-
-    monkeypatch.setattr(system_prompt, "HERMES_AGENT_HELP_GUIDANCE_NO_SKILLS", "HELP_TEXT")
-    monkeypatch.setattr(system_prompt, "STEER_CHANNEL_NOTE", "STEER_TEXT")
-    monkeypatch.setattr(system_prompt, "SESSION_SEARCH_GUIDANCE", "SEARCH_TEXT")
-    monkeypatch.setattr(system_prompt, "SKILLS_GUIDANCE", "SKILLS_TEXT")
-    monkeypatch.setattr(system_prompt._pb, "build_memory_guidance", lambda *_a, **_k: "MEM_TEXT")
-    monkeypatch.setattr("agent.oneshot_footprint.agent_is_oneshot", lambda _agent: False)
-    tools = ["read_file", "session_search", "skill_manage", "memory"]
-    with (
-        patch("agent.prompt_builder.load_soul_md", return_value=""),
-        patch("agent.prompt_builder.build_environment_hints", return_value=""),
-        patch("agent.prompt_builder.build_context_files_prompt", return_value=""),
-        patch("agent.coding_context._coding_mode", return_value="off"),
-    ):
-        on = "\n".join(_prompt_parts(_make_agent(valid_tool_names=tools, **{flag: True})).values())
-        off = "\n".join(_prompt_parts(_make_agent(valid_tool_names=tools, **{flag: False})).values())
-    assert needle in on and needle not in off
-
