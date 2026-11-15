@@ -73,7 +73,7 @@ async def prepare_compress(authority, live, payload, prepared):
             engine = _plugin_engine(authority, policy, config, model, runtime, resident, snapshot['target'])
             if engine is not None:
                 try:
-                    return _engine_compress(engine, head, tail, messages, request, memory_context), engine
+                    return _engine_compress(engine, head, tail, messages, request, memory_context, resident), engine
                 except BaseException:
                     if resident is None:
                         _end_engine(engine, snapshot['target'], messages)
@@ -116,16 +116,21 @@ async def prepare_compress(authority, live, payload, prepared):
                 in_place=is_truthy_value(options.get('in_place'), default=True))
 
 
-def _engine_compress(engine, head, tail, messages, request, memory_context):
+def _engine_compress(engine, head, tail, messages, request, memory_context, resident=None):
     """One forced ``compress()`` on a plugin engine; None when it changed nothing or would grow the
-    conversation (the agent path refuses a growing result the same way)."""
+    conversation (the agent path refuses a growing result the same way). A resident agent is offered
+    to the engine as ``ask_session_model``, as on the agent path."""
+    import functools
+
     from agent.conversation_compression import _supported_compression_kwargs
+    from agent.side_question_request import ask_in_context
     from agent.model_metadata import estimate_messages_tokens_rough, estimate_request_tokens_rough
     from hermes_cli.partial_compress import rejoin_compressed_head_and_tail
     engine._last_compress_refused_would_grow = False
     compressed = engine.compress(json.loads(json.dumps(head)), **_supported_compression_kwargs(
         engine.compress, current_tokens=estimate_request_tokens_rough(head),
-        focus_topic=request.focus_topic, force=True, memory_context=memory_context))
+        focus_topic=request.focus_topic, force=True, memory_context=memory_context,
+        ask_session_model=functools.partial(ask_in_context, resident) if resident is not None else None))
     if compressed == head:
         return None
     compressed = rejoin_compressed_head_and_tail(compressed, tail)

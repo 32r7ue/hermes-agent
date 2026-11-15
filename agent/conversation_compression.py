@@ -15,6 +15,7 @@ import contextlib
 import contextvars
 import copy
 import dataclasses
+import functools
 import inspect
 import json
 import logging
@@ -1690,16 +1691,20 @@ def _compression_lock_holder(agent: Any) -> str:
 
 def _supported_compression_kwargs(
     compress_fn: Any, *, current_tokens: Optional[int], focus_topic: Optional[str], force: bool,
-    memory_context: str, bypass_cooldown: bool = False,
+    memory_context: str, bypass_cooldown: bool = False, ask_session_model: Optional[Callable[..., Any]] = None,
 ) -> dict:
     """Return only compression kwargs accepted by an engine callable.
     Inspecting first keeps older plugin signatures compatible without catching ``TypeError`` and running a
-    stateful compressor twice."""
+    stateful compressor twice. ``ask_session_model`` is offered when a live session agent exists:
+    ``agent.side_question_request.ask_in_context`` bound to it (one request in the session's own
+    conversation, on its warm prompt cache)."""
     candidates = {"current_tokens": current_tokens, "focus_topic": focus_topic, "force": force}
     if bypass_cooldown:
         candidates["bypass_cooldown"] = True
     if memory_context:
         candidates["memory_context"] = memory_context
+    if ask_session_model is not None:
+        candidates["ask_session_model"] = ask_session_model
     try:
         parameters = inspect.signature(compress_fn).parameters
     except (TypeError, ValueError):
@@ -2926,10 +2931,12 @@ def _resolve_compress_call(
     bypass_cooldown: bool,
 ) -> tuple[Callable[..., Any], dict[str, Any]]:
     """Bind ``compress()`` and only the kwargs its signature accepts."""
+    from agent.side_question_request import ask_in_context
+
     compress_fn = agent.context_compressor.compress
     compress_kwargs = _supported_compression_kwargs(
         compress_fn, current_tokens=approx_tokens, focus_topic=focus_topic, force=force, memory_context=memory_context,
-        bypass_cooldown=bypass_cooldown,
+        bypass_cooldown=bypass_cooldown, ask_session_model=functools.partial(ask_in_context, agent),
     )
     if memory_context.strip() and "memory_context" not in compress_kwargs:
         engine_name = getattr(agent.context_compressor, "name", type(agent.context_compressor).__name__)

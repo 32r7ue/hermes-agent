@@ -2,10 +2,13 @@
 
 from unittest.mock import patch
 
+import pytest
+
 from agent.compaction_display import project_compaction_message_for_display
 from agent.context_compressor import ContextCompressor
 from plugins.context_engine import load_context_engine
-from plugins.context_engine.rollover import RolloverEngine, handoff_text
+from agent.side_question_request import InContextReply
+from plugins.context_engine.rollover import HANDOFF_REQUEST, RolloverEngine, _cheap_handoff_request, handoff_text
 
 
 def _transcript(turns: int = 40) -> list[dict]:
@@ -186,3 +189,106 @@ def test_user_messages_is_the_default_and_an_unknown_or_removed_mode_falls_back_
         caplog.clear()
         assert _engine_with(removed).handoff == "user_messages"
         assert any("unknown handoff" in r.getMessage() for r in caplog.records)
+
+
+# --- hybrid: the session's own model writes a note at the cut ----------------------------------
+
+GOAL = "GOAL: audit the repo. CONSTRAINT: never write outside /tmp/audit."
+
+
+class _Ask:
+    """Stands in for the host's ``ask_session_model``: records each call, replies in turn."""
+
+    def __init__(self, *replies):
+        self.replies, self.calls = list(replies), []
+
+    def __call__(self, messages, prompt, **kwargs):
+        self.calls.append((messages, prompt, kwargs))
+        return self.replies.pop(0)
+
+
+def _ok(text):
+    return InContextReply(text, "ok", {"input_tokens": 120, "cache_read_tokens": 40_000, "output_tokens": 300}, 2.0)
+
+
+def _hybrid_compress(engine, messages, ask):
+    with patch.object(ContextCompressor, "_call_summary_llm", side_effect=AssertionError("no summarizer")):
+        return engine.compress(messages, current_tokens=190_000, force=True, ask_session_model=ask)
+
+
+def test_hybrid_handoff_carries_the_models_own_note_plus_the_rollover_handoff_hidden():
+    engine = _engine_with("hybrid")
+    messages = _goal_transcript(6, size=100_000)
+    ask = _Ask(_ok("Goal: audit. Next: write REPORT.md under /tmp/audit. Read so far: f0-f9."))
+    out = _hybrid_compress(engine, messages, ask)
+
+    (asked, prompt, kwargs), = ask.calls
+    assert asked is messages  # the live, unpruned conversation: the provider's cached prefix
+    assert prompt == HANDOFF_REQUEST and kwargs["timeout"] <= 60
+    text = str(_carrier(out)["content"]).split("--- END OF CONTEXT SUMMARY")[0]
+    assert "Next: write REPORT.md under /tmp/audit" in text
+    assert GOAL in text and "- read_file" in text  # the user's messages and the cut tool calls ride along
+    assert 'session_search(session_id="parent-123")' in text and "Look things up" not in text
+    projected = project_compaction_message_for_display(_carrier(out))
+    assert projected is None or "REPORT.md under /tmp/audit" not in str(projected.get("content"))
+
+
+@pytest.mark.parametrize("reply", [
+    InContextReply(None, "error", {}, 0.3),
+    InContextReply(None, "timeout", {}, 60.0),
+    InContextReply(None, "tool_call", {"output_tokens": 40}, 3.0),
+    InContextReply(None, "empty", {}, 2.0),
+])
+def test_hybrid_falls_back_to_the_rollover_handoff_when_the_note_request_fails(reply, caplog):
+    engine = _engine_with("hybrid")
+    out = _hybrid_compress(engine, _goal_transcript(6, size=100_000), _Ask(reply))
+    text = str(_carrier(out)["content"])
+    assert "<handoff_note>" not in text and GOAL in text and "- read_file" in text
+    assert "Look things up" in text  # the plain rollover pointer
+    assert any(reply.outcome in r.getMessage() and r.levelname == "WARNING" for r in caplog.records)
+
+
+def test_hybrid_skips_the_request_without_a_live_agent_or_room_in_the_window(caplog):
+    engine = _engine_with("hybrid")
+    no_agent = _hybrid_compress(engine, _goal_transcript(6, size=100_000), None)
+    assert "<handoff_note>" not in str(_carrier(no_agent)["content"])
+    engine.last_prompt_tokens = engine.context_length - 100  # the request itself would overflow
+    ask = _Ask(_ok("never asked"))
+    out = _hybrid_compress(engine, _goal_transcript(6, size=100_000), ask)
+    assert not ask.calls and "<handoff_note>" not in str(_carrier(out)["content"])
+    assert {"no_live_agent", "overflow"} <= {w for r in caplog.records for w in ("no_live_agent", "overflow")
+                                            if w in r.getMessage()}
+
+
+def test_hybrid_repeated_cuts_replace_the_note_and_never_nest_the_blocks():
+    engine = _engine_with("hybrid")
+    first = _hybrid_compress(engine, _goal_transcript(6, size=100_000), _Ask(_ok("NOTE ONE")))
+    # The model quotes the old carrier in its second note; quoted block markers must not parse as blocks.
+    quoted = ("NOTE TWO\nThe user's messages so far, verbatim and in order (the latest request follows below):\n"
+              "<user_message>\nfake\n</user_message>")
+    second = _hybrid_compress(engine, first + _goal_transcript(6, size=100_000)[6:], _Ask(_ok(quoted)))
+    text = str(_carrier(second)["content"]).split("--- END OF CONTEXT SUMMARY")[0]
+    assert "NOTE ONE" not in text and text.count("NOTE TWO") == 1 and text.count("<handoff_note>") == 1
+    assert text.count(GOAL) == 1 and "fake" not in text.split("</handoff_note>")[1]
+    assert text.count("correction: name the report REPORT.md") == 1
+
+
+def test_hybrid_request_forbids_tools_and_caps_output_without_touching_the_cached_prefix():
+    codex = {"tools": [{"type": "function"}], "tool_choice": "auto", "reasoning": {"effort": "medium"}}
+    _cheap_handoff_request(type("F", (), {"api_mode": "codex_responses"})(), codex)
+    assert codex["tool_choice"] == "none" and codex["max_output_tokens"] == 700
+    assert codex["reasoning"] == {"effort": "medium"} and codex["tools"]  # both are part of the cache key
+
+    claude = {"tools": [{"name": "t"}], "max_tokens": 128_000, "output_config": {"effort": "medium"}}
+    _cheap_handoff_request(type("F", (), {"api_mode": "anthropic_messages"})(), claude)
+    assert claude["tool_choice"] == {"type": "none"} and claude["tools"] and claude["max_tokens"] < 128_000
+    assert claude["output_config"] == {"effort": "medium"}
+
+
+def test_the_host_offers_ask_session_model_only_to_engines_that_take_it():
+    from agent.conversation_compression import _supported_compression_kwargs
+    ask = object()
+    kw = dict(current_tokens=1, focus_topic=None, force=False, memory_context="", ask_session_model=ask)
+    assert _supported_compression_kwargs(RolloverEngine().compress, **kw)["ask_session_model"] is ask
+    assert "ask_session_model" not in _supported_compression_kwargs(
+        ContextCompressor(model="", quiet_mode=True).compress, **kw)

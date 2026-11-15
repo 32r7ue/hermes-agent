@@ -15,12 +15,14 @@ keeps ``side_question``).
 from __future__ import annotations
 
 import contextvars
+import copy
 import logging
 import threading
 import time
 import uuid
+import weakref
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +66,8 @@ class _Audit:
     started: float = field(default_factory=time.monotonic)
     outcome: str = "error"
     usage: dict[str, Any] = field(default_factory=dict)
+    text: Optional[str] = None
+    build_seconds: float = 0.0
 
 
 def _agent_provider_refusal(agent: Any) -> Optional[str]:
@@ -122,9 +126,11 @@ def _build_fork(parent: Any, capture: SideQuestionCapture) -> Any:
     return fork
 
 
-def _send(fork: Any, capture: SideQuestionCapture, prompt: str, audit: _Audit) -> Any:
+def _send(fork: Any, capture: SideQuestionCapture, prompt: str, audit: _Audit, *, trim: bool = True,
+          adjust_kwargs: Optional[Callable[[Any, dict[str, Any]], None]] = None) -> Any:
     """Assemble, build and perform ONE request on the fork; the normalized reply, or None on
-    refusal / a cancelled call."""
+    refusal / a cancelled call. ``trim=False`` keeps a tail of tool results (a mid-turn caller);
+    ``adjust_kwargs(fork, api_kwargs)`` edits the final payload in place (output cap, effort)."""
     from agent import relay_llm
     from agent.auxiliary_hooks import finish_aux_call_hooks, start_aux_call_hooks
     from agent.side_question import trim_snapshot_for_fork
@@ -148,7 +154,8 @@ def _send(fork: Any, capture: SideQuestionCapture, prompt: str, audit: _Audit) -
     fork._current_turn_id, fork._current_task_id, fork._current_api_request_id = turn_id, task_id, api_request_id
     fork._disable_streaming = True
 
-    messages = trim_snapshot_for_fork(capture.messages) + [{"role": "user", "content": prompt}]
+    history = trim_snapshot_for_fork(capture.messages) if trim else list(capture.messages)
+    messages = history + [{"role": "user", "content": prompt}]
     assembled = assemble_api_request(
         fork, messages=messages, current_turn_user_idx=len(messages) - 1, _ext_prefetch_cache=None,
         _plugin_user_context=None, moa_config=None, active_system_prompt=fork._cached_system_prompt,
@@ -162,6 +169,8 @@ def _send(fork: Any, capture: SideQuestionCapture, prompt: str, audit: _Audit) -
     if has_server_side_tools(built.api_kwargs):
         audit.outcome = "refused:server_side_tools"
         return None
+    if adjust_kwargs is not None:
+        adjust_kwargs(fork, built.api_kwargs)
     hooks = start_aux_call_hooks(
         aux_task=PLUGIN_SIDE_QUESTION_TASK, metadata={"api_request_id": api_request_id, "plugin_id": audit.plugin_id},
         client=fork.client,
@@ -214,11 +223,12 @@ def _answer_text(fork: Any, assistant_message: Any) -> Optional[str]:
 def _log_audit(audit: _Audit) -> None:
     usage = audit.usage
     logger.info(
-        "side_question plugin=%s outcome=%s calls=%d in=%d cache_read=%d cache_write=%d out=%d latency=%.1fs",
+        "side_question plugin=%s outcome=%s calls=%d in=%d cache_read=%d cache_write=%d out=%d latency=%.1fs "
+        "(fork build %.1fs)",
         audit.plugin_id or "?", audit.outcome,
         *(int(usage.get(key) or 0) for key in (
             "api_calls", "input_tokens", "cache_read_tokens", "cache_write_tokens", "output_tokens")),
-        time.monotonic() - audit.started,
+        time.monotonic() - audit.started, audit.build_seconds,
     )
 
 
@@ -231,6 +241,48 @@ def ask_text_only(
     provider error or an empty / tool-call-only reply. The request parameters (tools, reasoning,
     max_tokens, tool_choice) are the parent's verbatim: changing any of them changes the cache
     key, and an inherited thinking budget 400s against a smaller max_tokens."""
+    return _ask(capture, prompt, plugin_id=plugin_id, timeout=timeout).text
+
+
+@dataclass
+class InContextReply:
+    """What :func:`ask_in_context` got: the text (None on any failure), why, and the call's usage."""
+
+    text: Optional[str]
+    outcome: str
+    usage: dict[str, Any]
+    seconds: float
+
+
+def ask_in_context(
+    agent: Any, messages: list[dict[str, Any]], prompt: str, *, purpose: str, timeout: float,
+    adjust_kwargs: Optional[Callable[[Any, dict[str, Any]], None]] = None,
+) -> InContextReply:
+    """Ask the live session agent ``prompt`` at the end of ``messages`` (mid-turn: a tail of tool
+    results is kept, not trimmed), in ONE request on a cache-parity fork. Nothing is persisted or
+    shown; the usage is billed to the session as ``plugin_side_question:<purpose>``. A reply that
+    calls a tool counts as a failure (``outcome="tool_call"``, text None)."""
+    capture = SideQuestionCapture(
+        parent_ref=weakref.ref(agent),
+        # The fork's system prompt comes from the agent; a leading system row would be sent twice.
+        messages=[m for m in messages if not (isinstance(m, dict) and m.get("role") == "system")],
+        system_prompt=agent._cached_system_prompt,
+        system_prompt_static=getattr(agent, "_cached_system_prompt_static", None),
+        tools=copy.deepcopy(agent.tools or []),
+        session_id=agent.session_id,
+        turn_id=str(getattr(agent, "_current_turn_id", None) or uuid.uuid4()),
+        runtime=runtime_key(agent),
+        context=contextvars.copy_context(),
+    )
+    audit = _ask(capture, prompt, plugin_id=purpose, timeout=timeout, trim=False,
+                 adjust_kwargs=adjust_kwargs, reject_tool_calls=True)
+    return InContextReply(audit.text, audit.outcome, audit.usage, time.monotonic() - audit.started)
+
+
+def _ask(
+    capture: SideQuestionCapture, prompt: str, *, plugin_id: str, timeout: float, trim: bool = True,
+    adjust_kwargs: Optional[Callable[[Any, dict[str, Any]], None]] = None, reject_tool_calls: bool = False,
+) -> _Audit:
     from agent.background_review import release_cache_parity_fork
 
     audit = _Audit(plugin_id)
@@ -239,7 +291,7 @@ def ask_text_only(
     if refusal is not None:
         audit.outcome = f"refused:{refusal}"
         _log_audit(audit)
-        return None
+        return audit
     fork = None
     built: list = []  # the fork once built, for the timer
     timed_out = threading.Event()
@@ -260,23 +312,29 @@ def ask_text_only(
     try:
         fork = _build_fork(parent, capture)
         built.append(fork)
+        audit.build_seconds = time.monotonic() - audit.started
         if timed_out.is_set():
             audit.outcome = "timeout"
-            return None
+            return audit
         if runtime_key(parent) != capture.runtime:
             audit.outcome = "refused:runtime_changed"
-            return None
-        assistant_message = _send(fork, capture, prompt, audit)
+            return audit
+        assistant_message = _send(fork, capture, prompt, audit, trim=trim, adjust_kwargs=adjust_kwargs)
         if assistant_message is None:
-            return None
-        answer = _answer_text(fork, assistant_message)
-        audit.outcome = "ok" if answer else "empty"
-        return answer
+            if timed_out.is_set():
+                audit.outcome = "timeout"
+            return audit
+        if reject_tool_calls and getattr(assistant_message, "tool_calls", None):
+            audit.outcome = "tool_call"
+            return audit
+        audit.text = _answer_text(fork, assistant_message)
+        audit.outcome = "ok" if audit.text else "empty"
+        return audit
     except Exception:
-        # Boundary: a plugin's side question returns None, it never raises into the plugin.
+        # Boundary: a side question returns no text, it never raises into its caller.
         audit.outcome = "timeout" if timed_out.is_set() else "error"
         logger.warning("side question %s (plugin=%s)", audit.outcome, plugin_id or "?", exc_info=True)
-        return None
+        return audit
     finally:
         timer.cancel()
         if fork is not None:

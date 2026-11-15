@@ -48,10 +48,20 @@ HANDOFF_MODES = ("user_messages", "hybrid")
 DEFAULT_HANDOFF = "user_messages"
 
 
-def handoff_text(session_id: str) -> str:
-    """The whole handoff. The built-in ``[CONTEXT SUMMARY]:`` prefix keeps it recognized as a
-    handoff carrier everywhere, also after a restart: hidden from the transcript view, never
-    counted as a user turn, excluded from session_search bookends and titles."""
+def handoff_text(session_id: str, *, with_note: bool = False) -> str:
+    """The pointer that opens every handoff. The built-in ``[CONTEXT SUMMARY]:`` prefix keeps it
+    recognized as a handoff carrier everywhere, also after a restart: hidden from the transcript
+    view, never counted as a user turn, excluded from session_search bookends and titles.
+    ``with_note`` (hybrid): the record is named as a reference for unclear details, no lookup
+    is suggested, since the model's own note carries the working state."""
+    if session_id and with_note:
+        return (
+            f"{LEGACY_SUMMARY_PREFIX} You are continuing session {session_id}. Its full record (every "
+            "message, tool call and tool result) stays stored verbatim; session_search"
+            f'(session_id="{session_id}") reads it if a detail of the work or a constraint is ever unclear. '
+            "Your note below and the messages after this one are your working context; the messages after "
+            "this one are the latest part of the session, verbatim. Carry on seamlessly; do not mention this note."
+        )
     if session_id:
         where = (
             f'session {session_id}. Its full record (every message, tool call and tool result) '
@@ -149,6 +159,54 @@ def user_messages_block(engine: ContextCompressor, messages: list, turns: list, 
     return "\n\n" + _USER_BLOCK_HEAD + "".join(f"\n{_USER_OPEN}\n{t}\n{_USER_CLOSE}" for t in carried)
 
 
+# --- handoff: hybrid ----------------------------------------------------------------------------
+# At the cut the session's own model writes a note inside its own conversation: one request on
+# the warm prompt cache (same model, system prompt and tools), never stored or shown. Any failure
+# falls back to the user_messages handoff for that cut; a cut never waits on it past the timeout.
+HYBRID_TIMEOUT_SECONDS = 60.0
+HANDOFF_MAX_OUTPUT_TOKENS = 700
+# Anthropic: adaptive thinking spends from max_tokens and lowering the effort invalidates the
+# messages cache (measured 2026-11-14: claude-opus-5-5 at effort low read 23.8k of 65.7k from
+# cache), so thinking keeps the session's effort and gets headroom above the note's own length.
+ANTHROPIC_HANDOFF_MAX_TOKENS = 2500
+HANDOFF_REQUEST = (
+    "[Context handoff] Your context is full. It is about to be replaced by: the system prompt, a note "
+    "you write now, the user's messages verbatim, a one-line list of your tool calls so far, and the "
+    "most recent messages verbatim. Write that note now, to yourself, so you can carry on without "
+    "losing anything: the goal and every constraint or preference in force; what you have done and what "
+    "you learned (results, facts, decisions and why); what you were about to do next; open questions; "
+    "the exact identifiers you will need (paths, names, commands, values, ids). Leave out what the "
+    "user's messages and the tool-call list already say. Plain text, at most 450 words. Do not call "
+    "tools; this reply is only the note."
+)
+_NOTE_HEAD = "Your own handoff note, written just before this point:"
+_NOTE_OPEN, _NOTE_CLOSE = "<handoff_note>", "</handoff_note>"
+# Markers the next cut parses out of this carrier; a note that quotes one must not be read as a block.
+_BLOCK_MARKERS = (_ACTIONS_HEAD, _USER_BLOCK_HEAD, _USER_OPEN, _USER_CLOSE, _NOTE_HEAD, _NOTE_OPEN, _NOTE_CLOSE)
+
+
+def _cheap_handoff_request(fork: Any, api_kwargs: dict[str, Any]) -> None:
+    """Cap the note and forbid tool calls without leaving the cached prefix (measured 2026-11-14):
+    Codex keeps the full cache with ``tool_choice: none`` and ``max_output_tokens``, but a lower
+    reasoning effort re-sends everything uncached and ``none`` is a 400, so the effort stays.
+    Anthropic keeps it with ``tool_choice: {"type": "none"}`` and a smaller ``max_tokens`` (set
+    here, after the adapter, which would drop ``tools`` for "none"). Other API modes get the
+    session's request unchanged; the instruction, the timeout and the tool-call check bound them."""
+    mode = getattr(fork, "api_mode", "")
+    if mode == "codex_responses":
+        api_kwargs["tool_choice"] = "none"
+        api_kwargs["max_output_tokens"] = HANDOFF_MAX_OUTPUT_TOKENS
+    elif mode == "anthropic_messages":
+        api_kwargs["tool_choice"] = {"type": "none"}
+        api_kwargs["max_tokens"] = ANTHROPIC_HANDOFF_MAX_TOKENS
+
+
+def note_block(note: str) -> str:
+    for marker in _BLOCK_MARKERS:
+        note = note.replace(marker, "")
+    return f"\n\n{_NOTE_HEAD}\n{_NOTE_OPEN}\n{note.strip()}\n{_NOTE_CLOSE}"
+
+
 def _rollover_config() -> dict[str, Any]:
     try:
         from hermes_cli.config import load_config_readonly
@@ -190,11 +248,49 @@ class RolloverEngine(ContextCompressor):
     def name(self) -> str:
         return "rollover"
 
+    # The host offers ``ask_session_model`` where a live session agent exists (automatic cuts and a
+    # resident session's manual compact); the live, unpruned conversation is what the note request
+    # replays, byte for byte the prefix the provider has cached.
+    _ask_session_model = None
+    _live_messages = None
+
+    def compress(self, messages, current_tokens=None, focus_topic=None, force=False, memory_context="",
+                 bypass_cooldown=False, ask_session_model=None):
+        self._ask_session_model, self._live_messages = ask_session_model, messages
+        try:
+            return super().compress(messages, current_tokens=current_tokens, focus_topic=focus_topic, force=force,
+                                    memory_context=memory_context, bypass_cooldown=bypass_cooldown)
+        finally:
+            self._ask_session_model = self._live_messages = None
+
     def _summarize_window(self, messages, turns_to_summarize, scan, focus_topic, memory_context, bypass_cooldown):
         self._previous_summary = None
-        return (handoff_text(getattr(self, "_session_id", "") or "")
+        note = self._hybrid_note() if self.handoff == "hybrid" else None
+        return (handoff_text(getattr(self, "_session_id", "") or "", with_note=bool(note))
+                + (note_block(note) if note else "")
                 + actions_block(messages, turns_to_summarize, scan.summary_indices)
                 + user_messages_block(self, messages, turns_to_summarize, scan.summary_indices))
+
+    def _hybrid_note(self) -> Optional[str]:
+        """The model's own note, or None (logged) to fall back to the user_messages handoff."""
+        if self._ask_session_model is None or not self._live_messages:
+            outcome = "no_live_agent"
+        elif self.context_length and self.last_prompt_tokens + ANTHROPIC_HANDOFF_MAX_TOKENS > self.context_length:
+            outcome = "overflow"
+        else:
+            reply = self._ask_session_model(
+                self._live_messages, HANDOFF_REQUEST, purpose="rollover_handoff",
+                timeout=HYBRID_TIMEOUT_SECONDS, adjust_kwargs=_cheap_handoff_request)
+            usage = reply.usage or {}
+            logger.info(
+                "rollover: hybrid handoff outcome=%s wall=%.1fs uncached_in=%d cached_in=%d out=%d note_chars=%d",
+                reply.outcome, reply.seconds, int(usage.get("input_tokens") or 0),
+                int(usage.get("cache_read_tokens") or 0), int(usage.get("output_tokens") or 0), len(reply.text or ""))
+            if reply.text:
+                return reply.text
+            outcome = reply.outcome
+        logger.warning("rollover: hybrid handoff unavailable (%s); this cut uses the user_messages handoff", outcome)
+        return None
 
     # The built-in compressor skips the summarizer after weak or failed rounds to save model calls,
     # then writes a generic fallback summary. Rollover makes no model call, so a skip saves nothing and
