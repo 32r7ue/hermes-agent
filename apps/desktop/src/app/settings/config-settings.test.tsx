@@ -81,14 +81,14 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-function renderConfigSettings(activeSectionId = 'safety') {
+function renderConfigSettings(activeSectionId = 'safety', subpage?: string) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const importInputRef = createRef<HTMLInputElement>()
 
   render(
     <MemoryRouter>
       <QueryClientProvider client={client}>
-        <ConfigSettings activeSectionId={activeSectionId} importInputRef={importInputRef} />
+        <ConfigSettings activeSectionId={activeSectionId} importInputRef={importInputRef} subpage={subpage} />
       </QueryClientProvider>
     </MemoryRouter>
   )
@@ -151,5 +151,24 @@ describe('ConfigSettings autosave', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe('Context handoff select', () => {
+  it('shows the rollover handoff modes by name, each with its description', async () => {
+    getHermesConfigRecord.mockResolvedValue({ context: { engine: 'rollover', rollover: { handoff: 'user_messages' } } })
+    getHermesConfigSchema.mockResolvedValue({
+      fields: {
+        'context.rollover.handoff': { type: 'select', options: ['user_messages', 'hybrid'], category: 'context' }
+      }
+    })
+
+    renderConfigSettings('memory', 'context')
+
+    const row = (await screen.findByText('Context handoff')).closest('[data-tour="field-context.rollover.handoff"]')
+    expect(row).not.toBeNull()
+    expect(row?.textContent).toContain('Rollover')
+    expect(row?.textContent).toContain('Hybrid: the same, plus a short handoff note')
+    expect(row?.textContent).not.toContain('User Messages')
   })
 })

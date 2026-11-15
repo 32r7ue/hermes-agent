@@ -231,6 +231,11 @@ export const PROVIDER_GROUPS: ProviderPrefix[] = [
 
 // Schema-side select overrides for desktop-relevant enum fields whose
 // backend schema only declares a string type.
+// Display names for select options whose stored values read poorly ('user_messages').
+export const ENUM_OPTION_LABELS: Record<string, Record<string, string>> = {
+  'context.rollover.handoff': { user_messages: 'Rollover', hybrid: 'Hybrid' }
+}
+
 export const ENUM_OPTIONS: Record<string, string[]> = {
   'agent.image_input_mode': ['auto', 'native', 'text'],
   'approvals.mode': ['manual', 'smart', 'off'],
@@ -577,7 +582,10 @@ export const FIELD_LABELS: Record<string, string> = defineFieldCopy({
     provider: 'Memory Provider'
   },
   context: {
-    engine: 'Context Engine'
+    engine: 'Context Engine',
+    rollover: {
+      handoff: 'Context handoff'
+    }
   },
   compression: {
     enabled: 'Auto-Compression',
@@ -656,7 +664,11 @@ export const FIELD_DESCRIPTIONS: Record<string, string> = defineFieldCopy({
     userProfileEnabled: 'Maintain a compact profile of user preferences.'
   },
   context: {
-    engine: 'Strategy for managing long conversations near the context limit.'
+    engine: 'Strategy for managing long conversations near the context limit.',
+    rollover: {
+      handoff:
+        'Rollover: the new context keeps your messages, a list of past tool calls and the latest work, with no extra model call. Hybrid: the same, plus a short handoff note the model writes for itself before the cut (one quick extra call).'
+    }
   },
   compression: {
     enabled: 'Summarize older context when conversations get large.',
@@ -781,6 +793,7 @@ export const SECTIONS: DesktopConfigSection[] = [
       'memory.user_char_limit',
       'memory.provider',
       'context.engine',
+      'context.rollover.handoff',
       'compression.enabled',
       'compression.threshold',
       'compression.codex_gpt55_autoraise',

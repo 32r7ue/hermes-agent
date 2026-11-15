@@ -40,6 +40,7 @@ import { PanelEmpty } from '../overlays/panel'
 
 import { ConfigField } from './config-field'
 import { configSubpageForField } from './config-subpages'
+import { ENUM_OPTION_LABELS } from './constants'
 import { DELEGATION_ROUTE_COMPANION_KEY, DelegationRouteRow } from './delegation-route-row'
 import { DelegationRoutingSlot } from './delegation/routing-section'
 import { SubagentModelGate } from './delegation/subagent-model-gate'
@@ -556,7 +557,7 @@ function ConfigSettingsInner({
                       : enumOptionsFor(key, getNested(config, key), config)
                   }
                   onChange={value => updateConfig(setConfigField(config, key, value))}
-                  optionLabels={key === 'tts.elevenlabs.voice_id' ? elevenLabsVoiceLabels : undefined}
+                  optionLabels={key === 'tts.elevenlabs.voice_id' ? elevenLabsVoiceLabels : ENUM_OPTION_LABELS[key]}
                   schema={field}
                   schemaKey={key}
                   value={configFieldValue(config, key)}

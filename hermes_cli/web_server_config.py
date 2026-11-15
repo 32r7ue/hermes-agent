@@ -143,6 +143,8 @@ _SCHEMA_OVERRIDES: dict[str, dict[str, Any]] = {
     "display.busy_input_mode": _select("Input behavior while agent is running", "interrupt", "queue", "steer"),
     "approvals.mode": _select("Dangerous command approval mode", "manual", "smart", "off"),
     "context.engine": _select("Context management engine", "default", "custom"),
+    "context.rollover.handoff": _select(
+        "What the new context gets when the rollover engine cuts it", "user_messages", "hybrid"),
     "human_delay.mode": _select("Simulated typing delay mode", "off", "typing", "fixed"),
     "logging.level": _select("Log level for agent.log", "DEBUG", "INFO", "WARNING", "ERROR"),
     "agent.service_tier": _select(
