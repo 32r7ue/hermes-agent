@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import { atom } from 'nanostores'
 import { createRef } from 'react'
 import { MemoryRouter } from 'react-router'
@@ -156,10 +156,10 @@ describe('ConfigSettings autosave', () => {
 
 describe('Context handoff select', () => {
   it('shows the rollover handoff modes by name, each with its description', async () => {
-    getHermesConfigRecord.mockResolvedValue({ context: { engine: 'rollover', rollover: { handoff: 'user_messages' } } })
+    getHermesConfigRecord.mockResolvedValue({ context: { engine: 'rollover', rollover: { handoff: 'hybrid' } } })
     getHermesConfigSchema.mockResolvedValue({
       fields: {
-        'context.rollover.handoff': { type: 'select', options: ['user_messages', 'hybrid'], category: 'context' }
+        'context.rollover.handoff': { type: 'select', options: ['hybrid', 'user_messages'], category: 'context' }
       }
     })
 
@@ -167,8 +167,8 @@ describe('Context handoff select', () => {
 
     const row = (await screen.findByText('Context handoff')).closest('[data-tour="field-context.rollover.handoff"]')
     expect(row).not.toBeNull()
-    expect(row?.textContent).toContain('Rollover')
-    expect(row?.textContent).toContain('Hybrid: the same, plus a short handoff note')
+    expect(within(row as HTMLElement).getByRole('combobox').textContent).toBe('Hybrid')
+    expect(row?.textContent).toContain('Rollover: the same without the note')
     expect(row?.textContent).not.toContain('User Messages')
   })
 })

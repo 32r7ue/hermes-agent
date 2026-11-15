@@ -15,14 +15,16 @@ Select it with ``context.engine: rollover`` in config.yaml. Optional knobs::
       rollover:
         threshold_tokens: 450000   # absolute trigger cap
         threshold_percent: 0.90    # trigger for windows below the cap
-        handoff: user_messages     # user_messages | hybrid (see below)
+        handoff: hybrid            # hybrid | user_messages (see below)
 
 Handoff modes:
-- ``user_messages`` ("Rollover"): the pointer, one line per cut tool call, and every real user
-  message cut away so far, verbatim and in order (each capped). No model call at the cut.
-- ``hybrid``: the same plus a handoff note the session's own model writes at the cut, inside its
-  own conversation (one extra request on the warm prompt cache). Any failure of that request
-  falls back to ``user_messages`` for that cut.
+- ``hybrid`` (default): a handoff note the session's own model writes at the cut, inside its own
+  conversation (one extra request on the warm prompt cache), then every real user message cut
+  away so far (verbatim, in order, each capped), one sentence saying the full record exists and
+  can be searched, and one line per cut tool call. Any failure of that request falls back to
+  ``user_messages`` for that cut; the cut itself never waits past a hard deadline.
+- ``user_messages`` ("Rollover"): the pointer, one line per cut tool call, and the user's
+  messages. No model call at the cut.
 
 The trigger is checked between model calls, so a rollover always lands on a finished
 step (a complete model action plus its tool results). The model is never told about the
@@ -44,24 +46,17 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_THRESHOLD_TOKENS = 450_000
 DEFAULT_THRESHOLD_PERCENT = 0.90
-HANDOFF_MODES = ("user_messages", "hybrid")
-DEFAULT_HANDOFF = "user_messages"
+HANDOFF_MODES = ("hybrid", "user_messages")
+DEFAULT_HANDOFF = "hybrid"
 
 
 def handoff_text(session_id: str, *, with_note: bool = False) -> str:
     """The pointer that opens every handoff. The built-in ``[CONTEXT SUMMARY]:`` prefix keeps it
     recognized as a handoff carrier everywhere, also after a restart: hidden from the transcript
     view, never counted as a user turn, excluded from session_search bookends and titles.
-    ``with_note`` (hybrid): the record is named as a reference for unclear details, no lookup
-    is suggested, since the model's own note carries the working state."""
-    if session_id and with_note:
-        return (
-            f"{LEGACY_SUMMARY_PREFIX} You are continuing session {session_id}. Its full record (every "
-            "message, tool call and tool result) stays stored verbatim; session_search"
-            f'(session_id="{session_id}") reads it if a detail of the work or a constraint is ever unclear. '
-            "Your note below and the messages after this one are your working context; the messages after "
-            "this one are the latest part of the session, verbatim. Carry on seamlessly; do not mention this note."
-        )
+    ``with_note`` (hybrid): only the opener; :func:`record_sentence` names the record later."""
+    if with_note:
+        return f"{LEGACY_SUMMARY_PREFIX} You are continuing an earlier session. Carry on seamlessly; do not mention this note."
     if session_id:
         where = (
             f'session {session_id}. Its full record (every message, tool call and tool result) '
@@ -164,6 +159,7 @@ def user_messages_block(engine: ContextCompressor, messages: list, turns: list, 
 # the warm prompt cache (same model, system prompt and tools), never stored or shown. Any failure
 # falls back to the user_messages handoff for that cut; a cut never waits on it past the timeout.
 HYBRID_TIMEOUT_SECONDS = 60.0
+HYBRID_DEADLINE_SECONDS = HYBRID_TIMEOUT_SECONDS + 10.0
 HANDOFF_MAX_OUTPUT_TOKENS = 700
 # Anthropic: adaptive thinking spends from max_tokens and lowering the effort invalidates the
 # messages cache (measured 2026-11-14: claude-opus-5-5 at effort low read 23.8k of 65.7k from
@@ -199,6 +195,14 @@ def _cheap_handoff_request(fork: Any, api_kwargs: dict[str, Any]) -> None:
     elif mode == "anthropic_messages":
         api_kwargs["tool_choice"] = {"type": "none"}
         api_kwargs["max_tokens"] = ANTHROPIC_HANDOFF_MAX_TOKENS
+
+
+def record_sentence(session_id: str) -> str:
+    """Hybrid: a plain statement that the full record exists and can be searched, not a request to."""
+    where = f'session_search(session_id="{session_id}")' if session_id else "session_search"
+    return (f"\n\nThe full record of everything before this point (every message, tool call and result) is "
+            f"stored; {where} searches it deeper when you need to. The messages after this note are the latest "
+            "part, verbatim.")
 
 
 def note_block(note: str) -> str:
@@ -265,11 +269,37 @@ class RolloverEngine(ContextCompressor):
 
     def _summarize_window(self, messages, turns_to_summarize, scan, focus_topic, memory_context, bypass_cooldown):
         self._previous_summary = None
+        session_id = getattr(self, "_session_id", "") or ""
+        actions = actions_block(messages, turns_to_summarize, scan.summary_indices)
+        users = user_messages_block(self, messages, turns_to_summarize, scan.summary_indices)
         note = self._hybrid_note() if self.handoff == "hybrid" else None
-        return (handoff_text(getattr(self, "_session_id", "") or "", with_note=bool(note))
-                + (note_block(note) if note else "")
-                + actions_block(messages, turns_to_summarize, scan.summary_indices)
-                + user_messages_block(self, messages, turns_to_summarize, scan.summary_indices))
+        if note:  # the model's note, the user's words, where the record is, what was done
+            return handoff_text(session_id, with_note=True) + note_block(note) + users + record_sentence(session_id) + actions
+        return handoff_text(session_id) + actions + users
+
+    def _ask_within_deadline(self) -> Any:
+        """The ask on a worker thread: its reply, the exception it raised, or None when it is still
+        running at the hard deadline (left to finish in the background; nothing waits on it). The
+        ask's own timeout interrupts the request; this bounds what an interrupt cannot reach
+        (building the fork, a provider call that ignores the interrupt)."""
+        import contextvars
+        import threading
+
+        box: dict[str, Any] = {}
+        ask, live = self._ask_session_model, self._live_messages
+
+        def run() -> None:
+            try:
+                box["reply"] = ask(live, HANDOFF_REQUEST, purpose="rollover_handoff",
+                                   timeout=HYBRID_TIMEOUT_SECONDS, adjust_kwargs=_cheap_handoff_request)
+            except BaseException as exc:  # health: allow BLE001 -- any failure of the note falls back
+                box["reply"] = exc
+
+        worker = threading.Thread(target=contextvars.copy_context().run, args=(run,), daemon=True,
+                                  name="rollover-handoff")
+        worker.start()
+        worker.join(HYBRID_DEADLINE_SECONDS)
+        return box.get("reply")
 
     def _hybrid_note(self) -> Optional[str]:
         """The model's own note, or None (logged) to fall back to the user_messages handoff."""
@@ -277,10 +307,9 @@ class RolloverEngine(ContextCompressor):
             outcome = "no_live_agent"
         elif self.context_length and self.last_prompt_tokens + ANTHROPIC_HANDOFF_MAX_TOKENS > self.context_length:
             outcome = "overflow"
+        elif (reply := self._ask_within_deadline()) is None or isinstance(reply, BaseException):
+            outcome = "stalled" if reply is None else f"raised {type(reply).__name__}"
         else:
-            reply = self._ask_session_model(
-                self._live_messages, HANDOFF_REQUEST, purpose="rollover_handoff",
-                timeout=HYBRID_TIMEOUT_SECONDS, adjust_kwargs=_cheap_handoff_request)
             usage = reply.usage or {}
             logger.info(
                 "rollover: hybrid handoff outcome=%s wall=%.1fs uncached_in=%d cached_in=%d out=%d note_chars=%d",

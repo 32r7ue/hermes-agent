@@ -1285,9 +1285,10 @@ DEFAULT_CONFIG = {
     "context": {
         "engine": "compressor",
         # Rollover engine (context.engine: rollover): what the new context gets at a cut.
-        # user_messages = pointer + the user's messages + the cut tool calls, no model call;
-        # hybrid = the same plus a note the session's own model writes at the cut.
-        "rollover": {"handoff": "user_messages"},
+        # hybrid = a note the session's own model writes at the cut + the user's messages + the
+        # cut tool calls; user_messages = the same without the note (no model call; also the
+        # fallback when the note request fails).
+        "rollover": {"handoff": "hybrid"},
         # Return freed glibc pages at agent/TUI cleanup boundaries (no-op elsewhere).
         "memory_trim": {
             "enabled": True,

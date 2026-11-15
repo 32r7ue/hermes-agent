@@ -1712,7 +1712,9 @@ def _supported_compression_kwargs(
         # shape when the callable has no inspectable signature.
         return {"current_tokens": current_tokens}
     if any(parameter.kind is inspect.Parameter.VAR_KEYWORD for parameter in parameters.values()):
-        return candidates
+        # ``ask_session_model`` is opt-in by name: a ``**kwargs`` engine (or a mock) never asked for it.
+        return {name: value for name, value in candidates.items()
+                if name != "ask_session_model" or name in parameters}
     return {name: value for name, value in candidates.items() if name in parameters}
 
 

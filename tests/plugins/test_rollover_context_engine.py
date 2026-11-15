@@ -183,11 +183,13 @@ def test_user_messages_handoff_cuts_a_pasted_document():
     assert len(text) < USER_MESSAGE_MAX_CHARS + 3000
 
 
-def test_user_messages_is_the_default_and_an_unknown_or_removed_mode_falls_back_to_it(caplog):
-    assert RolloverEngine().handoff == "user_messages"
+def test_hybrid_is_the_default_and_an_unknown_or_removed_mode_falls_back_to_it(caplog):
+    with patch("plugins.context_engine.rollover._rollover_config", return_value={}):
+        assert RolloverEngine().handoff == "hybrid"
+    assert _engine_with("user_messages").handoff == "user_messages"
     for removed in ("pointer", "summary", "bogus"):
         caplog.clear()
-        assert _engine_with(removed).handoff == "user_messages"
+        assert _engine_with(removed).handoff == "hybrid"
         assert any("unknown handoff" in r.getMessage() for r in caplog.records)
 
 
@@ -229,6 +231,9 @@ def test_hybrid_handoff_carries_the_models_own_note_plus_the_rollover_handoff_hi
     assert "Next: write REPORT.md under /tmp/audit" in text
     assert GOAL in text and "- read_file" in text  # the user's messages and the cut tool calls ride along
     assert 'session_search(session_id="parent-123")' in text and "Look things up" not in text
+    # Order: the model's note, the user's words, where the full record is, what was done.
+    assert (text.index("Next: write REPORT.md") < text.index(GOAL) < text.index("full record of everything")
+            < text.index("- read_file"))
     projected = project_compaction_message_for_display(_carrier(out))
     assert projected is None or "REPORT.md under /tmp/audit" not in str(projected.get("content"))
 
@@ -246,6 +251,35 @@ def test_hybrid_falls_back_to_the_rollover_handoff_when_the_note_request_fails(r
     assert "<handoff_note>" not in text and GOAL in text and "- read_file" in text
     assert "Look things up" in text  # the plain rollover pointer
     assert any(reply.outcome in r.getMessage() and r.levelname == "WARNING" for r in caplog.records)
+
+
+def test_hybrid_falls_back_when_the_ask_raises_or_outlives_the_hard_deadline(caplog, monkeypatch):
+    import threading
+    import time
+
+    from plugins.context_engine import rollover
+
+    def boom(*a, **k):
+        raise RuntimeError("fork build failed")
+
+    engine = _engine_with("hybrid")
+    out = _hybrid_compress(engine, _goal_transcript(6, size=100_000), boom)
+    assert "<handoff_note>" not in str(_carrier(out)["content"]) and GOAL in str(_carrier(out)["content"])
+
+    release = threading.Event()
+
+    def hang(*a, **k):
+        release.wait(5)
+        return _ok("too late")
+
+    monkeypatch.setattr(rollover, "HYBRID_DEADLINE_SECONDS", 0.2)
+    started = time.monotonic()
+    out = _hybrid_compress(engine, _goal_transcript(6, size=100_000), hang)
+    release.set()
+    assert time.monotonic() - started < 3  # the cut did not wait for the note
+    assert "too late" not in str(_carrier(out)["content"]) and GOAL in str(_carrier(out)["content"])
+    messages = " ".join(r.getMessage() for r in caplog.records)
+    assert "raised RuntimeError" in messages and "(stalled)" in messages
 
 
 def test_hybrid_skips_the_request_without_a_live_agent_or_room_in_the_window(caplog):
@@ -292,3 +326,4 @@ def test_the_host_offers_ask_session_model_only_to_engines_that_take_it():
     assert _supported_compression_kwargs(RolloverEngine().compress, **kw)["ask_session_model"] is ask
     assert "ask_session_model" not in _supported_compression_kwargs(
         ContextCompressor(model="", quiet_mode=True).compress, **kw)
+    assert "ask_session_model" not in _supported_compression_kwargs(lambda messages, **rest: messages, **kw)

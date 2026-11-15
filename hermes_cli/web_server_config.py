@@ -144,7 +144,7 @@ _SCHEMA_OVERRIDES: dict[str, dict[str, Any]] = {
     "approvals.mode": _select("Dangerous command approval mode", "manual", "smart", "off"),
     "context.engine": _select("Context management engine", "default", "custom"),
     "context.rollover.handoff": _select(
-        "What the new context gets when the rollover engine cuts it", "user_messages", "hybrid"),
+        "What the new context gets when the rollover engine cuts it", "hybrid", "user_messages"),
     "human_delay.mode": _select("Simulated typing delay mode", "off", "typing", "fixed"),
     "logging.level": _select("Log level for agent.log", "DEBUG", "INFO", "WARNING", "ERROR"),
     "agent.service_tier": _select(

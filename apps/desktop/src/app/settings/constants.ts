@@ -667,7 +667,7 @@ export const FIELD_DESCRIPTIONS: Record<string, string> = defineFieldCopy({
     engine: 'Strategy for managing long conversations near the context limit.',
     rollover: {
       handoff:
-        'Rollover: the new context keeps your messages, a list of past tool calls and the latest work, with no extra model call. Hybrid: the same, plus a short handoff note the model writes for itself before the cut (one quick extra call).'
+        'Hybrid (default): before the cut the model writes itself a short handoff note (one quick extra call); the new context also keeps your messages, a list of past tool calls and the latest work. Rollover: the same without the note, no extra call.'
     }
   },
   compression: {
