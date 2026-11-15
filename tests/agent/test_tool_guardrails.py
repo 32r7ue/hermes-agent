@@ -506,24 +506,3 @@ def test_rate_limited_retry_is_not_a_replay_but_stays_bounded(result, throttled,
             break
     else:
         raise AssertionError("a permanently failing endpoint must still halt or block")
-
-
-def test_same_check_failing_again_after_an_edit_gets_one_step_back_line():
-    c = ToolCallGuardrailController()
-    check = {"command": "pytest tests/test_x.py"}
-    red = '{"output": "1 failed", "exit_code": 1}'
-    assert c.after_call("terminal", check, red, failed=True).action == "allow"
-    c.after_call("patch", {"path": "x.py"}, '{"success": true}', failed=False)
-    decision = c.after_call("terminal", check, red, failed=True)
-    assert decision.action == "warn" and decision.code == "check_refailed_after_edit"
-    assert "\n" not in decision.message
-
-
-def test_refail_without_an_edit_or_a_different_command_gets_no_step_back_line():
-    c = ToolCallGuardrailController()
-    red = '{"output": "1 failed", "exit_code": 1}'
-    c.after_call("terminal", {"command": "pytest a"}, red, failed=True)
-    c.after_call("terminal", {"command": "ls"}, '{"output": "", "exit_code": 0}', failed=False)
-    assert c.after_call("terminal", {"command": "pytest a"}, red, failed=True).code != "check_refailed_after_edit"
-    c.after_call("write_file", {"path": "x.py", "content": "y"}, '{"bytes_written": 1}', failed=False)
-    assert c.after_call("terminal", {"command": "pytest b"}, red, failed=True).code != "check_refailed_after_edit"

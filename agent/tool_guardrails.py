@@ -261,9 +261,6 @@ _DECISION_MESSAGES: dict[str, str] = {
         "Stopped {tool_name}: it failed {count} times this turn. "
         "Stop retrying the same failing tool path and choose a different approach."
     ),
-    "check_refailed_after_edit": (
-        "The same check has failed twice with edits in between; reconsider the approach before editing again."
-    ),
     "repeated_exact_failure_warning": (
         "{tool_name} has failed {count} times with identical arguments. This looks like a loop; "
         "inspect the error and change strategy instead of retrying it unchanged."
@@ -324,8 +321,6 @@ class ToolCallGuardrailController:
         self._same_tool_failure_counts: dict[str, int] = {}
         # signature -> a mutating call succeeded since its last failure
         self._progress_since_failure: dict[ToolCallSignature, bool] = {}
-        # failing terminal signature -> a file edit landed since it failed (step-back note on the re-fail)
-        self._edit_since_failure: dict[ToolCallSignature, bool] = {}
         self._no_progress: dict[ToolCallSignature, tuple[str, int]] = {}
         self._halt_decision: ToolGuardrailDecision | None = None
         # Identical-call streak: CONSECUTIVE identical (tool, args, result) calls; any different call or
@@ -397,9 +392,6 @@ class ToolCallGuardrailController:
             # a mutation since the last identical failure restarts the exact-args streak.
             if self._progress_since_failure.pop(signature, False):
                 self._exact_failure_counts.pop(signature, None)
-            refailed_after_edit = self._edit_since_failure.pop(signature, False)
-            if tool_name == "terminal":
-                self._edit_since_failure[signature] = False
             # A throttled call retried after its cooldown is the correct move, not a replay:
             # keep it out of the exact-args streak and never give it that streak's "stop retrying
             # unchanged" warning, even after earlier ordinary failures with the same args.
@@ -426,8 +418,6 @@ class ToolCallGuardrailController:
                 return self._decide("halt", "same_tool_failure_halt", tool_name, same_count, signature)
             if warnings and not throttled and exact_count >= self.config.exact_failure_warn_after:
                 return self._decide("warn", "repeated_exact_failure_warning", tool_name, exact_count, signature)
-            if warnings and refailed_after_edit:
-                return self._decide("warn", "check_refailed_after_edit", tool_name, 2, signature)
             if warnings and same_count >= self.config.same_tool_failure_warn_after:
                 return self._decide(
                     "warn", "same_tool_failure_warning", tool_name, same_count, signature,
@@ -437,13 +427,10 @@ class ToolCallGuardrailController:
 
         self._exact_failure_counts.pop(signature, None)
         self._same_tool_failure_counts.pop(tool_name, None)
-        self._edit_since_failure.pop(signature, None)
         # A successful mutation is progress for every failing signature still counted
         # this turn. Pure loops never mutate between attempts, so the replay detector keeps its teeth.
         if tool_name in PROGRESS_RESET_TOOL_NAMES or file_mutation_result_landed(tool_name, result):
             self._progress_since_failure.update(dict.fromkeys(self._exact_failure_counts, True))
-            if file_mutation_result_landed(tool_name, result):
-                self._edit_since_failure.update(dict.fromkeys(self._edit_since_failure, True))
             self._same_tool_failure_counts.clear()
         if not self._is_idempotent(tool_name):
             self._no_progress.pop(signature, None)
