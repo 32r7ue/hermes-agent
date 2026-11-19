@@ -70,8 +70,8 @@ TITLE_MAX_TOKENS = 512
 # rendered from these constants so the guard set and the prompt cannot drift
 # apart. Port of QwenLM/qwen-code#9709.
 _PROMPT_GOOD_EXAMPLES = (
-    "Fix login button on mobile",
-    "Postgres connection pool exhaustion",
+    "Fix mobile login button",
+    "Postgres pool exhaustion",
     "Friendly greeting",
 )
 _PROMPT_VAGUE_EXAMPLE = "Code changes"
@@ -97,7 +97,8 @@ _TITLE_PROMPT_TEMPLATE = (
     "You name chat sessions. Given the user's opening message, write a title "
     "that lets them find this conversation again in a list.\n\n"
     "Rules:\n"
-    "- 2 to 5 words, sentence case (capitalize only the first word and proper nouns).\n"
+    "- 2 to 4 words, usually 3, sentence case (capitalize only the first word and proper nouns).\n"
+    "- Keep only the core subject; drop qualifiers like open source, local, simple, best, quick.\n"
     "- Name what the user wants DONE, not that they asked a question.\n"
     "- Plain, distinctive words: the topic, not the details. No paths, folder or file names, "
     "numbers, resolutions, IDs, or version strings.\n"
@@ -109,8 +110,7 @@ _TITLE_PROMPT_TEMPLATE = (
     + "".join(f'Good: {{"title": "{t}"}}\n' for t in _PROMPT_GOOD_EXAMPLES)
     + f'Too vague: {{"title": "{_PROMPT_VAGUE_EXAMPLE}"}}\n'
     'Too technical: {"title": "Compare 3360x1418 with 1440p"} (say "Compare display resolutions")\n'
-    'Too long: {"title": "Investigate and fix the issue where the login button '
-    'does not respond on mobile devices"}\n\n'
+    'Too long: {"title": "Open source Wispr Flow alternative"} (say "Wispr Flow alternative")\n\n'
     'Reply with JSON only: {"title": "..."}'
 )
 
