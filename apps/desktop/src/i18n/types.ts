@@ -3605,7 +3605,7 @@ export interface Translations extends NoticeTranslations {
       localUnload: string
       localMode: string
       localModeChat: string
-      localModeEdit: string
+      localModeLite: string
       localModeFull: string
       localModeHint: string
       localFailed: string

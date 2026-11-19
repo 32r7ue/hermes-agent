@@ -4142,7 +4142,7 @@ export const en: Translations = {
       localUnload: 'Unload from memory',
       localMode: 'Mode',
       localModeChat: 'Chat',
-      localModeEdit: 'Edit files',
+      localModeLite: 'Lite Hermes',
       localModeFull: 'Full Hermes',
       localModeHint: 'Mode applies to new chats',
       localFailed: 'Local model update failed'

@@ -16,7 +16,7 @@ import type { LocalModelsStatus, LocalPromptMode } from '@/types/hermes'
 
 export const LOCAL_PROVIDER_SLUG = 'llamacpp'
 
-const MODES: readonly LocalPromptMode[] = ['chat', 'edit', 'full']
+const MODES: readonly LocalPromptMode[] = ['chat', 'lite', 'full']
 const POLL_MS = 1500
 
 /** Managed llama.cpp model: residency (loaded / loading / not) with load + unload, and the
@@ -64,7 +64,7 @@ export function LocalModelOptions({ model }: { model: string }) {
 
   const modeLabel: Record<LocalPromptMode, string> = {
     chat: copy.localModeChat,
-    edit: copy.localModeEdit,
+    lite: copy.localModeLite,
     full: copy.localModeFull
   }
 

@@ -5,7 +5,8 @@ tokens) means minutes before the first token. ``local_runtime.prompt_mode`` pick
 session (managed llama.cpp provider, or any loopback/LAN endpoint) gets:
 
 * ``chat`` (default): no tools, a few-line prompt.
-* ``edit``: file tools plus terminal, a short coding prompt.
+* ``lite``: Hermes's core capabilities (files, terminal, web, browser, computer use, vision) under a
+  short prompt; no personality, memory, skills or guidance blocks. ``edit`` is the old name.
 * ``full``: the normal Hermes prompt and toolsets.
 
 Both short modes are byte-stable for the session, so llama-server reuses the whole prefix
@@ -16,17 +17,25 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-MODES = ("chat", "edit", "full")
+MODES = ("chat", "lite", "full")
+_ALIASES = {"edit": "lite"}
 DEFAULT_MODE = "chat"
-EDIT_TOOLS = frozenset({"read_file", "write_file", "patch", "search_files", "terminal"})
+LITE_TOOLS = frozenset({
+    "read_file", "write_file", "patch", "search_files", "terminal", "process_manage",
+    "web_search", "web_extract", "browser_exec", "computer_use", "vision_analyze",
+})
 
 _CHAT_PROMPT = "You are a helpful assistant running locally on the user's Mac. Answer directly and concisely."
-_EDIT_PROMPT = (
-    "You are a coding assistant running locally on the user's Mac, with tools to read, search, "
-    "write and patch files and run terminal commands.\n"
-    "- Read a file before editing it; use patch for targeted changes, write_file for new files.\n"
-    "- Use search_files instead of grep/find, read_file instead of cat.\n"
-    "- Do the work with tools rather than describing it. Keep replies short.\n"
+_LITE_PROMPT = (
+    "You are Hermes, an agent running on a local model on the user's Mac. Your tools cover files, "
+    "the terminal, the web, a browser, the screen and images.\n"
+    "- Do the work with tools, then report the result briefly. Never describe what you would do instead.\n"
+    "- Files: read before editing; patch for targeted changes, write_file for new files; search_files, "
+    "not grep/find.\n"
+    "- Web: web_search to find pages, web_extract to read them, browser_exec for interactive sites. "
+    "computer_use drives native Mac apps.\n"
+    "- Never invent results. If a tool fails, say so and try another route.\n"
+    "- Answer first, plainly, no filler.\n"
     "Working directory: {cwd}"
 )
 
@@ -37,7 +46,7 @@ def _configured_mode() -> str:
         mode = str(((load_config() or {}).get("local_runtime") or {}).get("prompt_mode") or DEFAULT_MODE)
     except Exception:
         mode = DEFAULT_MODE
-    mode = mode.strip().lower()
+    mode = _ALIASES.get(mode.strip().lower(), mode.strip().lower())
     return mode if mode in MODES else DEFAULT_MODE
 
 
@@ -53,7 +62,7 @@ def _is_local(agent: Any) -> bool:
 
 
 def local_mode(agent: Any) -> Optional[str]:
-    """``"chat"`` or ``"edit"`` when *agent* runs a local model in a short mode, else None.
+    """``"chat"`` or ``"lite"`` when *agent* runs a local model in a short mode, else None.
     Resolved once per agent and cached, so tools and prompt never disagree mid-session."""
     if hasattr(agent, "_local_mode"):
         return agent._local_mode
@@ -75,8 +84,8 @@ def filter_tools(agent: Any, tools: list[dict[str, Any]]) -> list[dict[str, Any]
     mode = local_mode(agent)
     if mode == "chat":
         return []
-    if mode == "edit":
-        return [t for t in tools if (t.get("function") or {}).get("name") in EDIT_TOOLS]
+    if mode == "lite":
+        return [t for t in tools if (t.get("function") or {}).get("name") in LITE_TOOLS]
     return tools
 
 
@@ -85,7 +94,7 @@ def system_prompt(agent: Any, timestamp_line: str) -> Optional[str]:
     mode = local_mode(agent)
     if mode == "chat":
         return f"{_CHAT_PROMPT}\n\n{timestamp_line}"
-    if mode == "edit":
+    if mode == "lite":
         from agent.runtime_cwd import resolve_agent_cwd
-        return f"{_EDIT_PROMPT.format(cwd=resolve_agent_cwd() or '.')}\n\n{timestamp_line}"
+        return f"{_LITE_PROMPT.format(cwd=resolve_agent_cwd() or '.')}\n\n{timestamp_line}"
     return None

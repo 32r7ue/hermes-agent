@@ -38,10 +38,10 @@ def test_chat_mode_has_no_tools_and_a_few_line_prompt(mode):
     assert len(parts["stable"]) < 400
 
 
-def test_edit_mode_keeps_only_file_tools_and_terminal(mode):
-    mode("edit")
+def test_lite_mode_keeps_only_core_tools(mode):
+    mode("lite")
     agent = _agent(provider="custom", base_url="http://localhost:8080/v1")
-    assert _names(agent_tool_surface(agent, TOOLS)) == ["read_file", "patch", "terminal"]
+    assert _names(agent_tool_surface(agent, TOOLS)) == ["read_file", "patch", "terminal", "web_search"]
     assert "Working directory:" in build_system_prompt_parts(agent)["stable"]
 
 
@@ -55,8 +55,14 @@ def test_full_mode_and_remote_providers_are_untouched(mode):
 
 
 def test_mode_is_resolved_once_per_agent(mode):
-    mode("edit")
+    mode("lite")
     agent = _agent()
-    assert local_mode.local_mode(agent) == "edit"
+    assert local_mode.local_mode(agent) == "lite"
     mode("chat")
-    assert local_mode.local_mode(agent) == "edit"
+    assert local_mode.local_mode(agent) == "lite"
+
+
+def test_old_edit_setting_reads_as_lite(monkeypatch):
+    from hermes_cli import config
+    monkeypatch.setattr(config, "load_config", lambda: {"local_runtime": {"prompt_mode": "edit"}})
+    assert local_mode._configured_mode() == "lite"

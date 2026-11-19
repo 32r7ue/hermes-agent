@@ -2715,7 +2715,7 @@ DEFAULT_CONFIG = {
         # upstream can't, e.g. PrismML's PQ2_0 Bonsai models.
         "binary": "",
         # Prompt for local models (llama.cpp provider or any loopback/LAN endpoint):
-        # chat = no tools, few-line prompt; edit = file tools + terminal, short prompt;
+        # chat = no tools, few-line prompt; lite = files/terminal/web/browser/computer use, short prompt;
         # full = the normal Hermes prompt (tens of thousands of tokens to prefill).
         "prompt_mode": "chat",
     },

@@ -572,16 +572,16 @@ def local_models_status():
 
 
 def _prompt_mode(section: dict) -> str:
-    from agent.local_mode import DEFAULT_MODE, MODES
-    mode = str(section.get("prompt_mode") or DEFAULT_MODE).strip().lower()
-    return mode if mode in MODES else DEFAULT_MODE
+    from agent.local_mode import _configured_mode
+    return _configured_mode()
 
 
 @router.post("/api/local-models/prompt-mode")
 def local_models_prompt_mode(body: PromptModeBody):
     """Pick how much Hermes sends a local model (agent/local_mode.py); new chats pick it up."""
-    from agent.local_mode import MODES
+    from agent.local_mode import _ALIASES, MODES
     mode = (body.mode or "").strip().lower()
+    mode = _ALIASES.get(mode, mode)
     if mode not in MODES:
         raise HTTPException(status_code=400, detail=f"mode must be one of {', '.join(MODES)}")
     with _CONFIG_MUTATION_LOCK:
