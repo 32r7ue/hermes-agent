@@ -4133,7 +4133,19 @@ export const en: Translations = {
       updateFailed: 'Model option update failed',
       fastFailed: 'Fast mode update failed',
       daybreak: 'Daybreak',
-      daybreakFailed: 'Daybreak update failed'
+      daybreakFailed: 'Daybreak update failed',
+      localModel: 'Local model',
+      localLoaded: 'Loaded',
+      localLoading: 'Loading…',
+      localNotLoaded: 'Not loaded',
+      localLoad: 'Load into memory',
+      localUnload: 'Unload from memory',
+      localMode: 'Mode',
+      localModeChat: 'Chat',
+      localModeEdit: 'Edit files',
+      localModeFull: 'Full Hermes',
+      localModeHint: 'Mode applies to new chats',
+      localFailed: 'Local model update failed'
     },
     gatewayMenu: {
       gateway: 'Gateway',

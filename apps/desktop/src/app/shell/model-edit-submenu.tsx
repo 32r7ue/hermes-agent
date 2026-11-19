@@ -14,6 +14,8 @@ import { Switch } from '@/components/ui/switch'
 import { useI18n } from '@/i18n'
 import { isThinkingEnabled, reasoningEffortClamp, resolveReasoningEffort } from '@/lib/reasoning-effort'
 
+import { LOCAL_PROVIDER_SLUG, LocalModelOptions } from './local-model-options'
+
 // Hermes' real reasoning levels live in lib/reasoning-effort; `none` is owned
 // by the Thinking toggle, not the radio.
 
@@ -130,8 +132,10 @@ export function ModelOptionsContent({
   serviceTier,
   ultrafastSupported = false,
   isActive,
+  model,
   onSelectModel,
   onSetOptions,
+  provider,
   reasoning
 }: ModelEditSubmenuProps) {
   const { t } = useI18n()
@@ -166,8 +170,11 @@ export function ModelOptionsContent({
   const ultrafastOn = serviceTier === 'ultrafast'
   const fastOn = fastControl.kind === 'none' ? false : fastControl.on && !ultrafastOn
 
+  const local = provider === LOCAL_PROVIDER_SLUG
+  const localSection = local ? <LocalModelOptions model={model} /> : null
+
   return !hasFast && !ultrafastSupported && !daybreak && !reasoning ? (
-    <div className="px-2.5 py-3 text-xs text-(--ui-text-tertiary)">{copy.noOptions}</div>
+    localSection ?? <div className="px-2.5 py-3 text-xs text-(--ui-text-tertiary)">{copy.noOptions}</div>
   ) : (
     <>
       <DropdownMenuLabel className={dropdownMenuSectionLabel}>{copy.options}</DropdownMenuLabel>
@@ -240,6 +247,7 @@ export function ModelOptionsContent({
           </DropdownMenuRadioGroup>
         </>
       ) : null}
+      {localSection}
     </>
   )
 }

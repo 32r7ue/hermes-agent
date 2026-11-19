@@ -1,4 +1,10 @@
-import type { LocalCatalogModel, LocalHardware, LocalModelsStatus, LocalRuntimeJob } from '@/types/hermes'
+import type {
+  LocalCatalogModel,
+  LocalHardware,
+  LocalModelsStatus,
+  LocalPromptMode,
+  LocalRuntimeJob
+} from '@/types/hermes'
 
 import { hermesApi, profileScoped } from './client'
 
@@ -135,6 +141,24 @@ export function ejectLocalModel(modelId: string, scope?: LocalModelsScope): Prom
     body: { model_id: modelId },
     method: 'POST',
     path: '/api/local-models/eject'
+  })
+}
+
+export function loadLocalModel(modelId: string, scope?: LocalModelsScope): Promise<{ ok: boolean }> {
+  return hermesApi<{ ok: boolean }>({
+    ...(scope ?? profileScoped()),
+    body: { model_id: modelId },
+    method: 'POST',
+    path: '/api/local-models/load'
+  })
+}
+
+export function setLocalPromptMode(mode: LocalPromptMode, scope?: LocalModelsScope): Promise<{ ok: boolean }> {
+  return hermesApi<{ ok: boolean }>({
+    ...(scope ?? profileScoped()),
+    body: { mode },
+    method: 'POST',
+    path: '/api/local-models/prompt-mode'
   })
 }
 

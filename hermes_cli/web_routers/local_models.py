@@ -86,6 +86,10 @@ class ModelEjectBody(BaseModel):
     model_id: str
 
 
+class PromptModeBody(BaseModel):
+    mode: str
+
+
 class ModelActivateBody(BaseModel):
     model_id: str               # exact variant id (a staged .gguf stem)
 
@@ -563,7 +567,28 @@ def local_models_status():
         "placement": placement,
         "models": [_staged_row(gguf) for gguf in bootstrap.staged_models()] if mdir.exists() else [],
         "models_dir": str(mdir),
+        "prompt_mode": _prompt_mode(section),
     }
+
+
+def _prompt_mode(section: dict) -> str:
+    from agent.local_mode import DEFAULT_MODE, MODES
+    mode = str(section.get("prompt_mode") or DEFAULT_MODE).strip().lower()
+    return mode if mode in MODES else DEFAULT_MODE
+
+
+@router.post("/api/local-models/prompt-mode")
+def local_models_prompt_mode(body: PromptModeBody):
+    """Pick how much Hermes sends a local model (agent/local_mode.py); new chats pick it up."""
+    from agent.local_mode import MODES
+    mode = (body.mode or "").strip().lower()
+    if mode not in MODES:
+        raise HTTPException(status_code=400, detail=f"mode must be one of {', '.join(MODES)}")
+    with _CONFIG_MUTATION_LOCK:
+        config = config_mod.load_config()
+        config.setdefault("local_runtime", {})["prompt_mode"] = mode
+        config_mod.save_config(config)
+    return {"ok": True, "prompt_mode": mode}
 
 
 # ── hardware: what this machine can do ───────────────────────
@@ -946,6 +971,28 @@ def local_models_eject(body: ModelEjectBody):
         raise HTTPException(status_code=409, detail="local server is not running")
     with _http_error(502):
         _router_request(endpoint, "/models/unload", timeout=120, payload={"model": body.model_id})
+    return {"ok": True}
+
+
+@router.post("/api/local-models/load")
+def local_models_load(body: ModelEjectBody):
+    """Warm a model into memory ahead of the first message. Returns at once; the load runs in the
+    background and /status reports its progress (loading -> loaded)."""
+    sup = bootstrap.get_supervisor()
+    endpoint = None if sup is not None else _state_endpoint()
+    if sup is None and endpoint is None:
+        raise HTTPException(status_code=409, detail="local server is not running")
+
+    def _run() -> None:
+        try:
+            if sup is not None:
+                sup.load_model(body.model_id)
+            elif endpoint is not None:
+                _router_request(endpoint, "/models/load", timeout=600, payload={"model": body.model_id})
+        except Exception as exc:
+            logger.warning("local model load failed for %s: %s", body.model_id, exc)
+
+    spawn_context_thread(_run, name="lr-model-load").start()
     return {"ok": True}
 
 

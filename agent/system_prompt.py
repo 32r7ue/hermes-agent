@@ -743,6 +743,11 @@ def build_system_prompt_parts(agent: Any, system_message: Optional[str] = None) 
     timestamp line, runtime environment hints).  Worktree-dependent blocks follow project context so a
     shared context file can remain in the longest common prefix across worktrees.
     Never re-rendered mid-session."""
+    # Local model in a short mode: the whole prompt is a few lines (agent/local_mode.py).
+    from agent.local_mode import system_prompt as _local_mode_prompt
+    _local = _local_mode_prompt(agent, _timestamp_line(agent))
+    if _local is not None:
+        return {"stable": _local, "context": "", "volatile": ""}
     # Model context window scales the context-file caps; stable per conversation.
     _cc_len = getattr(getattr(agent, "context_compressor", None), "context_length", None)
     _ctx_len = _cc_len if isinstance(_cc_len, int) and _cc_len > 0 else None

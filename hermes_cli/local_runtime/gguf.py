@@ -52,6 +52,7 @@ _GGML_TYPE_SIZES = {
     26: (4, 1), 27: (8, 1), 28: (8, 1), 29: (56, 256), 30: (2, 1),
     39: (17, 32),  # MXFP4 — 32 elements per 17-byte block (gpt-oss family)
     40: (36, 64),  # NVFP4 — 4 E4M3 sub-block scales + 32 bytes of E2M1 (Nemotron 3.5 Bolt)
+    142: (34, 128),  # PQ2_0 (PrismML fork, Bonsai) — fp16 scale + 128 2-bit weights; measured from tensor offsets
     41: (18, 128),  # Q1_0
     42: (18, 64),  # Q2_0
 }

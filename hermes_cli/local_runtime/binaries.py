@@ -114,7 +114,13 @@ def _installed(candidates: tuple[str, ...], allow_outdated: bool) -> Engine | No
 
 
 def installed_engine(backend: str = "auto", *, allow_outdated: bool = True) -> Engine | None:
-    """Boot may retain a prior PM pin and moves a pre-PM engine into PM's store once; it never downloads."""
+    """Boot may retain a prior PM pin and moves a pre-PM engine into PM's store once; it never downloads.
+    ``local_runtime.binary`` (a llama-server path) overrides PM's engine — for forks that read formats
+    upstream can't (e.g. PrismML's PQ2_0)."""
+    custom = _custom_binary()
+    if custom is not None:
+        return Engine(backend="metal" if pm.current_target().startswith("darwin-") else "cpu",
+                      tag="custom", binary=custom)
     vendor = None
     if backend == "auto":
         from hermes_cli.local_runtime.bootstrap import _detect_gpu_vendor
@@ -125,6 +131,16 @@ def installed_engine(backend: str = "auto", *, allow_outdated: bool = True) -> E
     if engine is None and any(adopt_legacy_engine(candidate) for candidate in candidates):
         engine = _installed(candidates, allow_outdated)
     return engine
+
+
+def _custom_binary() -> Path | None:
+    try:
+        from hermes_cli.config import load_config
+        raw = str(((load_config() or {}).get("local_runtime") or {}).get("binary") or "").strip()
+    except Exception:
+        return None
+    path = Path(os.path.expanduser(raw)) if raw else None
+    return path if path is not None and path.is_file() and os.access(path, os.X_OK) else None
 
 
 # Before PM owned binaries, Hermes installed each engine to runtimes/llamacpp/b<tag>/<backend>/

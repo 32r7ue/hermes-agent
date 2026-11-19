@@ -486,8 +486,10 @@ def agent_tool_surface(agent: Any, tools: list[dict[str, Any]]) -> list[dict[str
     before any merge: a pinned or carried entry keeps the bytes already sent."""
     from agent.oneshot_footprint import agent_is_oneshot, oneshot_tool_schemas
     from tools.delegate_tool_config import agent_joins_delegation
+    from agent.local_mode import filter_tools as local_mode_tools
     drops = agent_tool_drops(agent)
     tools = [tool for tool in tools if (tool.get("function") or {}).get("name") not in drops] if drops else list(tools)
+    tools = local_mode_tools(agent, tools)
     return oneshot_tool_schemas(tools) if agent_is_oneshot(agent) or agent_joins_delegation(agent) else tools
 
 

@@ -1970,6 +1970,9 @@ def _enforce_minimum_context(agent):
         and agent._config_context_length > 0
     )
     if _ctx and _ctx < MINIMUM_CONTEXT_LENGTH and not _allow_lmstudio_explicit_below_floor:
+        from agent.local_mode import local_mode
+        if local_mode(agent):
+            return  # a few-line prompt and at most five tools fit any window; compression handles the rest
         floor_k = MINIMUM_CONTEXT_LENGTH // 1000
         if agent.base_url and is_local_endpoint(agent.base_url):
             # Any OpenAI-compatible local server (llama.cpp, vLLM, Ollama, ...) — the window is the

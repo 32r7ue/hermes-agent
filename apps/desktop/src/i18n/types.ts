@@ -3596,6 +3596,19 @@ export interface Translations extends NoticeTranslations {
       fastFailed: string
       daybreak: string
       daybreakFailed: string
+      /** Managed llama.cpp rows: residency + how much Hermes sends the model (agent/local_mode.py). */
+      localModel: string
+      localLoaded: string
+      localLoading: string
+      localNotLoaded: string
+      localLoad: string
+      localUnload: string
+      localMode: string
+      localModeChat: string
+      localModeEdit: string
+      localModeFull: string
+      localModeHint: string
+      localFailed: string
     }
     gatewayMenu: {
       gateway: string

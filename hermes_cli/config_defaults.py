@@ -2711,6 +2711,13 @@ DEFAULT_CONFIG = {
         "port": 0,  # Port for the managed server. 0 = pick a free port at spawn.
         # Extra ports detection probes for an external llama-server (besides 8080).
         "detect_ports": [],
+        # A llama-server to run instead of the pinned engine ("" = pinned). For forks that read formats
+        # upstream can't, e.g. PrismML's PQ2_0 Bonsai models.
+        "binary": "",
+        # Prompt for local models (llama.cpp provider or any loopback/LAN endpoint):
+        # chat = no tools, few-line prompt; edit = file tools + terminal, short prompt;
+        # full = the normal Hermes prompt (tens of thousands of tokens to prefill).
+        "prompt_mode": "chat",
     },
     "_config_version": 52,  # Config schema version - bump this when adding new required fields
 }

@@ -1561,7 +1561,11 @@ export interface LocalModelsStatus {
   placement?: Record<string, LocalModelPlacement>
   models: { id: string; size_bytes: number; size_label: string }[]
   models_dir: string
+  /** How much Hermes sends a local model: chat (no tools), edit (file tools), full. */
+  prompt_mode?: LocalPromptMode
 }
+
+export type LocalPromptMode = 'chat' | 'edit' | 'full'
 
 export interface LocalHardware {
   uma: boolean
