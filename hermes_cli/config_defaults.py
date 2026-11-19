@@ -61,6 +61,8 @@ DEFAULT_CONFIG = {
         "storage": "hermes-home",
     },
     "agent": {
+        # Name the system prompt uses for the person ("the user" -> this). "" = keep "the user".
+        "user_name": "",
         # Turn cap. null = unlimited (default; caps caused silent mid-task truncation). Positive int
         # caps; "none"/"unlimited"/"inf"/0/-1 also mean unlimited (resolve_turn_limit).
         "max_turns": None,

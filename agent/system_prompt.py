@@ -735,7 +735,26 @@ def _join_tier(parts: list[Optional[str]]) -> str:
     return "\n\n".join(p.strip() for p in parts if p and p.strip())
 
 
+_THE_USER = re.compile(r"\b([Tt])he user(['’]s)?(?![\w-])")
+
+
+def _named_user(text: str) -> str:
+    """Swap "the user" for ``agent.user_name`` so models think of the person by name."""
+    try:
+        from hermes_cli.config import load_config
+        name = str(((load_config() or {}).get("agent") or {}).get("user_name") or "").strip()
+    except Exception:
+        name = ""
+    if not name or not text:
+        return text
+    return _THE_USER.sub(lambda m: f"{name}'s" if m.group(2) else name, text)
+
+
 def build_system_prompt_parts(agent: Any, system_message: Optional[str] = None) -> dict[str, str]:
+    return {tier: _named_user(text) for tier, text in _build_system_prompt_parts(agent, system_message).items()}
+
+
+def _build_system_prompt_parts(agent: Any, system_message: Optional[str] = None) -> dict[str, str]:
     """Assemble the system prompt as three ordered cache tiers: ``stable`` (identity,
     guidance and the coding brief), ``context`` (caller ``system_message``, project
     context files, workspace snapshot and remaining workspace guidance) and
