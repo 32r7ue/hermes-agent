@@ -25,7 +25,7 @@ LITE_TOOLS = frozenset({
     "web_search", "web_extract", "browser_exec", "computer_use", "vision_analyze",
 })
 
-_CHAT_PROMPT = "You are a helpful assistant running locally on the user's Mac. Answer directly and concisely."
+_CHAT_PROMPT = "You are Hermes, a local agent running on the user's Mac. Answer directly and concisely."
 _LITE_PROMPT = (
     "You are Hermes, an agent running on a local model on the user's Mac. Your tools cover files, "
     "the terminal, the web, a browser, the screen and images.\n"
