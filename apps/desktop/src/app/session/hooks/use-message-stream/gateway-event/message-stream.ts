@@ -3,7 +3,7 @@ import { type BillingBlock, mergeUsage } from '@hermes/shared'
 import { noteTurnSettled } from '@/app/session/hooks/use-session-actions/settled-turns'
 import { burstVibeHearts } from '@/components/chat/vibe-hearts'
 import { translateNow } from '@/i18n'
-import { type GatewayEventPayload, markQueuedPromptStarted } from '@/lib/chat-messages'
+import { type ChatMessage, type GatewayEventPayload, markQueuedPromptStarted, textPart } from '@/lib/chat-messages'
 import { coerceGatewayText, coerceThinkingText } from '@/lib/chat-runtime'
 import { playCompletionSound } from '@/lib/completion-sound'
 import { parseErrorSurface } from '@/lib/error-surface'
@@ -13,6 +13,7 @@ import { clearSettledClarifyRequest } from '@/store/clarify'
 import { setSessionCompacting } from '@/store/compaction'
 import { noteFreeTierTurnComplete } from '@/store/free-tier-sign-in'
 import { notify } from '@/store/notifications'
+import { startedAdmissionPrompt } from '@/store/pending-submissions'
 import { flashPetActivity, markPetUnread, setPetActivity } from '@/store/pet'
 import { clearAllPrompts } from '@/store/prompts'
 import { providerWaitText, setSessionProviderWait } from '@/store/provider-wait'
@@ -133,9 +134,39 @@ function lightOwnMessagingTurn(runtimeId: string, admissionId: string | undefine
   lightDesktopMessagingCompletion(storedId, admissionId, storedId === $focusedStoredSessionId.get(), profile)
 }
 
+const isUnstartedProjectedPrompt = (message: ChatMessage) =>
+  message.role === 'user' && message.id.startsWith('user-queued-') && !message.queuedTurnStarted
+
+/**
+ * The user bubble of an owner-queued prompt whose turn this `message.start` begins. A send the
+ * owner queued (⌘↩, or Enter while busy) shows only a queue card, never an optimistic bubble, and
+ * the card leaves at the start: without this the prompt stays invisible until the turn's reply
+ * lands. Named `user-<submission_id>` so the completion receipt binds it to its stored row.
+ */
+function startedQueuedPromptBubble(
+  messages: ChatMessage[],
+  storedId: string,
+  admissionId: string,
+  occurredAt?: number
+): ChatMessage | null {
+  // A resume-projected queued row is this prompt already (`markQueuedPromptStarted` claims it).
+  if (messages.some(isUnstartedProjectedPrompt)) {
+    return null
+  }
+
+  const prompt = startedAdmissionPrompt(storedId, admissionId)
+  const id = prompt ? `user-${prompt.submissionId}` : ''
+
+  if (!prompt || messages.some(message => message.id === id)) {
+    return null
+  }
+
+  return { id, role: 'user', parts: [textPart(prompt.text)], timestamp: occurredAt ?? Date.now() / 1000 }
+}
+
 /** message.start: arm the session for a new turn, unless it re-sends the current one. */
 function handleMessageStart(ctx: GatewayEventContext): boolean {
-  const { deps, payload, sessionId, isActiveEvent } = ctx
+  const { deps, event, payload, sessionId, isActiveEvent, occurredAt } = ctx
   const { compactedTurnRef, flushQueuedDeltas, dropQueuedDeltas, nativeSubagentSessionsRef } = deps
   const { sessionStateByRuntimeIdRef, updateSessionState } = deps
 
@@ -200,7 +231,15 @@ function handleMessageStart(ctx: GatewayEventContext): boolean {
 
     // A projected queued prompt drawn before this start is this turn's
     // prompt from here on, even while its row is still on screen.
-    const messages = markQueuedPromptStarted(state.messages)
+    const marked = markQueuedPromptStarted(state.messages)
+    const admissionId = typeof event.admission_id === 'string' ? event.admission_id : ''
+
+    // Read before the mark: a projected row this start just claimed is the prompt.
+    const bubble = admissionId
+      ? startedQueuedPromptBubble(state.messages, state.storedSessionId ?? sessionId, admissionId, occurredAt)
+      : null
+
+    const messages = bubble ? [...marked, bubble] : marked
 
     return {
       ...state,

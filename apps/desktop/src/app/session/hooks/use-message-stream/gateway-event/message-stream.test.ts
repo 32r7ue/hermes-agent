@@ -9,7 +9,10 @@ vi.mock('@/store/session-control', () => ({ refreshSupportedSessionControlAfterT
 import type { GatewayEventName } from '@hermes/shared'
 
 import { CanonicalDesktopProtocol } from '@/api/canonical-protocol'
+import { type ChatMessage, chatMessageText, textPart } from '@/lib/chat-messages'
 import { createClientSessionState } from '@/lib/chat-runtime'
+import { $queuedPromptsBySession } from '@/store/composer-queue'
+import { reconcilePendingSubmissions } from '@/store/pending-submissions'
 import { $activeGatewayProfile } from '@/store/profile'
 import {
   $lastReadAtBySessionId,
@@ -211,5 +214,50 @@ describe('unread dot for a messaging turn Desktop sent', () => {
     publishSessionState('rt-tg', { ...createClientSessionState('tg-1'), busy: true })
     publishSessionState('rt-tg', { ...createClientSessionState('tg-1'), busy: false })
     expect($unreadFinishedSessionIds.get()).not.toContain('tg-1')
+  })
+})
+
+describe('message.start of an owner-queued prompt', () => {
+  const start = (messages: ChatMessage[], admissionId = 'adm-1') => {
+    let state = { ...createClientSessionState(), storedSessionId: 'chat', messages }
+    const ctx = context('message.start')
+    ctx.event = { type: 'message.start', admission_id: admissionId } as GatewayEventContext['event']
+    ctx.deps.updateSessionState = vi.fn((_sid, updater) => (state = updater(state)))
+    handleMessageStreamEvent(ctx)
+
+    return state
+  }
+
+  beforeEach(() => {
+    window.localStorage.clear()
+    $queuedPromptsBySession.set({})
+    $sessions.set([])
+    reconcilePendingSubmissions('chat', [
+      { admission_id: 'adm-1', input_id: 'sub-1', status: 'queued', user: 'queued words' }
+    ])
+  })
+
+  it('paints the started card as the turn prompt, named by its submission id', () => {
+    const earlier: ChatMessage = { id: 'assistant-1', role: 'assistant', parts: [textPart('done')] }
+    const state = start([earlier])
+
+    expect(state.messages.map(m => [m.id, m.role, chatMessageText(m)])).toEqual([
+      ['assistant-1', 'assistant', 'done'],
+      ['user-sub-1', 'user', 'queued words']
+    ])
+    expect(state.turnAnchorId).toBe('user-sub-1')
+  })
+
+  it('adds nothing for an admission already on screen, or one no card names', () => {
+    const own: ChatMessage = { id: 'user-sub-1', role: 'user', parts: [textPart('queued words')] }
+
+    expect(start([own]).messages).toEqual([own])
+    expect(start([], 'other').messages).toEqual([])
+  })
+
+  it('leaves a resume-projected queued row to stand for the prompt', () => {
+    const projected: ChatMessage = { id: 'user-queued-s1', role: 'user', parts: [textPart('queued words')] }
+
+    expect(start([projected]).messages.map(m => m.id)).toEqual(['user-queued-s1'])
   })
 })

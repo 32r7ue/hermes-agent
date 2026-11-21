@@ -18,6 +18,8 @@ interface PendingSubmission {
   seen?: PendingSnapshotFence
   /** The snapshot's queued-row controls; carried to the card only, never journaled. */
   controls?: string[]
+  /** The client submission id the admission runs under (the wire's `input_id`); card only. */
+  inputId?: string
 }
 
 /** A canonical pending snapshot's place in its session's event order: the replay epoch and the
@@ -224,6 +226,7 @@ function collectReceipts(value: RawReceipts, known: Record<string, PendingSubmis
       id,
       text: typeof raw.user === 'string' ? raw.user : (known[id]?.text ?? ''),
       status: stale ? known[id].status : raw.status,
+      ...(typeof raw.input_id === 'string' ? { inputId: raw.input_id } : {}),
       ...(Array.isArray(raw.controls) ? { controls: raw.controls.filter((c: unknown) => typeof c === 'string') } : {})
     })
   }
@@ -256,7 +259,14 @@ function projectQueue(
 
     if (receipt) {
       if (receipt.status !== 'started') {
-        next.push({ ...entry, id: receipt.id, serverStatus: receipt.status, serverControls: receipt.controls })
+        next.push({
+          ...entry,
+          id: receipt.id,
+          // The card keeps the submission id it runs under: its started turn's bubble is named by it.
+          submissionId: receipt.inputId ?? submissionId,
+          serverStatus: receipt.status,
+          serverControls: receipt.controls
+        })
       }
 
       receipts.delete(receipt.id)
@@ -273,6 +283,7 @@ function projectQueue(
         displayText: receipt.displayText,
         attachments: [],
         queuedAt: Date.now(),
+        ...(receipt.inputId ? { submissionId: receipt.inputId } : {}),
         serverStatus: receipt.status,
         serverControls: receipt.controls
       })
@@ -367,6 +378,29 @@ export function reconcilePendingSubmissions(storedId: string, value: unknown, fe
   if (JSON.stringify(current) !== JSON.stringify(next)) {
     writeSessionQueue(key, next)
   }
+}
+
+/** The prompt of a server-queued admission the owner just started (`message.start` names it), so
+ *  the turn can paint its user bubble at once: an owner-queued send has no optimistic bubble, and
+ *  its card leaves the queue at the start. Read from the card while it is still listed, else from
+ *  the journal's last observed text. Null for a hidden note or an admission nothing knows. */
+export function startedAdmissionPrompt(
+  storedId: string,
+  admissionId: string
+): null | { submissionId: string; text: string } {
+  const key = journalKey(storedId)
+  const card = getQueuedPrompts(key).find(entry => entry.id === admissionId)
+
+  if (card) {
+    const text = card.displayText ?? card.text
+
+    return card.displayKind === 'hidden' || !text.trim() ? null : { submissionId: queuedSubmissionId(card), text }
+  }
+
+  const journaled = readPendingSubmission(key, admissionId)
+  const text = journaled?.displayText ?? journaled?.text ?? ''
+
+  return text.trim() && !isSyntheticPrompt(text) ? { submissionId: admissionId, text } : null
 }
 
 /** The fence of a canonical frame or snapshot, when it carries a usable one. */
