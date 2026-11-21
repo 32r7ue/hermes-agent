@@ -7,13 +7,14 @@ import { type FC, useEffect, useRef } from 'react'
 
 import type { SessionInfo } from '@/hermes'
 import { useI18n } from '@/i18n'
-import { type SidebarListRow } from '@/lib/session-date-groups'
+import { type SidebarDisplayRow } from '@/lib/session-date-groups'
 import { sessionBucketLabel } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { sessionPinId } from '@/store/session'
 import { $sessionListDensity } from '@/store/session-list-density'
 
 import { SidebarDateDivider } from './chrome'
+import { SidebarShowMoreRow } from './load-more-row'
 import { SidebarSessionRow } from './session-row'
 import { SESSION_CARD_ROW_ESTIMATE_PX, sessionRowEstimate } from './session-row-details'
 
@@ -46,7 +47,14 @@ export interface VirtualSessionListProps {
     onToggle: (key: string) => void
     open: (key: string) => boolean
   }
-  rows: SidebarListRow[]
+  /** Rendered in place of `dividerAction` on the first row when it is a
+   *  divider: the section title row's actions, hoisted into the first section. */
+  firstDividerAction?: React.ReactNode
+  /** Expand a capped section (its "More" row). */
+  onExpandSection?: (key: string) => void
+  rows: SidebarDisplayRow[]
+  /** Render dividers as top-level section headers (Cursor layout). */
+  sectionDividers?: boolean
   onArchiveSession: (sessionId: string) => void
   onBranchSession?: (sessionId: string, profile?: string) => void
   onDeleteSession: (sessionId: string) => void
@@ -65,6 +73,7 @@ export interface VirtualSessionListProps {
 // self-measurement catches up. Kept at/above the wrapped-title worst case —
 // see SESSION_CARD_ROW_ESTIMATE_PX (#88473).
 const DIVIDER_ESTIMATE_PX = 28
+const SECTION_DIVIDER_ESTIMATE_PX = 48
 const OVERSCAN_ROWS = 12
 
 export const VirtualSessionList: FC<VirtualSessionListProps> = ({
@@ -74,7 +83,10 @@ export const VirtualSessionList: FC<VirtualSessionListProps> = ({
   className,
   dividerAction,
   dividerToggle,
+  firstDividerAction,
+  onExpandSection,
   rows: listRows,
+  sectionDividers = false,
   onArchiveSession,
   onBranchSession,
   onDeleteSession,
@@ -96,7 +108,11 @@ export const VirtualSessionList: FC<VirtualSessionListProps> = ({
       const row = listRows[index]
 
       if (row?.kind === 'divider') {
-        return DIVIDER_ESTIMATE_PX
+        return sectionDividers ? SECTION_DIVIDER_ESTIMATE_PX : DIVIDER_ESTIMATE_PX
+      }
+
+      if (row?.kind === 'more') {
+        return sessionRowEstimate(density)
       }
 
       return card ? SESSION_CARD_ROW_ESTIMATE_PX : sessionRowEstimate(density)
@@ -104,7 +120,7 @@ export const VirtualSessionList: FC<VirtualSessionListProps> = ({
     getItemKey: index => {
       const row = listRows[index]
 
-      return row ? (row.kind === 'divider' ? row.key : row.entry.session.id) : index
+      return row ? (row.kind === 'session' ? row.entry.session.id : row.key) : index
     },
     getScrollElement: () => scrollerRef.current,
     // jsdom-friendly default; the real rect takes over on first observe.
@@ -143,7 +159,8 @@ export const VirtualSessionList: FC<VirtualSessionListProps> = ({
       return (
         <div data-index={virtualItem.index} key={row.key} ref={virtualizer.measureElement} style={itemStyle}>
           <SidebarDateDivider
-            action={dividerAction}
+            action={virtualItem.index === 0 && firstDividerAction ? firstDividerAction : dividerAction}
+            first={virtualItem.index === 0}
             label={label}
             toggle={
               dividerToggle
@@ -154,6 +171,18 @@ export const VirtualSessionList: FC<VirtualSessionListProps> = ({
                   }
                 : undefined
             }
+            variant={sectionDividers ? 'section' : 'inline'}
+          />
+        </div>
+      )
+    }
+
+    if (row.kind === 'more') {
+      return (
+        <div data-index={virtualItem.index} key={row.key} ref={virtualizer.measureElement} style={itemStyle}>
+          <SidebarShowMoreRow
+            loading={false}
+            onShowMore={() => onExpandSection?.(row.groupKey)}
           />
         </div>
       )

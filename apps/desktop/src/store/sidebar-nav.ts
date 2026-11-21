@@ -18,12 +18,12 @@ import type { Contribution } from '@/contrib/types'
 export const SIDEBAR_NAV_PREFS_AREA = 'sidebarNav.prefs'
 
 /** Payload (`data`) of a `sidebarNav.prefs` contribution. Ids are the nav rows'
- *  own ids: the core rows `'new-session' | 'capabilities' | 'messaging' |
- *  'artifacts' | 'cron'` (see `SidebarNavId`) or a `sidebar.nav` contribution's
+ *  own ids: the core rows `'new-session' | 'messaging' | 'artifacts' |
+ *  'cron'` (see `SidebarNavId`) or a `sidebar.nav` contribution's
  *  REGISTERED id — `ctx.register` namespaces it to `${pluginId}:${id}`. */
 export interface SidebarNavPrefsContribution {
-  /** Rows to drop. Merged as the UNION across contributions; `capabilities`
-   *  (the row that hosts the Plugins tab) is never dropped. */
+  /** Rows to drop. Merged as the UNION across contributions. (Plugins are
+   *  managed from Settings ▸ Capabilities, which no preference can hide.) */
   hide?: string[]
   /** Rows to place first, in this order. Contributions apply in the registry's
    *  area order (lowest `Contribution.order`, then registration); the first
@@ -31,17 +31,13 @@ export interface SidebarNavPrefsContribution {
   order?: string[]
 }
 
-/** Rows a preference may move but never hide: `capabilities` hosts the Plugins
- *  tab, the user's only path to a plugin's own off-switch. */
-const NEVER_HIDDEN: ReadonlySet<string> = new Set(['capabilities'])
-
 const cleanIds = (ids: unknown): string[] =>
   Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string' && id.trim() !== '') : []
 
 /** Apply every `sidebarNav.prefs` contribution to the nav rows, in the order
  *  given (the caller passes `registry.getArea`, so lowest `order` first, then
  *  registration). Pure so the arbitration is testable without a DOM:
- *  hidden = union of every `hide` minus `NEVER_HIDDEN` (hide beats order);
+ *  hidden = union of every `hide` (hide beats order);
  *  `order` = first contribution first, later contributions place only ids not
  *  yet placed; rows no order names keep their default relative order after
  *  the named ones; unknown ids are inert. */
@@ -55,11 +51,7 @@ export function applySidebarNavPrefs<T extends { id: string }>(
   for (const c of contributions) {
     const prefs = c.data as SidebarNavPrefsContribution | undefined
 
-    cleanIds(prefs?.hide).forEach(id => {
-      if (!NEVER_HIDDEN.has(id)) {
-        hidden.add(id)
-      }
-    })
+    cleanIds(prefs?.hide).forEach(id => hidden.add(id))
     order.push(...cleanIds(prefs?.order))
   }
 

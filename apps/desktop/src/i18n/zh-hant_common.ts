@@ -36,6 +36,8 @@ export const zhHantCommon = {
     retry: '重試',
     run: '執行',
     send: '傳送',
+    yes: '是',
+    no: '否',
     set: '設定',
     skip: '略過',
     update: '更新',

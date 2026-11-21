@@ -109,7 +109,8 @@ export const StatusItemRow = memo(function StatusItemRow({
 
   const canOpen = item.type === 'subagent' && !!onOpen
 
-  // Background rows link to their read-only terminal tab; subagents open their session.
+  // Background rows link to their read-only terminal tab; subagents open their
+  // session in a spectator pane to the right.
   const onActivate =
     item.type === 'background' ? () => openAgentTerminal(item.id, item.title) : canOpen ? onOpen : undefined
 
@@ -122,7 +123,7 @@ export const StatusItemRow = memo(function StatusItemRow({
         onActivate={onActivate}
         trailing={
           canOpen ? (
-            <Codicon aria-hidden className="text-muted-foreground/55" name="link-external" size="0.85rem" />
+            <Codicon aria-hidden className="text-muted-foreground/55" name="split-horizontal" size="0.85rem" />
           ) : undefined
         }
       >

@@ -1,5 +1,7 @@
 import { atom, computed, type ReadableAtom } from 'nanostores'
 
+import { playApprovalSound } from '@/lib/chat-cue-sounds'
+
 import { $clarifyRequest, $clarifyRequests } from './clarify'
 import { isSessionGone, isSessionGoneForBackgroundPolling, markSessionGone } from './runtime-gone'
 import { respondToServerRequest } from './server-requests'
@@ -366,6 +368,8 @@ export async function answerApproval(
   choice: string,
   all = false
 ): Promise<void> {
+  playApprovalSound(choice)
+
   if (respondToServerRequest(request.serverRequestId, { choice, ...(all ? { all: true } : {}) })) {
     return
   }

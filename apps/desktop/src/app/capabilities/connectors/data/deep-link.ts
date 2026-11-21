@@ -1,13 +1,12 @@
 import { type ProfileScope, profileScopeKey } from '@/hermes'
 import { activeGatewayConnectionId } from '@/store/gateway'
 
-import { CAPABILITIES_ROUTE } from '../../../routes'
+import { capabilitiesHref } from '../../../routes'
 
 import { $accountOperations } from './account-operations'
 import { wakeAccountOperation } from './rpc'
 
-const connectorRoute = (slug: string): string =>
-  `${CAPABILITIES_ROUTE}?tab=connectors&connector=${encodeURIComponent(slug)}`
+const connectorRoute = (slug: string): string => capabilitiesHref('connectors', { connector: slug })
 
 /** The Connectors tab, scoped to the chat's own profile and connection, with one app's dialog and that
  *  account's rename editor open. The account goes by id: its name can change and be reused by another. */

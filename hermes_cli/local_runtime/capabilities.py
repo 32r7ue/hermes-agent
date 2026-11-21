@@ -73,7 +73,8 @@ def managed_model_supports_vision(model_id: str) -> bool | None:
         # model downloaded before its mmproj (partial delete, old layout) genuinely cannot see.
         entry = entry_for_model(model_id)
         if entry is None:
-            return None
+            from hermes_cli.local_runtime.presets import find_companion_mmproj
+            return True if find_companion_mmproj(model_id) is not None else None
         return (entry.mmproj is not None
                 and (assets_dir() / entry.mmproj.local_name).exists())
     return None

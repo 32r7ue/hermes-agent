@@ -124,7 +124,8 @@ class VisionMessagePrepMixin:
                     pass
 
         note = f"[The {role_label} attached an image. Here's what it contains:\n{description or 'Image analysis failed.'}]"
-        if vision_source and not is_data_url:
+        active_tools = getattr(self, "valid_tool_names", None)
+        if vision_source and not is_data_url and (active_tools is None or "vision_analyze" in active_tools):
             note += f"\n[If you need a closer look, use vision_analyze with image_url: {vision_source}]"
 
         self._anthropic_image_fallback_cache[cache_key] = note

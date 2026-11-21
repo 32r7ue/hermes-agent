@@ -59,5 +59,23 @@ export const frNotifications = {
     'Coupe les signaux automatiques de fin, d’activation et de réflexion, le retour haptique et les sons des notifications système. Les aperçus sonores et les réponses vocales restent audibles.',
   completionSoundTitle: 'Son de fin',
   completionSoundDesc: "Se joue à la fin d'un tour d'agent. Choisissez un préréglage et prévisualisez-le ici.",
-  completionSoundPreview: 'Aperçu'
+  completionSoundPreview: 'Aperçu',
+  chatCues: {
+    sent: {
+      label: 'Son d\'envoi',
+      description: 'Le son de Cursor quand vous envoyez ou réorientez un message.'
+    },
+    thinking: {
+      label: 'Son de réflexion',
+      description: 'La pulsation douce de Cursor pendant que l\'agent travaille : après 4 secondes, puis toutes les ~6 secondes jusqu\'à la fin du tour ou s\'il a besoin de vous.'
+    },
+    fileEdited: {
+      label: 'Son de fichier modifié',
+      description: 'Le son de Cursor quand l\'agent termine de modifier un fichier.'
+    },
+    approval: {
+      label: 'Son d\'approbation',
+      description: 'Les sons de Cursor quand vous approuvez ou refusez une demande.'
+    }
+  }
 }

@@ -22,8 +22,8 @@ logger = logging.getLogger("agent.conversation_loop")
 # Post-response housekeeping tools: a round made only of these mutes tool progress.
 _HOUSEKEEPING_TOOLS = frozenset({"memory", "todo_list", "skill_manage", "session_search"})
 # Rounds whose visible line is the turn's reply if the follow-up is empty (no empty-response nudge):
-# housekeeping, and setup_beat, whose card already blocked for the user's answer.
-_LINE_IS_REPLY_TOOLS = _HOUSEKEEPING_TOOLS | {"setup_beat"}
+# housekeeping, setup_beat (its card already blocked for the user's answer), and a reaction.
+_LINE_IS_REPLY_TOOLS = _HOUSEKEEPING_TOOLS | {"setup_beat", "react_to_message"}
 
 
 @dataclass

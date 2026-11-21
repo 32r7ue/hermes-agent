@@ -1,6 +1,8 @@
+import type { Translations } from '@/i18n'
 import {
   Archive,
   Bell,
+  Book,
   Box,
   Brain,
   CircleLetterA,
@@ -14,11 +16,13 @@ import {
   type IconComponent,
   Keyboard,
   KeyRound,
+  Layers3,
   Lock,
   MessageCircle,
   Mic,
   Monitor,
   Network,
+  Package,
   Palette,
   PawPrint,
   Settings2,
@@ -38,7 +42,11 @@ import type { SettingsView } from './types'
 
 export interface SettingsSubpage {
   id: string
+  /** Key into `t.settings.subpages`, also the icon key. */
   labelKey: string
+  /** Copy that already lives elsewhere in the catalog (Capabilities' tab
+   *  names); wins over `labelKey` for the label. */
+  label?: (t: Translations) => string
   /** Hidden when this returns false (e.g. a native-only task in the Webapp). */
   available?: () => boolean
 }
@@ -88,7 +96,15 @@ const SUBPAGE_ICONS: Record<string, IconComponent> = {
   vaultCredentials: KeyRound,
   vaultSources: Lock,
   appUpdates: Download,
+  capabilitiesSkills: Book,
+  capabilitiesPlugins: Package,
+  capabilitiesConnectors: Layers3,
+  capabilitiesToolsets: Wrench,
   uninstall: Trash2
+}
+
+export function settingsSubpageLabel(page: SettingsSubpage, t: Translations): string {
+  return page.label?.(t) ?? t.settings.subpages[page.labelKey]
 }
 
 export function settingsSubpageIcon(page: SettingsSubpage, fallback: IconComponent): IconComponent {

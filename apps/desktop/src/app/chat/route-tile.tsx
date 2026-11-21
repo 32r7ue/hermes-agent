@@ -1,7 +1,7 @@
 /**
  * ROUTE (PAGE) TILES — a full-page view rendered as a layout-tree pane BESIDE
  * the main thread, the page analog of session tiles. Built-in pages
- * (Capabilities / Messaging / Artifacts) render their view; plugin pages render
+ * (Messaging / Artifacts) render their view; plugin pages render
  * their `ROUTES_AREA` contribution. Lifecycle mirrors session tiles:
  * `openRouteTile(path)` -> `watchRouteTiles` registers a pane docked beside
  * main -> tree adoption lands it on the chosen edge; closing removes it.
@@ -16,7 +16,6 @@ import { $routeTiles, closeRouteTile, type RouteTile } from '@/store/route-tiles
 import {
   $routesVersion,
   ARTIFACTS_ROUTE,
-  CAPABILITIES_ROUTE,
   contributedRoutes,
   MESSAGING_ROUTE,
   ROUTES_AREA
@@ -24,15 +23,13 @@ import {
 
 import { paneMirror } from './pane-mirror'
 
-const CapabilitiesView = lazy(async () => ({ default: (await import('../capabilities')).CapabilitiesView }))
 const MessagingView = lazy(async () => ({ default: (await import('../messaging')).MessagingView }))
 const ArtifactsView = lazy(async () => ({ default: (await import('../artifacts')).ArtifactsView }))
 
 // Built-in page views + their pane titles, keyed by route.
 const BUILTIN_PAGES: Record<string, { render: () => ReactNode; title: string }> = {
   [ARTIFACTS_ROUTE]: { render: () => <ArtifactsView />, title: 'Artifacts' },
-  [MESSAGING_ROUTE]: { render: () => <MessagingView />, title: 'Messaging' },
-  [CAPABILITIES_ROUTE]: { render: () => <CapabilitiesView />, title: 'Capabilities' }
+  [MESSAGING_ROUTE]: { render: () => <MessagingView />, title: 'Messaging' }
 }
 
 /** Humanize a route path into a tab title: `/my-atlas` → `My Atlas`. */

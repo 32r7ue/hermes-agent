@@ -263,6 +263,26 @@ const sameDestination = (intent: string, key: string) => {
   return scope === savedScope && session === savedSession
 }
 
+// Submission ids this window minted for a brand-new send and has not journaled yet. No journal,
+// in any window, can hold such an id, so adopting one needs no journal read: on Desktop that read
+// is an IPC round trip to the main process, and the send's optimistic bubble waited behind it
+// while the composer had already cleared and the send cue had already played. Bounded: dropping
+// an id only costs a later retry of it the read it would have done anyway.
+const unjournaled = new Set<string>()
+const MAX_UNJOURNALED = 256
+
+/** A fresh submission id for a new send (see `unjournaled`). */
+export function mintSubmissionId(): string {
+  const id = randomUuid()
+  unjournaled.add(id)
+
+  if (unjournaled.size > MAX_UNJOURNALED) {
+    unjournaled.delete(unjournaled.values().next().value as string)
+  }
+
+  return id
+}
+
 /** The retained entry an explicit retry may reuse: the one carrying exactly `submissionId` on the
  *  same destination (scope + session) as `intent`, held by this window or left by a closed one.
  *  Equal text never selects an entry: a new message is a new intent even when it repeats an
@@ -271,6 +291,10 @@ export async function adoptPreparedSubmission(
   intent: string,
   submissionId: string
 ): Promise<{ key: string; entry: PreparedSubmission } | undefined> {
+  if (unjournaled.has(submissionId)) {
+    return undefined
+  }
+
   const journal = await readJournal()
 
   const keys = Object.keys(journal)
@@ -302,6 +326,8 @@ export async function preparedSubmissionSlot(intent: string): Promise<string> {
 }
 
 export async function writePreparedSubmission(key: string, entry: PreparedSubmission): Promise<void> {
+  // From here on the id may be in the journal: a retry of it must read it.
+  unjournaled.delete(entry.id)
   const native = window.hermesDesktop?.preparedSubmissions
 
   if (native) {

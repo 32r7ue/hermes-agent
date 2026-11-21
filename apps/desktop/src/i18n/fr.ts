@@ -390,6 +390,8 @@ export const frOverrides = {
     retry: 'Réessayer',
     run: 'Exécuter',
     send: 'Envoyer',
+    yes: 'Oui',
+    no: 'Non',
     set: 'Définir',
     skip: 'Ignorer',
     update: 'Mettre à jour',
@@ -785,13 +787,12 @@ export const frOverrides = {
       keybinds: 'Raccourcis clavier',
       keysTools: 'Outils',
       keysSettings: 'Paramètres',
-      mcp: 'MCP',
-      archivedChats: 'Conversations archivées',
       sessions: 'Sessions',
       about: 'À propos',
       billing: 'Facturation',
       notifications: 'Notifications',
-      vault: 'Mots de passe et identifiants'
+      vault: 'Mots de passe et identifiants',
+      capabilities: 'Capacités'
     },
     plugins: {
       title: 'Plugins du desktop',
@@ -2523,10 +2524,6 @@ export const frOverrides = {
       emptyHint: 'Parcourez le catalogue ci-dessous pour installer un plugin vérifié en un clic.',
       loadFailed: "Impossible de charger les plugins de l'agent",
       toggleFailed: name => `Impossible de modifier l'état de ${name}`,
-      toolsetOn: (name: string, profile: string) => `Outils agent de ${name} activés pour ${profile}`,
-      toolsetOff: (name: string, profile: string) => `Outils agent de ${name} désactivés pour ${profile}`,
-      toolsetToggleFailed: (name: string) =>
-        `Impossible de modifier les outils agent de ${name} ; le panneau Desktop reste inchangé`,
       legacyBackend: 'Ce backend est trop ancien pour gérer les plugins depuis cet écran ; mettez Hermes à jour.',
       portableBadge: 'portable',
       serverStates: {
@@ -2787,7 +2784,6 @@ export const frOverrides = {
       installs: count => `${count} installations`
     },
     settingsFields: 'Champs de paramètres',
-    mcpServers: 'Serveurs MCP',
     archivedChats: 'Conversations archivées',
     sections: {
       maintenance: 'Maintenance',
@@ -2803,10 +2799,6 @@ export const frOverrides = {
       settings: {
         title: 'Paramètres',
         detail: 'Configurer Hermes Desktop'
-      },
-      capabilities: {
-        title: 'Capacités',
-        detail: 'Skills, outils, serveurs MCP et plugins'
       },
       messaging: {
         title: 'Messagerie',
@@ -3656,7 +3648,9 @@ export const frOverrides = {
       open: 'Ouverte',
       merged: 'Fusionnée',
       closed: 'Fermée',
-      noPR: 'Aucune PR'
+      noPR: 'Aucune PR',
+      date: 'Date',
+      none: 'Aucun'
     },
     gatewayGroups: {
       grouping: 'Gateway et profil',
@@ -3672,7 +3666,6 @@ export const frOverrides = {
     profileRail: 'Barre des profils',
     nav: {
       'new-session': 'Nouvelle session',
-      capabilities: 'Capacités',
       messaging: 'Messagerie',
       artifacts: 'Artefacts',
       cron: 'Tâches planifiées'
@@ -3766,12 +3759,16 @@ export const frOverrides = {
       yesterday: 'Hier',
       thisWeek: 'Plus tôt cette semaine',
       lastWeek: 'La semaine dernière',
-      thisMonth: 'Plus tôt ce mois'
+      thisMonth: 'Plus tôt ce mois',
+      last7Days: '7 derniers jours',
+      last30Days: '30 derniers jours',
+      older: 'Plus ancien'
     },
     statusDivider: {
       working: 'En cours',
       done: 'Terminées'
     },
+    sectionMore: 'Plus',
     markAllRead: 'Tout marquer comme lu'
   },
   composer: {
@@ -5102,6 +5099,13 @@ export const frOverrides = {
       errorStartNewChatLink: 'Démarrer une nouvelle conversation',
       errorChooseModelLink: 'Choisir un autre modèle',
       errorRetryAtResetShort: time => `Réessayer à ${time}`,
+      errorUsageLimitTitle: "Limite d'utilisation atteinte",
+      errorUsageLimitBody: provider => `${provider} n'accepte plus de requêtes pour le moment.`,
+      errorUsageLimitResets: (time, wait) => `Réinitialisation à ${time} (dans ${wait}).`,
+      errorTryAgain: 'Réessayer',
+      errorAutoResume: 'Reprise automatique',
+      errorAutoResumeAt: time => `prochain essai à ${time}`,
+      errorAutoResumeRunning: 'reprise…',
       errorRateLimitResetBody: (provider, time) =>
         `Vous avez atteint la limite de requêtes de ${provider}. Elle se réinitialise à ${time}.`,
       errorGenericProvider: "Le service d'IA",
@@ -5265,6 +5269,7 @@ export const frOverrides = {
       statusDone: 'Terminé',
       resultUnavailable: 'Résultat indisponible',
       resultInterrupted: 'Interrompu',
+      continuesInBackground: 'Continue en arrière-plan',
       memoryWriteNoted: 'Écriture en mémoire enregistrée',
       actions: {
         read: 'Lu',
@@ -5554,10 +5559,6 @@ export const frOverrides = {
       'new-session': {
         title: 'Repartir de zéro',
         text: 'Une nouvelle conversation dispose de son propre contexte, terminal et dossier de travail.'
-      },
-      skills: {
-        title: 'Apprenez-lui une seule fois',
-        text: "Les compétences sont des dossiers d'instructions que Hermes charge lorsque le travail le nécessite."
       },
       messaging: {
         title: 'Hermes loin de votre bureau',

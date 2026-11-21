@@ -4,7 +4,7 @@ import { registry } from '@/contrib/registry'
 
 import { applySidebarNavPrefs, SIDEBAR_NAV_PREFS_AREA } from './sidebar-nav'
 
-const rows = [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }, { id: 'e' }, { id: 'capabilities' }]
+const rows = [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }, { id: 'e' }, { id: 'f' }]
 
 const prefs = (id: string, data: { hide?: string[]; order?: string[] }, order?: number) => ({
   area: SIDEBAR_NAV_PREFS_AREA,
@@ -18,17 +18,16 @@ describe('applySidebarNavPrefs', () => {
   // other's row; the first contribution's order owns the placement it names
   // and a later order only places what is still unplaced; unknown ids are
   // inert; rows nobody names keep their default relative order after the
-  // named ones; the row that hosts the Plugins tab (a plugin's own off-switch)
-  // can be moved but never hidden.
-  it('unions hides, lets the first order win, and keeps the capabilities row', () => {
+  // named ones.
+  it('unions hides and lets the first order win', () => {
     const merged = applySidebarNavPrefs(rows, [
-      prefs('first', { hide: ['b', 'capabilities'], order: ['d', 'a'] }),
+      prefs('first', { hide: ['b', 'f'], order: ['d', 'a'] }),
       prefs('second', { hide: ['c', 'missing'], order: ['a', 'd', 'b', 'nope'] })
     ])
 
-    expect(merged.map(r => r.id)).toEqual(['d', 'a', 'e', 'capabilities'])
+    expect(merged.map(r => r.id)).toEqual(['d', 'a', 'e'])
     expect(merged[0]).toBe(rows[3])
-    expect(applySidebarNavPrefs(rows, []).map(r => r.id)).toEqual(['a', 'b', 'c', 'd', 'e', 'capabilities'])
+    expect(applySidebarNavPrefs(rows, []).map(r => r.id)).toEqual(['a', 'b', 'c', 'd', 'e', 'f'])
   })
 
   // "First" is the registry's order for the area — lowest `Contribution.order`,
@@ -46,7 +45,7 @@ describe('applySidebarNavPrefs', () => {
         'b',
         'c',
         'd',
-        'capabilities'
+        'f'
       ])
     } finally {
       dispose()

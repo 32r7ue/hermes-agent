@@ -189,13 +189,17 @@ def _user_image_display_text(content: Any) -> str | None:
     from hermes_cli.web_routers.files import _fs_regular_file
     from hermes_cli.web_server import _FS_DATA_URL_MAX_BYTES
     image_parts = content[1:1 + len(paths)]
-    if len(image_parts) != len(paths) or len(content) not in (1 + len(paths), 2 + len(paths)):
+    if len(image_parts) != len(paths):
         return None
     if len(content) > 1 + len(paths):
         from agent.memory_context import sanitize_context
-        memory = content[-1]
-        if not isinstance(memory, dict) or memory.get("type") != "text" or not isinstance(memory.get("text"), str) or sanitize_context(memory["text"]).strip():
-            return None
+        # Parts after the images are the agent's own appendix (memory context, per-turn
+        # ``[System: …]`` notes such as the skills-changed note); anything else stays raw.
+        for extra in content[1 + len(paths):]:
+            if not isinstance(extra, dict) or extra.get("type") != "text" or not isinstance(extra.get("text"), str):
+                return None
+            if sanitize_context(extra["text"]).strip() and not extra["text"].lstrip().startswith("[System:"):
+                return None
     for path, part in zip(paths, image_parts):
         if not Path(path).is_absolute() or not isinstance(part, dict) or part.get("type") != "image_url":
             return None

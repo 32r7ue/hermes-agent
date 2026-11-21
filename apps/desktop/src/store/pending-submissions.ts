@@ -287,7 +287,7 @@ function projectQueue(
 // user never typed them: they are not cards to send, edit or discard. Mirrors
 // `_SYNTHETIC_PROMPT` in hermes_state_timeline.py.
 const SYNTHETIC_PROMPT_RE =
-  /^\s*(?:\[IMPORTANT: Background process |\[ASYNC (?:DELEGATION )?(?:BATCH )?COMPLETE\b|A background fan-out of \d+ subagent\(s\) you dispatched earlier has finished\.|A background subagent you dispatched earlier has finished\.)/i
+  /^\s*(?:\[IMPORTANT: Background process |\[ASYNC (?:DELEGATION )?(?:BATCH )?COMPLETE\b|\[AGENT SESSION WAKE\b|A background fan-out of \d+ subagent\(s\) you dispatched earlier has finished\.|A background subagent you dispatched earlier has finished\.)/i
 
 export const isSyntheticPrompt = (text: string): boolean => SYNTHETIC_PROMPT_RE.test(text)
 

@@ -66,3 +66,22 @@ def test_old_edit_setting_reads_as_lite(monkeypatch):
     from hermes_cli import config
     monkeypatch.setattr(config, "load_config", lambda: {"local_runtime": {"prompt_mode": "edit"}})
     assert local_mode._configured_mode() == "lite"
+
+
+def test_local_web_calls_are_shrunk_and_cloud_calls_untouched():
+    local, cloud = _agent(), _agent(provider="anthropic", base_url="https://api.anthropic.com")
+    search = local_mode.shape_tool_args(local, "web_search", {"query": "q", "limit": 10})
+    assert search == {"query": "q", "limit": local_mode.LOCAL_SEARCH_LIMIT,
+                      "_snippet_chars": local_mode.LOCAL_SNIPPET_CHARS}
+    assert local_mode.shape_tool_args(local, "web_extract", {"urls": ["u"]})["char_limit"] == local_mode.LOCAL_EXTRACT_CHARS
+    assert local_mode.shape_tool_args(local, "web_extract", {"urls": ["u"], "char_limit": 9000})["char_limit"] == 9000
+    assert local_mode.shape_tool_args(cloud, "web_search", {"query": "q"}) == {"query": "q"}
+    assert local_mode.shape_tool_args(local, "terminal", {"command": "ls"}) == {"command": "ls"}
+
+
+def test_clip_snippets_caps_descriptions():
+    from tools.web_tools import _clip_snippets
+    data = {"success": True, "data": {"web": [{"title": "t", "description": "x" * 1000}, {"description": "short"}]}}
+    web = _clip_snippets(data, 300)["data"]["web"]
+    assert len(web[0]["description"]) == 301 and web[1]["description"] == "short"
+    assert len(data["data"]["web"][0]["description"]) == 1000  # input not mutated

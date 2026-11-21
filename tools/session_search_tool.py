@@ -95,6 +95,17 @@ def _get_session_meta(db, session_id: str) -> dict:
                   "get_session failed for %s: %s", session_id, with_exc=True) or {}
 
 
+def _is_private_local_session(db, session_id: str | None) -> bool:
+    """True when *session_id* belongs to a local-model session (kept private from other agents)."""
+    if not session_id:
+        return False
+    try:
+        from agent.local_mode import is_local_session_row
+        return is_local_session_row(_get_session_meta(db, session_id))
+    except Exception:
+        return False
+
+
 def _session_meta_block(meta: dict[str, Any]) -> dict[str, Any]:
     return {"when": _format_timestamp(meta.get("started_at")), "source": meta.get("source"),
             "model": meta.get("model"), "title": meta.get("title")}
@@ -368,7 +379,12 @@ def _discover(db, query: str, role_filter: Optional[list[str]], limit: int, sort
     if title_result:
         title_sid, title_root = title_result["session_id"], title_result.get("_lineage_root") or title_result["session_id"]
         title_started = _coerce_started_ts((_get_session_meta(db, title_root) or _get_session_meta(db, title_sid)).get("started_at"))
-        if {title_sid, title_root} & excluded_roots or not _in_time_window(title_started, after_ts, before_ts):
+        if (
+            {title_sid, title_root} & excluded_roots
+            or not _in_time_window(title_started, after_ts, before_ts)
+            or _is_private_local_session(db, title_sid)
+            or _is_private_local_session(db, title_root)
+        ):
             title_result = None
     raw_results, err = _loud(lambda: db.search_messages(
         query=query, role_filter=role_filter or ["user", "assistant"],
@@ -400,6 +416,8 @@ def _discover(db, query: str, role_filter: Optional[list[str]], limit: int, sort
             break
         raw_sid, resolved_sid = r["session_id"], _resolve_lineage(db, r["session_id"])
         if raw_sid in excluded_roots or resolved_sid in excluded_roots:
+            continue
+        if _is_private_local_session(db, raw_sid) or _is_private_local_session(db, resolved_sid):
             continue
         # Skip the current session lineage — UNLESS the hit's transcript has left live context. Three
         # sub-cases: Legacy compression rotation: the FTS hit lives in a session that itself ended with
@@ -451,7 +469,7 @@ def _resolve_profile_db(profile: str):
 def _read_session(db, session_id: str, head: int = 20, tail: int = 10, link_profile: str | None = None) -> str:
     """Read shape: whole session, or ``head`` + ``tail`` messages with a scroll pointer."""
     meta = _get_session_meta(db, session_id)
-    if not meta:
+    if not meta or _is_private_local_session(db, session_id):
         return tool_error(f"session_id not found: {session_id}", success=False)
     # include_compacted: a session rolled over in place keeps its history as archived rows;
     # without them the read returns only what is already in the caller's context.
@@ -507,7 +525,10 @@ def _list_recent_sessions(db, limit: int, current_session_id: str | None = None,
             "session_id": s.get("id", ""), "link": _session_link(s.get("id", ""), link_profile),
             "title": s.get("title") or None, **{k: s.get(k, "") for k in ("source", "started_at", "last_active")},
             "message_count": s.get("message_count", 0), "preview": s.get("preview", "")}
-            for s in [x for x in sessions if x.get("id", "") not in hidden][:limit]]
+            for s in [
+                x for x in sessions
+                if x.get("id", "") not in hidden and not _is_private_local_session(db, x.get("id", ""))
+            ][:limit]]
         return _ok(mode="browse", results=results, count=len(results), message=(
             f"Showing {len(results)} most recent sessions. Pass a query= to search, "
             "or session_id+around_message_id to scroll."))
@@ -561,6 +582,8 @@ def _scroll(db, session_id: str, around_message_id: int, window: int = 5,
     # Locate the anchor BEFORE the current-lineage guard (see _anchor_in_live_context).
     anchor_state = _get_message_storage_state(db, around_message_id)
     owning = (anchor_state or {}).get("session_id")
+    if _is_private_local_session(db, owning or session_id) or _is_private_local_session(db, session_id):
+        return tool_error(f"session_id not found: {session_id}", success=False)
     if current_session_id and _anchor_in_live_context(db, anchor_state, owning or session_id, current_session_id):
         return tool_error("scroll rejected: anchor lives in the current session lineage (already in your active context)", success=False)
     session_meta = _get_session_meta(db, session_id)

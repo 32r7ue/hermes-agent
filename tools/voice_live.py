@@ -31,6 +31,7 @@ from typing import Any, Dict, Optional
 logger = logging.getLogger(__name__)
 
 GPT_LIVE_MODE = "gpt-live"
+GEMINI_LIVE_MODE = "gemini-live"
 CHAINED_MODE = "chained"
 DEFAULT_LIVE_MODEL = "gpt-live-1"
 DEFAULT_LIVE_VOICE = "marin"
@@ -105,10 +106,14 @@ def _live_section(voice: Optional[dict[str, Any]] = None) -> dict[str, Any]:
 
 
 def voice_chat_mode(voice: Optional[dict[str, Any]] = None) -> str:
-    """``chained`` (default) or ``gpt-live``. Accepts the underscore spelling too."""
+    """``chained`` (default), ``gpt-live``, or ``gemini-live``."""
     raw = (voice if voice is not None else _voice_section()).get("voice_chat_mode")
     mode = str(raw or CHAINED_MODE).strip().lower().replace("_", "-")
-    return GPT_LIVE_MODE if mode in {GPT_LIVE_MODE, "gptlive", "live"} else CHAINED_MODE
+    if mode in {GEMINI_LIVE_MODE, "geminilive", "gemini"}:
+        return GEMINI_LIVE_MODE
+    if mode in {GPT_LIVE_MODE, "gptlive", "live"}:
+        return GPT_LIVE_MODE
+    return CHAINED_MODE
 
 
 def _resolve_credentials(live: dict[str, Any]) -> tuple[str, str]:
@@ -130,17 +135,26 @@ def live_instructions(live: Optional[dict[str, Any]] = None) -> str:
 
 def resolve_gpt_live_status() -> dict[str, Any]:
     """Non-secret readiness verdict for the client: which mode is selected and whether GPT-Live
-    can start (a key resolves). Never returns the key."""
+    and/or Gemini Live can start. Never returns any API key."""
+    from tools.gemini_live import resolve_gemini_live_status
+
     voice = _voice_section()
     mode = voice_chat_mode(voice)
     live = _live_section(voice)
     api_key, _base = _resolve_credentials(live)
+    gpt_available = bool(api_key)
+    gpt_reason = None if gpt_available else "no OpenAI API key (set OPENAI_API_KEY or voice.gpt_live.api_key)"
+    gemini = resolve_gemini_live_status(voice)
     return {
         "mode": mode,
-        "available": bool(api_key),
-        "reason": None if api_key else "no OpenAI API key (set OPENAI_API_KEY or voice.gpt_live.api_key)",
+        "available": gpt_available,
+        "reason": gpt_reason,
         "model": str(live.get("model") or DEFAULT_LIVE_MODEL),
         "voice": str(live.get("voice") or DEFAULT_LIVE_VOICE),
+        "gemini_available": gemini["available"],
+        "gemini_reason": gemini["reason"],
+        "gemini_model": gemini["model"],
+        "gemini_voice": gemini["voice"],
     }
 
 

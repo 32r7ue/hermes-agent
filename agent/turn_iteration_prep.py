@@ -176,9 +176,12 @@ def prepare_iteration(
     # standalone user row after the newest tool result (never smeared onto the tool row: that
     # row is already persisted append-only, so replay would diverge from the live request and
     # break the prompt cache — same contract as apply_pending_steer_to_tool_results).
+    # Notes from other agent sessions (sessions tool) join this drain, only right after a tool batch.
+    from agent.session_mailbox import deliver_mid_turn
+    deliver_mid_turn(agent, messages)
     _pre_api_steer = agent._drain_pending_steer()
     if _pre_api_steer:
-        _inject_steer_after_newest_tool_result(agent, messages, _pre_api_steer)
+        _inject_steer_after_newest_tool_result(agent, messages, _pre_api_steer, current_turn_user_idx)
 
     # One-shot run-budget wrap-up notice at 80% of agent.run_budget_seconds, appended to the
     # newest tool result; off with no budget.
@@ -281,10 +284,21 @@ def _previous_tool_round(messages: Any) -> list:
     return []
 
 
-def _inject_steer_after_newest_tool_result(agent: Any, messages: Any, steer_text: str) -> None:
-    """Append the steer marker as a standalone user row after the newest tool message; with no
-    tool message, put the text back so the post-tool-execution drain delivers it later."""
-    for _si in range(len(messages) - 1, -1, -1):
+def _inject_steer_after_newest_tool_result(
+        agent: Any, messages: Any, steer_text: str, current_turn_user_idx: Any = None) -> None:
+    """Append the steer marker as a standalone user row after the newest tool message OF THIS TURN;
+    with none, put the text back so the post-tool-execution drain (or the finalizer's leftover
+    handoff) delivers it later. A steer buffered before the turn's first tool batch must never be
+    spliced after an older turn's tool row: it would sit mid-history, ahead of the current prompt,
+    where the marker's own "latest position" rule tells the model to ignore it — and the insert
+    rewrites the cached prefix."""
+    _floor = -1
+    if (isinstance(current_turn_user_idx, int) and not isinstance(current_turn_user_idx, bool)
+            and 0 <= current_turn_user_idx < len(messages)
+            and isinstance(messages[current_turn_user_idx], dict)
+            and messages[current_turn_user_idx].get("role") == "user"):
+        _floor = current_turn_user_idx
+    for _si in range(len(messages) - 1, _floor, -1):
         _sm = messages[_si]
         if isinstance(_sm, dict) and _sm.get("role") == "tool":
             from agent.prompt_builder import steer_user_row

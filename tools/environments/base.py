@@ -33,6 +33,10 @@ from utils import atomic_json_write, env_var_enabled, file_signature
 
 logger = logging.getLogger(__name__)
 
+# Seconds a foreground command runs before a yield request (a mid-turn user message) moves it to the
+# background; quicker commands just finish and return their real result.
+YIELD_GRACE_S = 1.0
+
 # Opt-in debug tracing for the interrupt/activity/poll machinery
 # (HERMES_DEBUG_INTERRUPT=1). Off by default to avoid flooding gateway logs.
 _DEBUG_INTERRUPT = env_var_enabled("HERMES_DEBUG_INTERRUPT")
@@ -553,7 +557,10 @@ class BaseEnvironment(ABC):
                     _kill_and_join()
                     return {**self._finalize_wait_result(output, output.render(suffix="\n[Command interrupted]"), 130),
                             "hermes_interrupted": True}
-                if yield_handler is not None and consume_yield(watch_interrupt_tid):
+                # Yield only after a short grace: a command that would exit within it returns its real
+                # result instead of becoming a background process (the request stays pending till then).
+                if (yield_handler is not None and time.monotonic() - _now >= YIELD_GRACE_S
+                        and consume_yield(watch_interrupt_tid)):
                     drain_stop.set()
                     drain_thread.join(timeout=1)
                     try:

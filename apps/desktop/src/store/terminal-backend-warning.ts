@@ -13,7 +13,8 @@ import type { TerminalBackendInfo } from '@/types/hermes'
  * is an older/remote backend, not a broken terminal.
  */
 
-const TERMINAL_TOOLSET_ROUTE = '/capabilities?tab=toolsets'
+// Settings ▸ Capabilities ▸ Tools (spelled out: stores don't import app routes).
+const TERMINAL_TOOLSET_ROUTE = '/settings?tab=capabilities&page=toolsets'
 const TOAST_ID = 'terminal-backend-unavailable'
 
 /** The active backend row when it is selected but not ready, else null. */

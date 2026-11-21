@@ -3,6 +3,7 @@ import { useStore } from '@nanostores/react'
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
 
 import { useI18n } from '@/i18n'
+import { playSendSound } from '@/lib/chat-cue-sounds'
 import { isSlashCommandText } from '@/lib/chat-runtime'
 import { triggerHaptic } from '@/lib/haptics'
 import { useSessionSlice } from '@/lib/use-session-slice'
@@ -629,6 +630,7 @@ export function useComposerQueue({
       }
 
       triggerHaptic('submit')
+      playSendSound()
 
       const accepted = await Promise.resolve(onSteer(resolved.transportText))
 

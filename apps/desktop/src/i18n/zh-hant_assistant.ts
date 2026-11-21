@@ -73,6 +73,13 @@ export const zhHantAssistant = {
       errorStartNewChatLink: '開始新的聊天',
       errorChooseModelLink: '選擇其他模型',
       errorRetryAtResetShort: time => `${time} 重試`,
+      errorUsageLimitTitle: '已達使用上限',
+      errorUsageLimitBody: provider => `${provider} 目前不接受更多請求。`,
+      errorUsageLimitResets: (time, wait) => `將於 ${time} 重設（${wait} 後）。`,
+      errorTryAgain: '再試一次',
+      errorAutoResume: '自動繼續',
+      errorAutoResumeAt: time => `下次嘗試 ${time}`,
+      errorAutoResumeRunning: '正在繼續…',
       errorRateLimitResetBody: (provider, time) => `你已達到 ${provider} 的速率限制，將於 ${time} 重設。`,
       errorLayerBodies: {
         generic: 'Hermes 回覆時發生問題。請重試；若問題持續，請複製錯誤詳細資訊。',
@@ -359,6 +366,7 @@ export const zhHantAssistant = {
       statusDone: '完成',
       resultUnavailable: '結果無法使用',
       resultInterrupted: '已中斷',
+      continuesInBackground: '在背景繼續執行',
       memoryWriteNoted: '已記下記憶寫入',
       actions: {
         read: '已讀取',

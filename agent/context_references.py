@@ -181,11 +181,12 @@ def parse_context_references(message: str, *, plugins: bool = True) -> list[Cont
 
 def preprocess_context_references(
     message: str, *, cwd: str | Path, context_length: int, url_fetcher: UrlFetcher = None,
-    allowed_root: str | Path | None = None,
+    allowed_root: str | Path | None = None, has_file_tools: bool = True,
 ) -> ContextReferenceResult:
     """Sync wrapper; safe both without a loop (CLI) and inside a running loop (gateway)."""
     coro = preprocess_context_references_async(
-        message, cwd=cwd, context_length=context_length, url_fetcher=url_fetcher, allowed_root=allowed_root
+        message, cwd=cwd, context_length=context_length, url_fetcher=url_fetcher,
+        allowed_root=allowed_root, has_file_tools=has_file_tools,
     )
     try:
         asyncio.get_running_loop()
@@ -201,7 +202,7 @@ def preprocess_context_references(
 
 async def preprocess_context_references_async(
     message: str, *, cwd: str | Path, context_length: int, url_fetcher: UrlFetcher = None,
-    allowed_root: str | Path | None = None, plugins: bool = True,
+    allowed_root: str | Path | None = None, plugins: bool = True, has_file_tools: bool = True,
 ) -> ContextReferenceResult:
     refs = parse_context_references(message, plugins=plugins)
     if not refs:
@@ -216,7 +217,7 @@ async def preprocess_context_references_async(
     soft_limit = max(1, int(context_length * 0.25))
     tasks = (
         _expand_reference(ref, cwd_path, url_fetcher=url_fetcher, allowed_root=allowed_root_path,
-                          max_inline_tokens=hard_limit)
+                          max_inline_tokens=hard_limit, has_file_tools=has_file_tools)
         for ref in refs[:_MAX_EXPANDED_REFERENCES]
     )
     expanded = await asyncio.gather(*tasks)
@@ -261,11 +262,14 @@ _GIT_REFERENCE_ARGS: dict[str, Callable[[ContextReference], list[str]]] = {
 
 async def _expand_reference(
     ref: ContextReference, cwd: Path, *, url_fetcher: UrlFetcher = None, allowed_root: Path | None = None,
-    max_inline_tokens: int | None = None,
+    max_inline_tokens: int | None = None, has_file_tools: bool = True,
 ) -> Expansion:
     try:
         if ref.kind in ("file", "folder"):
-            return _expand_path_reference(ref, cwd, allowed_root=allowed_root, max_inline_tokens=max_inline_tokens)
+            return _expand_path_reference(
+                ref, cwd, allowed_root=allowed_root, max_inline_tokens=max_inline_tokens,
+                has_file_tools=has_file_tools,
+            )
         if ref.kind in _GIT_REFERENCE_ARGS:
             git_args = _GIT_REFERENCE_ARGS[ref.kind](ref)
             return _expand_git_reference(ref, cwd, git_args, "git " + " ".join(git_args))
@@ -288,7 +292,7 @@ async def _expand_reference(
 
 
 def _expand_path_reference(ref: ContextReference, cwd: Path, *, allowed_root: Path | None = None,
-                           max_inline_tokens: int | None = None) -> Expansion:
+                           max_inline_tokens: int | None = None, has_file_tools: bool = True) -> Expansion:
     """``@file:`` / ``@folder:``: resolve, allow-check, then inline text / binary stub / listing."""
     is_folder = ref.kind == "folder"
     path = _resolve_path(cwd, ref.target, allowed_root=allowed_root)
@@ -305,25 +309,25 @@ def _expand_path_reference(ref: ContextReference, cwd: Path, *, allowed_root: Pa
         # between a check and a later open otherwise), but release it before token
         # counting/formatting: the registry lock blocks every tracked connect/close.
         with offline_file_access(path, what="preview context reference"):
-            early, text = _read_file_reference(ref, path, max_inline_tokens)
+            early, text = _read_file_reference(ref, path, max_inline_tokens, has_file_tools=has_file_tools)
     except LiveConnectionError:
         return None, _on_disk_reference_block(
             ref, path, descriptor="live SQLite database file",
             reason="not previewed: raw access would cancel SQLite's POSIX locks.",
-            guidance="Do not open this file directly while its database connection is live.",
+            guidance="Do not open this file directly while its database connection is live." if has_file_tools else "",
         )
-    return early or _format_file_reference(ref, path, text, max_inline_tokens)
+    return early or _format_file_reference(ref, path, text, max_inline_tokens, has_file_tools=has_file_tools)
 
 
 def _read_file_reference(
-    ref: ContextReference, path: Path, max_inline_tokens: int | None,
+    ref: ContextReference, path: Path, max_inline_tokens: int | None, *, has_file_tools: bool = True,
 ) -> tuple[Expansion | None, str]:
     """Raw file I/O for an @file ref: ``(early, text)`` where ``early`` is a refusal block
     (then ``text`` is empty) or ``None`` with the text to inline."""
     if _is_binary_file(path):
         # A bare "not supported" warning was a dead end (the model gave up); the file IS
         # on disk where the agent's tools run, so hand it an actionable block instead.
-        return (None, _binary_reference_block(ref, path)), ""
+        return (None, _binary_reference_block(ref, path, has_file_tools=has_file_tools)), ""
     if ref.line_start is not None:
         # A ranged ref wants a slice, not the file: stream to the window so a GB-scale
         # file serves :1-5 without being materialized. Lines are read in bounded pieces
@@ -362,7 +366,8 @@ def _read_file_reference(
                     break
                 total_chars += len(line)
                 if char_budget is not None and total_chars > char_budget:
-                    return (None, _oversized_text_reference_block(ref, path, total_chars // CHARS_PER_TOKEN)), ""
+                    return (None, _oversized_text_reference_block(
+                        ref, path, total_chars // CHARS_PER_TOKEN, has_file_tools=has_file_tools)), ""
                 parts.append(line)
         text = "".join(parts)
     else:
@@ -370,12 +375,15 @@ def _read_file_reference(
         # file past that byte ceiling is certainly oversized; refuse without reading it.
         size = path.stat().st_size
         if max_inline_tokens is not None and size > max_inline_tokens * CHARS_PER_TOKEN:
-            return (None, _oversized_text_reference_block(ref, path, size // CHARS_PER_TOKEN)), ""
+            return (None, _oversized_text_reference_block(
+                ref, path, size // CHARS_PER_TOKEN, has_file_tools=has_file_tools)), ""
         text = path.read_text(encoding="utf-8-sig")
     return None, text
 
 
-def _format_file_reference(ref: ContextReference, path: Path, text: str, max_inline_tokens: int | None) -> Expansion:
+def _format_file_reference(
+    ref: ContextReference, path: Path, text: str, max_inline_tokens: int | None, *, has_file_tools: bool = True,
+) -> Expansion:
     lang = _FENCE_LANGUAGES.get(path.suffix.lower(), "")
     text_tokens = estimate_tokens_rough(text)
     # Check BEFORE building the fenced block: an oversized file is not going to be
@@ -385,7 +393,7 @@ def _format_file_reference(ref: ContextReference, path: Path, text: str, max_inl
         # turn (#61987); the file stays readable via the agent's tools instead. The
         # block alone carries the message (same shape as the binary path) — a warning
         # would duplicate it in "--- Context Warnings ---".
-        return None, _oversized_text_reference_block(ref, path, text_tokens)
+        return None, _oversized_text_reference_block(ref, path, text_tokens, has_file_tools=has_file_tools)
     return None, f"📄 {ref.raw} ({text_tokens} tokens)\n```{lang}\n{text}\n```"
 
 
@@ -653,30 +661,36 @@ def _on_disk_reference_block(ref: ContextReference, path: Path, descriptor: str,
         size = format_bytes(path.stat().st_size)
     except OSError:
         size = "unknown size"
-    return (
-        f"📎 {ref.raw} ({descriptor}, {size}) — {reason} "
-        f"It is available on disk at `{_agent_visible_path(path)}`. {guidance}"
-    )
+    base = f"📎 {ref.raw} ({descriptor}, {size}) — {reason}"
+    if not guidance:
+        return base
+    return f"{base} It is available on disk at `{_agent_visible_path(path)}`. {guidance}"
 
 
-def _binary_reference_block(ref: ContextReference, path: Path) -> str:
+def _binary_reference_block(ref: ContextReference, path: Path, *, has_file_tools: bool = True) -> str:
     mime = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
     return _on_disk_reference_block(
         ref, path,
         descriptor=mime,
         reason="binary file, not inlined as text.",
-        guidance="Use your tools to work with it (read or convert it, extract its text, "
-                 "or view/render it as needed); do not tell the user the file type is unsupported.",
+        guidance=(
+            "Use your tools to work with it (read or convert it, extract its text, "
+            "or view/render it as needed); do not tell the user the file type is unsupported."
+        ) if has_file_tools else "",
     )
 
 
-def _oversized_text_reference_block(ref: ContextReference, path: Path, text_tokens: int) -> str:
+def _oversized_text_reference_block(
+    ref: ContextReference, path: Path, text_tokens: int, *, has_file_tools: bool = True,
+) -> str:
     return _on_disk_reference_block(
         ref, path,
         descriptor=f"text file, approximately {text_tokens} tokens",
         reason="too large to inline safely.",
-        guidance="Use read_file with a narrow line range, search_files, or terminal/code tools "
-                 "to inspect only the relevant parts; do not load the entire file into context.",
+        guidance=(
+            "Use read_file with a narrow line range, search_files, or terminal/code tools "
+            "to inspect only the relevant parts; do not load the entire file into context."
+        ) if has_file_tools else "",
     )
 
 

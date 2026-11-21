@@ -10,6 +10,7 @@ import {
   errorCardKey,
   type ErrorSurface,
   formatResetClock,
+  formatResetWait,
   isFreeTierSurface,
   scheduledRetryDelayMs
 } from './error-surface'
@@ -55,17 +56,18 @@ export function errorCardText(
     return { body: render(copy.body, provider, model), title: render(copy.title, provider, model) }
   }
 
-  // A rate limit whose reset moment is known names it instead of "wait a moment".
-  if (
-    (surface?.code === 'rate_limit' || surface?.code === 'upstream_rate_limit') &&
-    surface.resetsAt !== undefined &&
-    scheduledRetryDelayMs(surface.resetsAt) !== null
-  ) {
+  // A rate limit: "Usage limit reached", and when the provider named its reset, when that is
+  // (clock + remaining wait) instead of "wait a moment". Try again / Auto-resume sit below.
+  if (surface?.code === 'rate_limit' || surface?.code === 'upstream_rate_limit') {
     const copy = thread.errorCodes[surface.code]
+    const delay = scheduledRetryDelayMs(surface.resetsAt)
 
     return {
-      body: thread.errorRateLimitResetBody(provider, formatResetClock(surface.resetsAt)),
-      title: render(copy.title, provider, model)
+      body:
+        surface.resetsAt !== undefined && delay !== null
+          ? thread.errorUsageLimitResets(formatResetClock(surface.resetsAt), formatResetWait(delay))
+          : thread.errorUsageLimitBody(provider),
+      title: surface.code === 'rate_limit' ? thread.errorUsageLimitTitle : render(copy.title, provider, model)
     }
   }
 

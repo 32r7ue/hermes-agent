@@ -17,6 +17,7 @@ import { useBusyInputMode } from '@/app/session/hooks/use-busy-input-mode'
 import { composerFloatingStrip, composerInputSurface, composerSurfaceRing } from '@/components/chat/composer-dock'
 import { useSetupChatView } from '@/components/onboarding/first-run/assembly'
 import { OnboardingSkip } from '@/components/onboarding/skip-setup'
+import { PhoneCallTray } from '@/components/phone-calls/phone-call-tray'
 import { Slot as ContribSlot } from '@/contrib/react/slot'
 import { useI18n } from '@/i18n'
 import { chatMessageText } from '@/lib/chat-messages'
@@ -985,9 +986,10 @@ export function ChatBar({
       return
     }
 
-    // Alt+Enter sends directly while a turn runs: the live request stops and
-    // the words go now, instead of waiting for the tool batch (Enter, steer)
-    // or the whole turn (Cmd/Ctrl+Enter, queue).
+    // Alt+Enter sends directly while a turn runs: the live model request stops
+    // and the words go now. Enter steers (the agent sees it at once; running
+    // commands keep going in the background); Cmd/Ctrl+Enter queues for after
+    // the whole turn.
     if (event.key === 'Enter' && event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey && busy) {
       event.preventDefault()
 
@@ -1459,6 +1461,7 @@ export function ChatBar({
             }}
             ref={composerRef}
           >
+            <PhoneCallTray />
             {isHelpHint && <HelpHint />}
             {trigger && !argStageEmpty && (
               <ComposerTriggerPopover

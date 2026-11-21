@@ -48,6 +48,7 @@ import { AboutSettings } from './about-settings'
 import { AppearanceSettings } from './appearance-settings'
 import { BILLING_VIEWS, BillingSettings, type BillingSubView } from './billing'
 import { deriveBillingView, useBillingState, useSubscriptionState } from './billing/use-billing-state'
+import { CapabilitiesSettings } from './capabilities-settings'
 import { ConfigSettings } from './config-settings'
 import { SECTIONS } from './constants'
 import { GatewaySettings } from './gateway-settings'
@@ -66,7 +67,7 @@ import { SettingsBreadcrumbContext } from './primitives'
 import { PROVIDER_VIEWS, ProvidersSettings, type ProviderView } from './providers-settings'
 import { SessionsSettings } from './sessions-settings'
 import { SettingsSubpageHeader } from './subpage-navigation'
-import { resolveSettingsSubpage, settingsSubpageIcon, settingsSubpages } from './subpages'
+import { resolveSettingsSubpage, settingsSubpageIcon, settingsSubpageLabel, settingsSubpages } from './subpages'
 import type { SettingsPageProps, SettingsView as SettingsViewId } from './types'
 import { vaultOwnerKey, VaultSettings } from './vault-settings'
 import { useWebAccessAvailable, WebAccessSettings } from './web-access-settings'
@@ -85,6 +86,7 @@ const SETTINGS_VIEWS: readonly SettingsViewId[] = [
   'notifications',
   'billing',
   'sessions',
+  'capabilities',
   'plugins',
   'about'
 ]
@@ -100,6 +102,12 @@ const SUBPAGE_VIEWS: Partial<Record<SettingsViewId, ComponentType<{ subpage?: st
   keybinds: KeybindSettings,
   notifications: NotificationsSettings
 }
+
+const CAPABILITIES_NAV_ICON = codiconIcon('symbol-misc')
+
+/** Row selectors Settings ▸ Capabilities links carry (`?server=`, `?connector=`
+ *  …); switching pages drops them like the page-scoped params. */
+const CAPABILITY_LINK_PARAMS = ['server', 'connector', 'tool', 'rename', 'connection', 'skill'] as const
 
 export function SettingsView({ onClose, onConfigSaved, onMainModelChanged }: SettingsPageProps) {
   const scopeProfile = useStore($settingsScopeProfile)
@@ -137,7 +145,7 @@ export function SettingsView({ onClose, onConfigSaved, onMainModelChanged }: Set
     (view: SettingsViewId, page?: string) => {
       const next = new URLSearchParams(search)
 
-      for (const key of [...PAGE_SCOPED_PARAMS, 'pview', 'kview', 'bview']) {
+      for (const key of [...PAGE_SCOPED_PARAMS, ...CAPABILITY_LINK_PARAMS, 'pview', 'kview', 'bview']) {
         next.delete(key)
       }
 
@@ -421,10 +429,19 @@ export function SettingsView({ onClose, onConfigSaved, onMainModelChanged }: Set
             label: t.settings.nav.sessions,
             onSelect: () => setActiveView('sessions')
           },
+          // Skills, plugin inventory, connectors and tools — the former
+          // standalone Capabilities page; its tabs are the sub-pages below.
+          {
+            active: activeView === 'capabilities',
+            gapBefore: true,
+            icon: CAPABILITIES_NAV_ICON,
+            id: 'capabilities',
+            label: t.settings.nav.capabilities,
+            onSelect: () => setActiveView('capabilities')
+          },
           {
             active: activeView === 'plugins',
             children: pluginSettingsNavChildren(plugins.entries, plugins.target, plugins.open),
-            gapBefore: true,
             icon: PLUGINS_NAV_ICON,
             id: 'plugins',
             label: t.settings.nav.plugins,
@@ -450,7 +467,7 @@ export function SettingsView({ onClose, onConfigSaved, onMainModelChanged }: Set
                 active: group.active && subpage === page.id,
                 icon: settingsSubpageIcon(page, group.icon),
                 id: `${view}:${page.id}`,
-                label: t.settings.subpages[page.labelKey],
+                label: settingsSubpageLabel(page, t),
                 onSelect: () => openSettingsPage(view, page.id)
               }))
             }
@@ -595,6 +612,8 @@ export function SettingsView({ onClose, onConfigSaved, onMainModelChanged }: Set
       pending={plugins.pending}
       target={plugins.target}
     />
+  ) : activeView === 'capabilities' ? (
+    <CapabilitiesSettings onPageChange={page => openSettingsPage('capabilities', page)} subpage={subpage} />
   ) : activeView === 'vault' ? (
     <VaultSettings key={vaultOwnerKey(activeConnectionId, scopeProfile)} subpage={subpage} />
   ) : (

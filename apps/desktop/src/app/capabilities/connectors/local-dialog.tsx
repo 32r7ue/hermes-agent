@@ -1,7 +1,8 @@
 import { compactNumber } from '@hermes/shared'
-import { useLocation, useNavigate } from 'react-router'
+import { useNavigate } from 'react-router'
 
 import { PanelEmpty } from '@/app/overlays/panel'
+import { capabilitiesHref } from '@/app/routes'
 import type { ProfileScope } from '@/hermes'
 import { useI18n } from '@/i18n'
 
@@ -95,13 +96,8 @@ export function LocalConnectorDialog({
 
 function useOpenPluginsTab(): () => void {
   const navigate = useNavigate()
-  const { hash, pathname, search } = useLocation()
 
-  return () => {
-    const params = new URLSearchParams(search)
-    params.set('tab', 'plugins')
-    navigate({ hash, pathname, search: `?${params.toString()}` })
-  }
+  return () => navigate(capabilitiesHref('plugins'))
 }
 
 export function localCost(controller: McpServersController, name: string) {

@@ -97,6 +97,8 @@ it('dispatches the Alt defaults and remaps from text fields, leaving browser key
   }
 
   expect(deps.startFreshSession).toHaveBeenCalledOnce()
+  // ⌘N returns to the pending draft like the sidebar door; rotating the key strands unsent text.
+  expect(deps.startFreshSession).toHaveBeenCalledWith({ rotateFreshDraftKey: false })
   expect(deps.openNewSessionTab).toHaveBeenCalledOnce()
   expect(closeTab).toHaveBeenCalledOnce()
 
@@ -119,6 +121,8 @@ it('dispatches the macOS ⌃⌘ browser defaults, including ⌃⌘W over an inte
   }
 
   expect(deps.startFreshSession).toHaveBeenCalledOnce()
+  // ⌘N returns to the pending draft like the sidebar door; rotating the key strands unsent text.
+  expect(deps.startFreshSession).toHaveBeenCalledWith({ rotateFreshDraftKey: false })
   expect(deps.openNewSessionTab).toHaveBeenCalledOnce()
   expect(closeTab).toHaveBeenCalledOnce()
 })

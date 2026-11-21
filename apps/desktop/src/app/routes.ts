@@ -13,6 +13,8 @@ export const NEW_CHAT_ROUTE = '/'
 export const SETTINGS_ROUTE = '/settings'
 export const COMMAND_CENTER_ROUTE = '/command-center'
 export const SESSION_IMPORT_ROUTE = '/session-import'
+/** Legacy path: Capabilities moved into Settings. The route only redirects
+ *  (`legacyCapabilitiesHref`); link to `capabilitiesHref()` instead. */
 export const CAPABILITIES_ROUTE = '/capabilities'
 export const MESSAGING_ROUTE = '/messaging'
 export const WEBHOOKS_ROUTE = '/webhooks'
@@ -21,6 +23,41 @@ export const CRON_ROUTE = '/cron'
 export const PROFILES_ROUTE = '/profiles'
 export const AGENTS_ROUTE = '/agents'
 export const STARMAP_ROUTE = '/starmap'
+
+/** Capabilities (Skills, Plugins, Connectors, Tools) is a Settings page; each
+ *  former tab is one of its sub-pages. */
+export const CAPABILITY_PAGES = ['skills', 'plugins', 'connectors', 'toolsets'] as const
+
+export type CapabilityPage = (typeof CAPABILITY_PAGES)[number]
+
+export const isCapabilityPage = (value: null | string | undefined): value is CapabilityPage =>
+  (CAPABILITY_PAGES as readonly string[]).includes(value ?? '')
+
+/** Settings ▸ Capabilities ▸ `page`, carrying any row selectors
+ *  (`server`, `connector`, `plugin`, `profile`, …) as extra params. */
+export function capabilitiesHref(
+  page: CapabilityPage = 'skills',
+  params?: Record<string, string> | URLSearchParams
+): string {
+  const query = new URLSearchParams({ tab: 'capabilities', page })
+
+  for (const [key, value] of new URLSearchParams(params)) {
+    if (key !== 'tab' && key !== 'page') {
+      query.append(key, value)
+    }
+  }
+
+  return `${SETTINGS_ROUTE}?${query}`
+}
+
+/** Where an old `/capabilities?tab=<mode>&…` link lives now. Unknown or
+ *  legacy modes (`hub`) land on Skills, like the old page did. */
+export function legacyCapabilitiesHref(search: string): string {
+  const params = new URLSearchParams(search)
+  const tab = params.get('tab')
+
+  return capabilitiesHref(isCapabilityPage(tab) ? tab : 'skills', params)
+}
 
 export type AppView =
   | 'session-import'
@@ -89,7 +126,7 @@ export const ROUTES_AREA = 'routes'
 
 /** Payload of a `routes` contribution's `data`. */
 export interface RouteContribution {
-  /** Absolute path, e.g. `/kanban`. One segment; no params. */
+  /** Absolute path, e.g. `/reports`. One segment; no params. */
   path: string
 }
 
@@ -267,7 +304,7 @@ export function isWorkspacePageRoute(to: string): boolean {
  *  (settings/…) don't count — the chat stays beneath them. */
 export const $workspaceIsPage = atom(false)
 
-/** Page-owned controls (kanban's board switcher) projected into the workspace
+/** Page-owned controls (e.g. a plugin page's switcher) projected into the workspace
  *  panel's tab-header space while `$workspaceIsPage` holds — the page's title
  *  row, not the native band. Distinct from `titleBar.*`, whose slots stay
  *  mounted on every route so plugin components never remount on navigation. */

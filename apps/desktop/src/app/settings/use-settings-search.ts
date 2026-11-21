@@ -4,38 +4,35 @@ import { useCallback, useEffect } from 'react'
 
 import { useGatewayRequest } from '@/app/gateway/hooks/use-gateway-request'
 import { $pluginRecords } from '@/contrib/plugins-store'
-import { getEnvVars, getHermesConfigSchema } from '@/hermes'
+import { getEnvVars, getHermesConfigSchema, getSkills, getToolsets } from '@/hermes'
 import { useI18n } from '@/i18n'
-import { type IconComponent, Monitor, Package, Settings2, Wrench } from '@/lib/icons'
+import { hostHas } from '@/lib/host-capabilities'
+import { Book, Layers3, Monitor, Package, Settings2, SlidersHorizontal, Wrench } from '@/lib/icons'
+import { getServers } from '@/lib/mcp-servers'
 import { $agentPlugins, isDesktopRelevantPlugin, loadAgentPlugins } from '@/store/agent-plugins'
-import { $gatewayState } from '@/store/session'
+import { $localModelsEnabled } from '@/store/local-models-flag'
+import { $connection, $gatewayState } from '@/store/session'
 
 import { useHermesConfigRecord } from '../hooks/use-config-record'
 import { useOnProfileSwitch } from '../hooks/use-on-profile-switch'
 
 import { SECTIONS } from './constants'
+import { toolNames, toolsetDisplayLabel } from './helpers'
 import { OTHER_SUBPAGES } from './other-subpages'
 import { settingSearchTargets } from './settings-manifest'
+import { settingsPageEntries, settingsSubviewEntries, SUBPAGE_KEYWORDS } from './settings-pages'
 import { buildConfigSearchEntries, buildCredentialSearchEntries, type SettingsSearchEntry } from './settings-search'
-import { settingsSubpages } from './subpages'
+import { settingsSubpageLabel, settingsSubpages } from './subpages'
 import type { SettingsView } from './types'
 
-/** An installed plugin row, deep-linkable as `/capabilities?tab=plugins&plugin=<id>`. */
-export interface PluginSearchEntry {
-  context: string
-  description?: string
-  icon: IconComponent
-  id: string
-  keywords: string[]
-  label: string
-  plugin: string
-}
+const CATALOG_STALE_MS = 5 * 60 * 1000
 
 /**
- * The granular settings-search catalog (appearance controls, config fields,
- * credentials) for the command palette's Settings page. Page destinations stay
- * on the palette side — it already owns section/page rows — this hook only
- * contributes the deep, schema-driven targets.
+ * The settings-search catalog shared by ⌘K and the Settings-scoped palette:
+ * every Settings page and sub-page (`pageEntries`, `subpageEntries`), the
+ * hand-built rows (`settingEntries`), schema-driven config fields, credentials,
+ * and the contents of Settings ▸ Capabilities (installed skills, toolsets, MCP
+ * servers, plugins) — each entry a Settings deep link.
  */
 export function useSettingsSearchCatalog(enabled: boolean) {
   const { t } = useI18n()
@@ -45,7 +42,7 @@ export function useSettingsSearchCatalog(enabled: boolean) {
     queryKey: ['hermes-config-schema'],
     queryFn: () => getHermesConfigSchema(),
     enabled,
-    staleTime: 5 * 60 * 1000
+    staleTime: CATALOG_STALE_MS
   })
 
   const {
@@ -57,12 +54,30 @@ export function useSettingsSearchCatalog(enabled: boolean) {
     queryKey: ['desktop-settings-search-env-vars'],
     queryFn: () => getEnvVars(),
     enabled,
-    staleTime: 5 * 60 * 1000
+    staleTime: CATALOG_STALE_MS
+  })
+
+  // Settings ▸ Capabilities contents for the active profile. Own keys (not
+  // the Capabilities page's scoped ones): this is always the ambient profile.
+  const { data: skills, refetch: refetchSkills } = useQuery({
+    queryKey: ['desktop-settings-search-skills'],
+    queryFn: () => getSkills(),
+    enabled,
+    staleTime: CATALOG_STALE_MS
+  })
+
+  const { data: toolsets, refetch: refetchToolsets } = useQuery({
+    queryKey: ['desktop-settings-search-toolsets'],
+    queryFn: () => getToolsets(),
+    enabled,
+    staleTime: CATALOG_STALE_MS
   })
 
   const refreshCatalog = useCallback(() => {
     void refetchEnvVars()
-  }, [refetchEnvVars])
+    void refetchSkills()
+    void refetchToolsets()
+  }, [refetchEnvVars, refetchSkills, refetchToolsets])
 
   useOnProfileSwitch(refreshCatalog)
 
@@ -81,28 +96,66 @@ export function useSettingsSearchCatalog(enabled: boolean) {
     }
   }, [enabled, gatewayState, requestGateway])
 
-  // Installed plugin rows (both halves) — they live on Capabilities → Plugins,
-  // so each entry carries the `?plugin=` row selector for that page.
-  const pluginEntries: PluginSearchEntry[] = [
+  const capabilitiesLabel = t.settings.nav.capabilities
+  const capabilityContext = (tab: string) => `${capabilitiesLabel} › ${tab}`
+
+  // Installed plugin rows (both halves) — they live on Settings ▸ Capabilities
+  // ▸ Plugins, so each entry carries the `?plugin=` row selector for that page.
+  const pluginEntries: SettingsSearchEntry[] = [
     ...Object.values(desktopPluginRecords).map(record => ({
-      context: t.settings.plugins.title,
+      context: capabilityContext(t.skills.tabPlugins),
       description: record.description,
       icon: Monitor,
       id: `plugin:desktop:${record.id}`,
       keywords: ['plugin', 'extension', 'desktop', record.id],
       label: record.name,
-      plugin: record.id
+      target: { params: { plugin: record.id }, subpage: 'plugins', view: 'capabilities' as const }
     })),
     ...agentPlugins.filter(isDesktopRelevantPlugin).map(row => ({
-      context: t.skills.plugins.agentTitle,
+      context: capabilityContext(t.skills.tabPlugins),
       description: row.description || undefined,
       icon: Package,
       id: `plugin:agent:${row.key ?? row.name}`,
       keywords: ['plugin', 'extension', 'agent', ...(row.key ? [row.key] : [])],
       label: row.name,
-      plugin: row.key ?? row.name
+      target: { params: { plugin: row.key ?? row.name }, subpage: 'plugins', view: 'capabilities' as const }
     }))
   ]
+
+  // Installed skills and toolsets land on their Capabilities sub-page; MCP
+  // servers open their own connector card (`?server=`).
+  const skillEntries: SettingsSearchEntry[] = (skills ?? []).map(skill => ({
+    context: capabilityContext(t.skills.tabSkills),
+    description: skill.description || undefined,
+    icon: Book,
+    id: `skill:${skill.name}`,
+    keywords: ['skill', skill.category ?? ''],
+    label: skill.name,
+    target: { subpage: 'skills', view: 'capabilities' }
+  }))
+
+  const toolsetEntries: SettingsSearchEntry[] = (toolsets ?? []).map(toolset => ({
+    context: capabilityContext(t.skills.tabToolsets),
+    description: toolset.description || undefined,
+    icon: SlidersHorizontal,
+    id: `toolset:${toolset.name}`,
+    keywords: ['tool', 'toolset', toolset.name, ...toolNames(toolset)],
+    label: toolsetDisplayLabel(toolset),
+    target: { subpage: 'toolsets', view: 'capabilities' }
+  }))
+
+  const mcpServerEntries: SettingsSearchEntry[] = Object.keys(getServers(configQuery.data ?? null))
+    .sort()
+    .map(name => ({
+      context: capabilityContext(t.connectorsPage.title),
+      icon: Layers3,
+      id: `mcp-server:${name}`,
+      keywords: ['mcp', 'server', 'connector', 'tool'],
+      label: name,
+      target: { params: { server: name }, subpage: 'connectors', view: 'capabilities' }
+    }))
+
+  const capabilityEntries = [...skillEntries, ...toolsetEntries, ...mcpServerEntries]
 
   // Never expose stale profile-scoped targets while a catalog is refreshing.
   // Field/key results wait for the current profile's data rather than briefly
@@ -125,6 +178,7 @@ export function useSettingsSearchCatalog(enabled: boolean) {
     { settings: Settings2, tools: Wrench }
   )
 
+  // Standalone views name their nav row by view id.
   const pageLabels: Record<string, string> = t.settings.nav
 
   // The pages that own rows: config sections and the standalone views.
@@ -136,8 +190,8 @@ export function useSettingsSearchCatalog(enabled: boolean) {
     })),
     ...Object.keys(OTHER_SUBPAGES).map(view => ({
       view: view as SettingsView,
-      label: pageLabels[view],
-      icon: Settings2
+      label: pageLabels[view] ?? view,
+      icon: view === 'capabilities' ? Wrench : Settings2
     }))
   ]
 
@@ -167,15 +221,29 @@ export function useSettingsSearchCatalog(enabled: boolean) {
         context: parent.label,
         icon: parent.icon,
         id: `settings-page:${parent.view}:${page.id}`,
-        keywords: [parent.label, page.id],
-        label: t.settings.subpages[page.labelKey],
+        keywords: [parent.label, page.id, ...(SUBPAGE_KEYWORDS[page.labelKey] ?? [])],
+        label: settingsSubpageLabel(page, t),
         target: { view: parent.view, subpage: page.id }
       }))
     )
     .filter(entry => !settingLabels.has(`${entry.context}\u0000${entry.label}`))
 
+  // Page rows. Gated like the nav: Web Access only where this machine serves
+  // the Webapp, Local Models only behind its launch flag.
+  const connection = useStore($connection)
+  const localModelsEnabled = useStore($localModelsEnabled)
+
+  const pageOptions = {
+    localModelsEnabled,
+    webAccessAvailable: hostHas('webAccessHost') && connection?.mode !== 'remote'
+  }
+
+  const pageEntries = settingsPageEntries(t, pageOptions)
+
   return {
-    subpageEntries,
+    pageEntries,
+    subpageEntries: [...settingsSubviewEntries(t, pageOptions), ...subpageEntries],
+    capabilityEntries,
     settingEntries,
     configEntries,
     credentialEntries,

@@ -66,9 +66,47 @@ class _Companions:
     nbytes: int = 0
 
 
-def _companions(entry) -> _Companions:
+def find_companion_mmproj(model_id: str) -> Path | None:
+    """Find a matching ``*mmproj*.gguf`` in ``assets_dir()`` for a non-catalog model."""
+    from hermes_cli.local_runtime.bootstrap import assets_dir
+
+    if not model_id:
+        return None
+    root = assets_dir()
+    if not root.is_dir():
+        return None
+    target = model_id.lower()
+    matches: list[tuple[int, str, Path]] = []
+    for path in root.iterdir():
+        if not path.is_file() or path.suffix.lower() != ".gguf":
+            continue
+        stem = path.stem.lower()
+        idx = stem.find("mmproj")
+        if idx <= 0:
+            continue
+        prefix = stem[:idx].rstrip("-_.")
+        if not prefix:
+            continue
+        if target == prefix or (
+            target.startswith(prefix) and target[len(prefix)] in "-_."
+        ):
+            matches.append((len(prefix), path.name, path))
+    if not matches:
+        return None
+    matches.sort(key=lambda item: (-item[0], item[1]))
+    return matches[0][2]
+
+
+def _companions(entry, model_id: str | None = None) -> _Companions:
     if entry is None:
-        return _Companions()
+        mmproj = find_companion_mmproj(model_id or "")
+        if mmproj is None:
+            return _Companions()
+        try:
+            nbytes = mmproj.stat().st_size
+        except OSError:
+            nbytes = 0
+        return _Companions(mmproj=mmproj, nbytes=nbytes)
     mmproj, head = _asset_path(entry.mmproj), _asset_path(entry.mtp_head)
     nbytes = sum(a.size_bytes for a, p in ((entry.mmproj, mmproj), (entry.mtp_head, head)) if p)
     return _Companions(mmproj=mmproj, mtp_head=head, nbytes=nbytes)
@@ -190,7 +228,7 @@ def preset_for_model(gguf: Path, budget: HardwareBudget,
         logger.warning("preset skip %s: %s", gguf.name, exc)
         return None
     entry = entry_for_model(model_id)
-    companions = _companions(entry)
+    companions = _companions(entry, model_id)
     is_mtp = _runs_mtp(entry, companions) if entry is not None else model_id in mtp_capable
 
     fixed_overhead = RUNTIME_OVERHEAD_BYTES + companions.nbytes
@@ -216,10 +254,21 @@ def preset_for_model(gguf: Path, budget: HardwareBudget,
         mtp_draft_depth=entry.mtp_draft_depth if entry is not None else 3))
     keys["model"] = str(gguf)
     from hermes_cli.local_runtime.hardware import prompt_cache_bytes
-    cache = prompt_cache_bytes(live, footprint_bytes(plan.profile, decision.window,
-                                                     overhead_bytes=plan.overhead_bytes), residents)
-    if cache is not None:
-        keys["cache-ram"] = str(cache >> 20)  # MiB; 0 turns the cache off
+    cache_override = None
+    try:
+        from hermes_cli.config import load_config
+        raw_cache = ((load_config() or {}).get("local_runtime") or {}).get("cache_ram_mib")
+        if raw_cache is not None:
+            cache_override = max(0, int(raw_cache))
+    except Exception:
+        cache_override = None
+    if cache_override is not None:
+        keys["cache-ram"] = str(cache_override)
+    else:
+        cache = prompt_cache_bytes(live, footprint_bytes(plan.profile, decision.window,
+                                                         overhead_bytes=plan.overhead_bytes), residents)
+        if cache is not None:
+            keys["cache-ram"] = str(cache >> 20)  # MiB; 0 turns the cache off
     if profile.lazy_bytes:
         # The price above leaves these tensors on disk; llama.cpp's own default loads them on
         # integrated GPUs.
@@ -236,11 +285,11 @@ def preset_for_model(gguf: Path, budget: HardwareBudget,
     # carrying neither runs llama.cpp defaults.
     for k, v in header.sampling_defaults.items():
         keys.setdefault(k, v)
+    if companions.mmproj is not None:
+        keys["mmproj"] = str(companions.mmproj)
     if entry is not None:
         for k, v in (entry.sampling or {}).items():
             keys.setdefault(k, v)
-        if companions.mmproj is not None:
-            keys["mmproj"] = str(companions.mmproj)
         if companions.mtp_head is not None:
             # The model carries no MTP layers: draft-mtp drafts from the shipped head instead.
             keys["model-draft"] = str(companions.mtp_head)
@@ -273,7 +322,7 @@ def resident_footprint(gguf: Path, budget: HardwareBudget, window: int, *, draft
         logger.debug("footprint skip %s: %s", gguf.name, exc)
         return None
     entry = entry_for_model(model_id)
-    companions = _companions(entry)
+    companions = _companions(entry, model_id)
     fixed_overhead = RUNTIME_OVERHEAD_BYTES + companions.nbytes
     if drafting and _runs_dflash(entry) is not None:
         lean = replace(profile, kv_scale=1.0)
@@ -299,7 +348,7 @@ def _launch_footprint(gguf: Path, budget: HardwareBudget, engine_tag: str | None
         logger.debug("footprint skip %s: %s", gguf.name, exc)
         return None
     entry = entry_for_model(model_id)
-    companions = _companions(entry)
+    companions = _companions(entry, model_id)
     fixed_overhead = RUNTIME_OVERHEAD_BYTES + companions.nbytes
     requested = load_window_overrides().get(model_id)
     plan = plan_launch(profile, budget, mtp_capable=_runs_mtp(entry, companions),

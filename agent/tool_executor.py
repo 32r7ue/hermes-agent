@@ -555,6 +555,13 @@ def _registered_tool_worker(agent):
     tid = threading.current_thread().ident
     with agent._tool_worker_threads_lock:
         agent._tool_worker_threads.add(tid)
+    # A steer that arrived while the model was still answering (before this batch started) asks the
+    # new worker to yield too: the model must not wait out a long command it chose without seeing the
+    # user's message. Short commands finish inside the yield grace and are unaffected.
+    if getattr(agent, "_pending_steer", None):
+        with contextlib.suppress(Exception):
+            from tools.interrupt import request_yield
+            request_yield(tid)
     try:
         yield tid
     finally:
@@ -562,6 +569,10 @@ def _registered_tool_worker(agent):
             agent._tool_worker_threads.discard(tid)
         with contextlib.suppress(Exception):
             _ra()._set_interrupt(False, tid)
+        # An unconsumed yield (the tool never polled for one) must not leak onto a recycled tid.
+        with contextlib.suppress(Exception):
+            from tools.interrupt import consume_yield
+            consume_yield(tid)
 
 
 _NO_REASON = object()
@@ -1708,7 +1719,9 @@ def _resolve_sequential_dispatch(agent, ref: _ToolCallRef, messages: list) -> _S
     # Registry tools: post hook is owned by this executor (inner observer suppressed).
     def _execute(next_args: dict) -> Any:
         import model_tools
+        from agent.local_mode import shape_tool_args
 
+        next_args = shape_tool_args(agent, function_name, next_args)
         with model_tools.suppress_post_tool_call_hook():
             return model_tools.handle_function_call(
                 function_name,

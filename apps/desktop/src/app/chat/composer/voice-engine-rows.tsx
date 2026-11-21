@@ -32,13 +32,14 @@ export function VoiceEngineRows({ disabled }: { disabled: boolean }) {
   }
 
   const liveAvailable = status.available
+  const geminiAvailable = Boolean(status.geminiAvailable)
 
   return (
     <>
       <DropdownMenuLabel>{c.voiceEngine}</DropdownMenuLabel>
       <DropdownMenuRadioGroup
         onValueChange={value => {
-          if (value !== 'chained' && value !== 'gpt-live') {
+          if (value !== 'chained' && value !== 'gpt-live' && value !== 'gemini-live') {
             return
           }
 
@@ -49,6 +50,20 @@ export function VoiceEngineRows({ disabled }: { disabled: boolean }) {
       >
         <DropdownMenuRadioItem className={dropdownMenuRow} disabled={disabled} value="chained">
           {c.voiceEngineChained}
+        </DropdownMenuRadioItem>
+        <DropdownMenuRadioItem
+          className={dropdownMenuRow}
+          disabled={disabled || !geminiAvailable}
+          value="gemini-live"
+        >
+          <span className="flex min-w-0 flex-col">
+            <span>Gemini 3.8 Live</span>
+            {geminiAvailable ? null : (
+              <span className="text-muted-foreground truncate text-xs">
+                {status.geminiReason ?? 'Needs GOOGLE_API_KEY'}
+              </span>
+            )}
+          </span>
         </DropdownMenuRadioItem>
         <DropdownMenuRadioItem className={dropdownMenuRow} disabled={disabled || !liveAvailable} value="gpt-live">
           <span className="flex min-w-0 flex-col">
@@ -74,7 +89,13 @@ export function useVoiceEngineName(): null | string {
     return null
   }
 
-  return selectedVoiceChatMode(status) === 'gpt-live'
+  const mode = selectedVoiceChatMode(status)
+
+  if (mode === 'gemini-live') {
+    return 'Gemini Live'
+  }
+
+  return mode === 'gpt-live'
     ? t.composer.voiceEngineLiveShort
     : t.composer.voiceEngineChainedShort
 }

@@ -196,7 +196,11 @@ async def test_discarded_lost_turn_is_closed_and_never_merged_into_the_follower_
         chat = [r for r in provider.requests if 'messages' in r]
         sent = [m for m in chat[0]['messages'] if m['role'] != 'system']
         assert [m['content'] for m in sent if m['role'] == 'user'] == ['HEAD lost in restart', 'FOLLOWER'], sent
-        assert sent[1] == {'role': 'assistant', 'content': PARTIAL_FAILED_TURN_NOTICE}
+        # The model reads a Hermes note about the lost turn, never the user-facing sentence as its own.
+        from agent.turn_failure_copy import failed_turn_model_content
+        assert sent[1] == {'role': 'assistant', 'content': failed_turn_model_content(
+            {'role': 'assistant', 'content': PARTIAL_FAILED_TURN_NOTICE, 'display_kind': FAILED_TURN_DISPLAY_KIND})}
+        assert 'may already have run' in sent[1]['content']
     finally:
         provider.shutdown()
         await viewer.close()

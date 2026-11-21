@@ -810,6 +810,7 @@ from hermes_cli.web_routers import (
 )
 
 import hermes_cli.web_routers.desktop_plugins as _desktop_plugin_routes
+import hermes_cli.web_routers.phone_calls as _phone_calls_routes
 import hermes_cli.web_routers.uploads as _upload_routes
 from fastapi import Depends as _Depends
 from hermes_cli.web_server_surface import route_on as _route_on
@@ -823,6 +824,7 @@ app.include_router(_local_models_routes.router)
 app.include_router(_status_routes.router)
 app.include_router(_actions_routes.router)
 app.include_router(_audio_routes.router)
+app.include_router(_phone_calls_routes.router)
 app.include_router(_display_routes.router)
 app.include_router(_actions_routes.status_router)
 app.include_router(_sessions_routes.list_router)

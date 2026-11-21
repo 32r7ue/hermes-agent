@@ -453,6 +453,8 @@ _CONTROL_STATE: dict[str, Any] = {
     # batch — no interrupt, no new user turn (role alternation preserved).
     "_pending_steer": None,
     "_pending_steer_lock": threading.Lock,
+    # Closed by the finalizer's last steer drain, reopened at turn start: steer() refuses in between.
+    "_steer_window_closed": False,
     # Active-turn redirect: keep the valid turn prefix, cancel only the in-flight request,
     # rebuild the tail with the correction. Drained at a role-safe boundary.
     "_pending_redirect": None,
@@ -1036,8 +1038,8 @@ def _load_tools(agent, enabled_toolsets, disabled_toolsets):
     from agent.local_mode import local_mode
     agent.tools = agent_tool_surface(agent, model_tools.get_tool_definitions(
         enabled_toolsets=enabled_toolsets, disabled_toolsets=disabled_toolsets, quiet_mode=agent.quiet_mode,
-        # Lite keeps ~11 tools: load them directly, no tool_search bridge in front of them.
-        skip_tool_search_assembly=local_mode(agent) == "lite") or [])
+        # Chat/lite keep tiny tool surfaces: load them directly, no tool_search bridge in front.
+        skip_tool_search_assembly=local_mode(agent) in ("chat", "lite")) or [])
     agent.valid_tool_names = {tool["function"]["name"] for tool in agent.tools} if agent.tools else set()
     # Kanban guidance is session-static for the dispatcher-owned worker only. Profiles may
     # expose kanban_show interactively, and children/cron runs inherit the env var, without

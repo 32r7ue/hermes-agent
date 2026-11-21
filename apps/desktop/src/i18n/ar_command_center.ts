@@ -73,7 +73,6 @@ export const arCommandCenter = {
       installs: count => `${count} عملية تثبيت`
     },
     settingsFields: 'حقول الإعدادات',
-    mcpServers: 'خوادم MCP',
     archivedChats: 'المحادثات المؤرشفة',
     commands: 'الأوامر',
     sections: {
@@ -89,10 +88,6 @@ export const arCommandCenter = {
       settings: {
         title: 'الإعدادات',
         detail: 'تكوين Hermes desktop'
-      },
-      capabilities: {
-        title: 'المهارات والأدوات',
-        detail: 'تفعيل المهارات ومجموعات الأدوات والمزوّدين'
       },
       messaging: {
         title: 'المراسلة',

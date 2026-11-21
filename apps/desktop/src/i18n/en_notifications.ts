@@ -57,5 +57,23 @@ export const enNotifications = {
     'Silences automatic completion, wake-word and thinking cues, haptic feedback, and OS notification sounds. Sound previews and spoken replies still play.',
   completionSoundTitle: 'Completion Sound',
   completionSoundDesc: 'Plays when an agent turn finishes. Pick a preset and preview it here.',
-  completionSoundPreview: 'Preview'
+  completionSoundPreview: 'Preview',
+  chatCues: {
+    sent: {
+      label: 'Message sent sound',
+      description: 'Cursor\'s cue when you send or steer a message.'
+    },
+    thinking: {
+      label: 'Thinking sound',
+      description: 'Cursor\'s soft pulse while the agent works: after 4 seconds, then every ~6 seconds until the turn ends or needs you.'
+    },
+    fileEdited: {
+      label: 'File edited sound',
+      description: 'Cursor\'s cue when the agent finishes editing a file.'
+    },
+    approval: {
+      label: 'Approval sound',
+      description: 'Cursor\'s kept / undone cues when you approve or deny a request.'
+    }
+  }
 }

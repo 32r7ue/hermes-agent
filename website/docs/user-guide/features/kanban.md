@@ -241,19 +241,6 @@ All dashboard API endpoints accept `?board=<slug>` for board scoping. The
 events WebSocket is pinned to a board at connection time; switching in
 the UI opens a fresh WS against the new board.
 
-### Switching boards in the Desktop app
-
-In the Desktop app the board switcher sits in the header row at the top of
-the Kanban page, beside the page title: a **Board** control showing the current board's
-name and task count, with a chevron — hover it for "Switch board". Click
-it to pick another board, or to rename, configure, export, import,
-create, or archive boards. When Kanban is open in a split tile, the same
-**Board** control sits in the board's own header row, after the task count.
-Like the dashboard, the desktop keeps its own
-selection (persisted locally) and does not move the CLI's `current`
-pointer.
-
-
 ## File attachments
 
 Tasks can carry file attachments — PDFs, images, source documents — so a
@@ -433,8 +420,8 @@ parent, missing input, unmet capability) before unblocking, or raise
 
 ## Enabling tools for a chat profile
 
-The Desktop Kanban plugin displays the board; it does not grant the chat agent
-permission to manage tasks. Enable the `kanban` toolset for the profile and
+The dashboard board does not grant the chat agent permission to manage tasks.
+Enable the `kanban` toolset for the profile and
 platform that should orchestrate work:
 
 ```bash
@@ -926,7 +913,7 @@ Tasks in `~/.hermes/kanban.db` are profile-agnostic on purpose (that's the coord
 
 ### Extending it
 
-The plugin uses the standard Hermes dashboard plugin contract — see [Extending the Dashboard](./extending-the-dashboard) for the full manifest reference, shell slots, page-scoped slots, and the Plugin SDK. Extra columns, tenant-filtered layouts, or full `tab.override` replacements are all expressible without forking this plugin. The dashboard has no per-card slot; on the desktop board, plugins add per-card labels through the `KANBAN_CARD_AREAS.badges` contribution area (see [Desktop Plugin SDK](../../developer-guide/desktop-plugin-sdk.md#kanban-card-badges)).
+The plugin uses the standard Hermes dashboard plugin contract — see [Extending the Dashboard](./extending-the-dashboard) for the full manifest reference, shell slots, page-scoped slots, and the Plugin SDK. Extra columns, tenant-filtered layouts, or full `tab.override` replacements are all expressible without forking this plugin. The dashboard has no per-card slot.
 
 To disable without removing: add `dashboard.plugins.kanban.enabled: false` to `config.yaml` (or delete `plugins/kanban/dashboard/manifest.json`).
 
@@ -1239,12 +1226,6 @@ hermes kanban create "monthly report" \
 ```
 
 Workers receive `$HERMES_TENANT` and namespace their memory writes by prefix. The board, the dispatcher, and the profile definitions are all shared; only the data is scoped.
-
-## Desktop notifications
-
-The Desktop app's Kanban plugin surfaces the same terminal events natively — no gateway platform required. While the Kanban board's live event socket is connected, each `completed`, `blocked`, `gave_up`, `crashed`, `timed_out`, or routed-to-triage (`block_loop_detected`) event raises an in-app toast with the worker's handoff (summary, block reason, or error) and an "Open Kanban" action. When you're away from the Hermes window, the same event also fires a native OS notification (gated by **Settings ▸ Notifications ▸ Plugin notifications**), so a task hitting a blocker while you're in another app still reaches you.
-
-Coverage window: desktop notifications ride the live event stream, so they fire only while the app is running with the Kanban plugin enabled. Events that land while the app is closed are not replayed as notifications on next launch — use a gateway subscription (below) for delivery that must survive the app being closed.
 
 ## Gateway notifications
 

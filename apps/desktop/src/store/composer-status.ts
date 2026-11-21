@@ -39,7 +39,7 @@ export interface ComposerStatusItem {
   id: string
   /** background process: captured stdout/stderr tail for the inline viewer. */
   output?: string
-  /** subagent: its own stored session id — row click opens that session window
+  /** subagent: its own stored session id — row click opens it in a spectator tile
    *  (livestreamed by the gateway's child-session mirror). */
   sessionId?: string
   state: StatusItemState
@@ -102,6 +102,96 @@ export const $backgroundRunningSessionIds = computed(
     return (backgroundRunningIds = stableArray(backgroundRunningIds, [...ids]))
   }
 )
+
+// How each background process ended, keyed by process id (`proc_…`, unique
+// across sessions). Finished rows self-clear from the stack after a few
+// seconds, but a transcript tool row that handed its command to the background
+// (yielded on steer / promoted past the timeout cap) still needs to say the
+// command finished, and with which exit code, after the row is gone.
+export interface BackgroundOutcome {
+  exitCode?: number
+  state: Exclude<StatusItemState, 'running'>
+}
+
+export const $backgroundOutcomes = atom<Record<string, BackgroundOutcome>>({})
+
+function recordBackgroundOutcomes(items: readonly ComposerStatusItem[]) {
+  const current = $backgroundOutcomes.get()
+  let next: Record<string, BackgroundOutcome> | null = null
+
+  for (const item of items) {
+    if (item.state === 'running') {
+      continue
+    }
+
+    const known = current[item.id]
+
+    if (known?.state === item.state && known.exitCode === item.exitCode) {
+      continue
+    }
+
+    next ??= { ...current }
+    next[item.id] = { exitCode: item.exitCode, state: item.state }
+  }
+
+  if (next) {
+    $backgroundOutcomes.set(next)
+  }
+}
+
+/** A handed-off command's live state: the stack row while it exists, else its recorded end. */
+export function backgroundProcessState(
+  items: readonly ComposerStatusItem[] | undefined,
+  outcomes: Record<string, BackgroundOutcome>,
+  processId: string
+): BackgroundOutcome | { exitCode?: undefined; state: 'running' } | null {
+  const item = items?.find(entry => entry.id === processId)
+
+  if (item) {
+    return item.state === 'running' ? { state: 'running' } : { exitCode: item.exitCode, state: item.state }
+  }
+
+  return outcomes[processId] ?? null
+}
+
+// Rows seeded from a tool result before the registry snapshot confirmed them,
+// with when they were seeded. A refresh already in flight when the command was
+// handed off can answer without it; keep the row through that race instead of
+// flickering it out and back.
+const SEEDED_GRACE_MS = 10_000
+const seededAt = new Map<string, number>()
+
+/**
+ * A terminal command just moved to a background process (yielded on steer or
+ * promoted past the foreground cap): show its row in the stack now, ahead of
+ * the `process.list` round-trip, which then reconciles it in place.
+ */
+export function seedBackgroundProcess(sid: string, processId: string, command: string) {
+  if (!sid || !processId || dismissedBySession.get(sid)?.has(processId) || $backgroundOutcomes.get()[processId]) {
+    return
+  }
+
+  const prev = $backgroundStatusBySession.get()[sid] ?? []
+
+  if (prev.some(item => item.id === processId)) {
+    return
+  }
+
+  seededAt.set(processId, Date.now())
+  writeBackground(
+    sid,
+    [
+      ...prev,
+      {
+        id: processId,
+        state: 'running',
+        title: command.split('\n')[0]!.trim() || 'background process',
+        type: 'background'
+      }
+    ],
+    backgroundWrittenAt.get(prev)
+  )
+}
 
 // Rows the user X-ed away. The registry keeps finished processes around for a
 // while, so without this every refresh would resurrect a dismissed row.
@@ -383,14 +473,33 @@ export function reconcileBackgroundProcesses(sid: string, procs: GatewayProcessE
     }
   }
 
+  const now = Date.now()
+
   const kept = prev.flatMap(old => {
     const next = fresh.get(old.id)
     fresh.delete(old.id)
 
-    return next ? [sameItem(old, next) ? old : next] : []
+    if (next) {
+      seededAt.delete(old.id)
+
+      return [sameItem(old, next) ? old : next]
+    }
+
+    // A just-seeded handoff the registry has not listed yet stays put.
+    const seeded = seededAt.get(old.id)
+
+    if (seeded !== undefined && now - seeded < SEEDED_GRACE_MS && !dismissed?.has(old.id)) {
+      return [old]
+    }
+
+    seededAt.delete(old.id)
+
+    return []
   })
 
   const next = [...kept, ...fresh.values()]
+
+  recordBackgroundOutcomes(next)
 
   // Dismissals only need remembering while the registry still reports the id.
   if (dismissed) {

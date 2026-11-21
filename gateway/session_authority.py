@@ -1021,6 +1021,11 @@ class SessionAuthority:
                 del self.pending_stops[session_id]
                 from agent.interrupt_compat import request_hard_interrupt
                 request_hard_interrupt(agent)
+            # A cached agent's previous turn closed steer acceptance at its last drain; this turn
+            # owns the agent now, so the latched steers below must land (run_conversation reopens too).
+            reopen = getattr(agent, '_open_steer_window', None)
+            if callable(reopen):
+                reopen()
             latched, steers = self.pending_steers.pop(session_id, (None, ()))
             for text in steers if latched == generation else ():
                 agent.steer(text)

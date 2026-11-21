@@ -95,4 +95,46 @@ describe('transcript row identity', () => {
       'prompt 3'
     ])
   })
+
+  it('keeps the live turn mounted when the receipt binds the optimistic bubble and the persisted copy replaces it', async () => {
+    // Re-keying the turn from `user-<submission>` to `row:N` remounted the user
+    // bubble and the reply under it while the send was still gliding in.
+    const reply = (rowId?: number) =>
+      ({
+        id: 'reply-live',
+        role: 'assistant',
+        content: [{ type: 'text', text: 'working on it' }],
+        status: { type: 'running' },
+        createdAt,
+        metadata: { unstable_state: null, unstable_annotations: [], unstable_data: [], steps: [], custom: rowId ? { rowId } : {} }
+      }) as ThreadMessage
+
+    const sent = (id: string, rowId?: number) =>
+      ({
+        id,
+        role: 'user',
+        content: [{ type: 'text', text: 'follow-up' }],
+        attachments: [],
+        createdAt,
+        metadata: { custom: rowId ? { rowId } : {} }
+      }) as ThreadMessage
+
+    const history = storedTurns(0, 2)
+    const { container, rerender } = render(<Harness messages={[...history, sent('user-submission-1'), reply()]} />)
+    const settle = () => act(async () => await new Promise<void>(resolve => window.setTimeout(resolve, 0)))
+    await settle()
+
+    const liveTurn = () => turnRows(container).at(-1)
+    const before = liveTurn()
+    expect(before?.textContent).toContain('follow-up')
+
+    rerender(<Harness messages={[...history, sent('user-submission-1', 900), reply()]} />)
+    await settle()
+    expect(liveTurn()).toBe(before)
+
+    rerender(<Harness messages={[...history, sent('1793025691.78-4-user', 900), reply(901)]} />)
+    await settle()
+    expect(liveTurn()).toBe(before)
+    expect(turnRows(container)).toHaveLength(3)
+  })
 })

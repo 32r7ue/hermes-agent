@@ -238,6 +238,38 @@ export const SETTINGS_MANIFEST = {
         label: t.settings.notifications.completionSoundTitle,
         description: t.settings.notifications.completionSoundDesc
       })
+    },
+    chatCueSent: {
+      subpage: 'sounds',
+      keywords: ['sound', 'cursor', 'send', 'sent', 'message', 'cue'],
+      copy: t => ({
+        label: t.settings.notifications.chatCues.sent.label,
+        description: t.settings.notifications.chatCues.sent.description
+      })
+    },
+    chatCueThinking: {
+      subpage: 'sounds',
+      keywords: ['sound', 'cursor', 'thinking', 'progress', 'working', 'loop', 'pulse'],
+      copy: t => ({
+        label: t.settings.notifications.chatCues.thinking.label,
+        description: t.settings.notifications.chatCues.thinking.description
+      })
+    },
+    chatCueFileEdited: {
+      subpage: 'sounds',
+      keywords: ['sound', 'cursor', 'edit', 'file', 'patch', 'cue'],
+      copy: t => ({
+        label: t.settings.notifications.chatCues.fileEdited.label,
+        description: t.settings.notifications.chatCues.fileEdited.description
+      })
+    },
+    chatCueApproval: {
+      subpage: 'sounds',
+      keywords: ['sound', 'cursor', 'approve', 'deny', 'kept', 'undone', 'cue'],
+      copy: t => ({
+        label: t.settings.notifications.chatCues.approval.label,
+        description: t.settings.notifications.chatCues.approval.description
+      })
     }
   },
   sessions: {

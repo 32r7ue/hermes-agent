@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router'
 
 import { blurComposerInput } from '@/app/chat/composer/focus'
 import { useComposerSurfaceId } from '@/app/chat/composer/scope'
+import { openSubagentPane } from '@/app/chat/open-subagent'
 import { useSessionView } from '@/app/chat/session-view'
 import { AGENTS_ROUTE } from '@/app/routes'
 import type { SubmitTextOptions } from '@/app/session/hooks/use-prompt-actions/utils'
@@ -38,7 +39,6 @@ import { $sessionControlBySession, refreshSessionControl } from '@/store/session
 import { $sharedMetricsConsent, sharedMetricsOfferPending } from '@/store/shared-metrics'
 import { $threadScrolledUpBySession } from '@/store/thread-scroll'
 import { $retainedTodosBySession } from '@/store/todos'
-import { openSessionInNewWindow } from '@/store/windows'
 
 import { PreviewStatusRow } from './preview-row'
 import { SessionControlSections } from './session-control'
@@ -206,7 +206,7 @@ export function ComposerStatusStack({ onSubmit, queue, sessionId }: ComposerStat
 
   const openSubagent = (item: ComposerStatusItem) =>
     item.sessionId
-      ? void openSessionInNewWindow(item.sessionId, { watch: true, parentSessionId: storedSessionId ?? sessionId })
+      ? void openSubagentPane(item.sessionId, { parentSessionId: storedSessionId ?? sessionId, title: item.title })
       : openAgents()
 
   const previewRows =

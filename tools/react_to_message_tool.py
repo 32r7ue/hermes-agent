@@ -12,6 +12,13 @@ from tools import desktop_ui
 from tools.registry import registry, tool_error
 
 
+# The only reactions the agent may use (the user's pinned set). Compared without the U+FE0F
+# variation selector so '‼' and '‼️' are one choice.
+ALLOWED_REACTIONS = ("😭", "😂", "👍", "🫡", "😳", "💀", "🥀", "🔥", "🌚", "😁", "🤙",
+                     "🫵", "🙌", "👀", "😅", "🙏", "🤫", "🗿", "👌", "‼️", "👎")
+_ALLOWED_BARE = {e.replace("\ufe0f", ""): e for e in ALLOWED_REACTIONS}
+
+
 def _open_session_db():
     """Open the SessionDB for the profile owning this turn, or ``None``."""
     try:
@@ -24,6 +31,11 @@ def _open_session_db():
 def react_to_message_tool(emoji: str, message_row_id=None, messages_back=None) -> str:
     """Attach (or with an empty ``emoji`` retract) the agent's reaction."""
     emoji = (emoji or "").strip()
+    if emoji:
+        canonical = _ALLOWED_BARE.get(emoji.replace("\ufe0f", ""))
+        if canonical is None:
+            return tool_error(f"{emoji} is not an allowed reaction. Use one of: {' '.join(ALLOWED_REACTIONS)}")
+        emoji = canonical
     # Routing keys identify a channel; message rows belong to the live durable session.
     session_key = get_session_env("HERMES_SESSION_ID", "") or get_session_env("HERMES_SESSION_KEY", "")
     if not session_key:
@@ -52,7 +64,11 @@ def react_to_message_tool(emoji: str, message_row_id=None, messages_back=None) -
         # persisted. `role` lets the renderer match a live message without a durable row id.
         with contextlib.suppress(Exception):
             desktop_ui.emit("message.reaction", {"row_id": int(row_id), "reactions": reactions, "role": target_role})
-        return json.dumps({"success": True, "row_id": int(row_id), "reactions": reactions}, ensure_ascii=False)
+        # Read right before the model writes: the cheapest place to stop it echoing the emoji as text.
+        note = ("Reaction shown on the message. Never repeat the emoji as text; if it says it all, "
+                "end your turn with no text.") if emoji else "Reaction removed."
+        return json.dumps({"success": True, "row_id": int(row_id), "reactions": reactions, "note": note},
+                          ensure_ascii=False)
     finally:
         with contextlib.suppress(Exception):
             from hermes_state_registry import release_or_close
@@ -69,9 +85,12 @@ REACT_TO_MESSAGE_SCHEMA = {
     "description": (
         "React to a message with a single emoji, the way you'd tapback in iMessage. "
         "Reach for it when a reaction is what a person would do: something funny gets "
-        "a 😂, warmth gets a ❤️, a plan you're on board with gets a 👍 — then just "
+        "a 😂, gratitude gets a 🙏, a plan you're on board with gets a 👍 — then just "
         "carry on with whatever the message actually needs. If a reaction says it "
-        "all, it can BE the reply (skip the redundant 'sounds good!' turn). Use it "
+        "all, it can BE the reply: end your turn with no text at all (never the "
+        "emoji itself as text, no 'sounds "
+        "good!', no restating it). Text after a reaction is optional, only when the "
+        "message still needs words. Use it "
         "like a person would: occasionally, when felt — not on every message, and "
         "never as a status signal. NEVER narrate or explain a reaction ('I reacted "
         "with...', 'Reacting now') — the emoji appearing on the bubble is the whole "
@@ -84,10 +103,8 @@ REACT_TO_MESSAGE_SCHEMA = {
         "properties": {
             "emoji": {
                 "type": "string",
-                "description": (
-                    "The emoji to react with (e.g. '❤️', '😂', '👍'). Pass an empty "
-                    "string to remove your reaction."
-                ),
+                "enum": [*ALLOWED_REACTIONS, ""],
+                "description": "One of the listed emoji. Pass an empty string to remove your reaction.",
             },
             "message_row_id": {
                 "type": "integer",

@@ -410,6 +410,8 @@ export interface Translations extends NoticeTranslations {
     retry: string
     run: string
     send: string
+    yes: string
+    no: string
     set: string
     skip: string
     update: string
@@ -642,14 +644,14 @@ export interface Translations extends NoticeTranslations {
       keybinds: string
       keysTools: string
       keysSettings: string
-      mcp: string
-      archivedChats: string
       sessions: string
       about: string
       billing: string
       notifications: string
       vault: string
       plugins: string
+      /** Settings ▸ Capabilities (skills, plugins, connectors, tools). */
+      capabilities: string
     }
     plugins: {
       title: string
@@ -1956,9 +1958,6 @@ export interface Translations extends NoticeTranslations {
         emptyHint: string
         loadFailed: string
         toggleFailed: (name: string) => string
-        toolsetOn: (name: string, profile: string) => string
-        toolsetOff: (name: string, profile: string) => string
-        toolsetToggleFailed: (name: string) => string
         legacyBackend: string
         portableBadge: string
         serverStates: {
@@ -2203,10 +2202,9 @@ export interface Translations extends NoticeTranslations {
       installs: (count: string) => string
     }
     settingsFields: string
-    mcpServers: string
     archivedChats: string
     sections: Record<'maintenance' | 'sessions' | 'system' | 'usage', string>
-    nav: Record<'newChat' | 'settings' | 'capabilities' | 'messaging' | 'artifacts', { title: string; detail: string }>
+    nav: Record<'newChat' | 'settings' | 'messaging' | 'artifacts', { title: string; detail: string }>
     sectionEntries: Record<'sessions' | 'system' | 'usage', { title: string; detail: string }>
     providerNavigate: string
     providerSessions: string
@@ -2841,6 +2839,8 @@ export interface Translations extends NoticeTranslations {
       merged: string
       closed: string
       noPR: string
+      date: string
+      none: string
     }
     gatewayGroups: {
       grouping: string
@@ -2945,11 +2945,15 @@ export interface Translations extends NoticeTranslations {
       thisWeek: string
       lastWeek: string
       thisMonth: string
+      last7Days: string
+      last30Days: string
+      older: string
     }
     statusDivider: {
       working: string
       done: string
     }
+    sectionMore: string
     markAllRead: string
   }
 
@@ -4038,6 +4042,17 @@ export interface Translations extends NoticeTranslations {
       /** Countdown shown while that retry is armed; `wait` is "12m 03s". */
       errorRetryScheduled: (time: string, wait: string) => string
       errorRetryScheduledCancel: string
+      /** Usage-limit card (rate_limit / quota): title, body without and with a known reset. */
+      errorUsageLimitTitle: string
+      errorUsageLimitBody: (provider: string) => string
+      errorUsageLimitResets: (time: string, wait: string) => string
+      /** Usage-limit card: re-run the turn now (the Retry path). */
+      errorTryAgain: string
+      /** Usage-limit card checkbox: re-run the turn by itself once the limit lifts. */
+      errorAutoResume: string
+      /** Beside the ticked box: when the next automatic re-run is due. */
+      errorAutoResumeAt: (time: string) => string
+      errorAutoResumeRunning: string
       /** Escape hatch when Retry would only reproduce SESSION_NOT_OWNED (#106217). */
       errorStartNewSession: string
       errorSwitchProvider: string
@@ -4174,6 +4189,8 @@ export interface Translations extends NoticeTranslations {
       /** Over-budget / rejected memory write title — not "Saved to memory". */
       resultUnavailable: string
       resultInterrupted: string
+      /** A command handed to a background process (yielded on steer / promoted past the cap). */
+      continuesInBackground: string
       memoryWriteNoted: string
       actions: {
         read: string

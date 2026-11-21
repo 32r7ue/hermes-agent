@@ -38,7 +38,7 @@ import { $settingsRequestProfile, setSettingsScope } from '@/store/settings-scop
 
 import { desktopPackageName } from '../capabilities/plugins/plugin-packages'
 import type { OverlayNavLink } from '../overlays/overlay-split-layout'
-import { CAPABILITIES_ROUTE } from '../routes'
+import { capabilitiesHref } from '../routes'
 
 import { PluginSettingsForm } from './plugin-settings-form'
 import { EmptyState, ListRowSkeleton, SectionHeading, SettingsContent } from './primitives'
@@ -47,7 +47,7 @@ import { SettingsProfileScope } from './profile-scope'
 /** Opens Settings ▸ Plugins at a route; `null` = the overview. */
 export type OpenPluginSettings = (route: null | PluginSettingsRoute) => void
 
-const MANAGE_PLUGINS_HREF = `#${CAPABILITIES_ROUTE}?tab=plugins`
+const MANAGE_PLUGINS_HREF = `#${capabilitiesHref('plugins')}`
 
 // codiconIcon mints a component per call; cache so rail rows keep a stable
 // element type across renders (no icon remount on every navigation).

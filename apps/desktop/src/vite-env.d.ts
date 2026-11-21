@@ -25,3 +25,9 @@ declare module '@novnc/novnc' {
     clipboardPasteFrom(text: string): void
   }
 }
+
+// Recorded UI cues inlined as data URIs (src/lib/cursor-sound-data.ts).
+declare module '*.mp3?inline' {
+  const dataUri: string
+  export default dataUri
+}

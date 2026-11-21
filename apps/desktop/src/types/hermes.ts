@@ -1563,6 +1563,8 @@ export interface LocalModelsStatus {
   models_dir: string
   /** How much Hermes sends a local model: chat (no tools), lite (core tools, short prompt), full. */
   prompt_mode?: LocalPromptMode
+  /** Whether local-model sessions expose web_search / web_extract tools. */
+  web_search?: boolean
 }
 
 export type LocalPromptMode = 'chat' | 'lite' | 'full'

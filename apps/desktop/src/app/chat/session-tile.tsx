@@ -85,6 +85,7 @@ import { useSessionTileActions } from './session-tile-actions'
 import { tileOwnerRoute } from './session-tile-owner'
 import { reasoningEffortPending, type SessionView, SessionViewProvider } from './session-view'
 import { SessionActionsMenu, SessionContextMenu } from './sidebar/session-actions-menu'
+import { SpectatorProvider } from './spectator'
 import { lastVisibleMessageIsUser } from './thread-loading'
 
 import { ChatView } from '.'
@@ -269,6 +270,9 @@ function TileChat({
     return tileOwnerRoute(tiles, rows, storedSessionId)
   }, [cronRows, messagingRows, sessionRows, storedSessionId, tiles])
 
+  // A subagent spectator tile: read-only, no composer (see SessionTile.watch).
+  const spectator = tiles.some(tile => tile.watch && tile.storedSessionId === storedSessionId)
+
   const requestTileGateway = useCallback(
     <T,>(method: string, params?: Record<string, unknown>, timeoutMs?: number, signal?: AbortSignal): Promise<T> =>
       requestForSessionProfile<T>(ownerRoute, requestGateway, method, params, timeoutMs, signal),
@@ -398,40 +402,42 @@ function TileChat({
 
   return (
     <SessionViewProvider value={view}>
-      <ComposerScopeProvider value={scope}>
-        <ChatView
-          gateway={gateway}
-          modelMenuContent={modelMenuContent}
-          modelOptionsOwnerConnectionId={ownerRoute?.connectionId || undefined}
-          modelOptionsProfile={ownerRoute?.targetProfile || ownerRoute?.profile || activeGatewayProfile}
-          onAddContextRef={addContextRefAttachment}
-          onAddUrl={onAddUrl}
-          onAttachDroppedItems={composer.attachDroppedItems}
-          onAttachImageBlob={composer.attachImageBlob}
-          onAttachPastedText={composer.attachPastedText}
-          onBranchInNewChat={actions.branchInNewChat}
-          onCancel={actions.cancelRun}
-          onDeleteSelectedSession={noop}
-          onDismissError={actions.dismissError}
-          onEdit={actions.editMessage}
-          onPasteClipboardImage={onPasteClipboardImage}
-          onPickFiles={onPickFiles}
-          onPickFolders={onPickFolders}
-          onPickImages={onPickImages}
-          onReload={actions.reloadFromMessage}
-          onRemoveAttachment={onRemoveAttachment}
-          onRestoreToMessage={actions.restoreToMessage}
-          onRetryResume={onRetryResume}
-          onSteer={actions.steerPrompt}
-          onSteerHidden={actions.injectHiddenPrompt}
-          onSubmit={actions.submitText}
-          onThreadMessagesChange={actions.handleThreadMessagesChange}
-          onToggleSelectedPin={noop}
-          onTranscribeAudio={tileTranscribeAudio}
-          reasoningMenuContent={reasoningMenuContent}
-          requestModelOptionsForOwner={requestTileGateway}
-        />
-      </ComposerScopeProvider>
+      <SpectatorProvider value={spectator}>
+        <ComposerScopeProvider value={scope}>
+          <ChatView
+            gateway={gateway}
+            modelMenuContent={modelMenuContent}
+            modelOptionsOwnerConnectionId={ownerRoute?.connectionId || undefined}
+            modelOptionsProfile={ownerRoute?.targetProfile || ownerRoute?.profile || activeGatewayProfile}
+            onAddContextRef={addContextRefAttachment}
+            onAddUrl={onAddUrl}
+            onAttachDroppedItems={composer.attachDroppedItems}
+            onAttachImageBlob={composer.attachImageBlob}
+            onAttachPastedText={composer.attachPastedText}
+            onBranchInNewChat={actions.branchInNewChat}
+            onCancel={actions.cancelRun}
+            onDeleteSelectedSession={noop}
+            onDismissError={actions.dismissError}
+            onEdit={actions.editMessage}
+            onPasteClipboardImage={onPasteClipboardImage}
+            onPickFiles={onPickFiles}
+            onPickFolders={onPickFolders}
+            onPickImages={onPickImages}
+            onReload={actions.reloadFromMessage}
+            onRemoveAttachment={onRemoveAttachment}
+            onRestoreToMessage={actions.restoreToMessage}
+            onRetryResume={onRetryResume}
+            onSteer={actions.steerPrompt}
+            onSteerHidden={actions.injectHiddenPrompt}
+            onSubmit={actions.submitText}
+            onThreadMessagesChange={actions.handleThreadMessagesChange}
+            onToggleSelectedPin={noop}
+            onTranscribeAudio={tileTranscribeAudio}
+            reasoningMenuContent={reasoningMenuContent}
+            requestModelOptionsForOwner={requestTileGateway}
+          />
+        </ComposerScopeProvider>
+      </SpectatorProvider>
     </SessionViewProvider>
   )
 }

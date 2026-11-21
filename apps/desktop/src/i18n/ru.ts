@@ -84,6 +84,8 @@ export const ruOverrides = {
     retry: 'Повторить',
     run: 'Запустить',
     send: 'Отправить',
+    yes: 'Да',
+    no: 'Нет',
     set: 'Установить',
     skip: 'Пропустить',
     update: 'Обновить',
@@ -455,13 +457,12 @@ export const ruOverrides = {
       keybinds: 'Горячие клавиши',
       keysTools: 'Инструменты',
       keysSettings: 'Настройки',
-      mcp: 'MCP',
-      archivedChats: 'Архив чатов',
       sessions: 'Сеансы',
       about: 'О программе',
       billing: 'Оплата',
       notifications: 'Уведомления',
-      plugins: 'Плагины'
+      plugins: 'Плагины',
+      capabilities: 'Возможности'
     },
     plugins: ruPluginSettings.plugins,
     notifications: ruNotifications,
@@ -1706,13 +1707,11 @@ export const ruOverrides = {
       installs: count => `${count} ${RU_NOUN(count, 'установка', 'установки', 'установок')}`
     },
     settingsFields: 'Поля настроек',
-    mcpServers: 'MCP-серверы',
     archivedChats: 'Архивные чаты',
     sections: { maintenance: 'Обслуживание', sessions: 'Сеансы', system: 'Система', usage: 'Использование' },
     nav: {
       newChat: { title: 'Новый сеанс', detail: 'Начать новый сеанс' },
       settings: { title: 'Настройки', detail: 'Настройка Hermes desktop' },
-      capabilities: { title: 'Возможности', detail: 'Навыки, инструменты и MCP-серверы' },
       messaging: { title: 'Сообщения', detail: 'Настройка Telegram, Slack, Discord и других' },
       artifacts: { title: 'Артефакты', detail: 'Просмотр сгенерированных результатов' }
     },
@@ -2447,7 +2446,9 @@ export const ruOverrides = {
       idle: 'Бездействие',
       filters: 'Фильтры',
       resetToDefaults: 'Сбросить настройки',
-      noPR: 'Без PR'
+      noPR: 'Без PR',
+      date: 'Дата',
+      none: 'Без группировки'
     },
     gatewayGroups: {
       grouping: 'Шлюз и профиль',
@@ -2462,7 +2463,6 @@ export const ruOverrides = {
     },
     nav: {
       'new-session': 'Новый сеанс',
-      capabilities: 'Возможности',
       messaging: 'Сообщения',
       artifacts: 'Артефакты',
       cron: 'Запланированные задачи'
@@ -2546,16 +2546,20 @@ export const ruOverrides = {
       ageMin: 'м'
     },
     dateDivider: {
-      today: 'Ранее сегодня',
+      today: 'Сегодня',
       yesterday: 'Вчера',
       thisWeek: 'Ранее на этой неделе',
       lastWeek: 'На прошлой неделе',
-      thisMonth: 'Ранее в этом месяце'
+      thisMonth: 'Ранее в этом месяце',
+      last7Days: 'Последние 7 дней',
+      last30Days: 'Последние 30 дней',
+      older: 'Ранее'
     },
     statusDivider: {
       working: 'Работает',
       done: 'Готово'
     },
+    sectionMore: 'Ещё',
     markAllRead: 'Отметить все как прочитанные'
   },
   composer: {
@@ -3571,6 +3575,13 @@ export const ruOverrides = {
       errorStartNewChatLink: 'Начать новый чат',
       errorChooseModelLink: 'Выбрать другую модель',
       errorRetryAtResetShort: time => `Повторить в ${time}`,
+      errorUsageLimitTitle: 'Достигнут лимит использования',
+      errorUsageLimitBody: provider => `${provider} сейчас не принимает новые запросы.`,
+      errorUsageLimitResets: (time, wait) => `Сбросится в ${time} (через ${wait}).`,
+      errorTryAgain: 'Повторить',
+      errorAutoResume: 'Автовозобновление',
+      errorAutoResumeAt: time => `следующая попытка в ${time}`,
+      errorAutoResumeRunning: 'возобновление…',
       errorRateLimitResetBody: (provider, time) => `Вы достигли лимита запросов ${provider}. Он сбросится в ${time}.`,
       loadingSession: 'Загрузка сеанса',
       showEarlier: 'Показать ранние сообщения',
@@ -3715,6 +3726,7 @@ export const ruOverrides = {
       statusDone: 'Готово',
       resultUnavailable: 'Результат недоступен',
       resultInterrupted: 'Прервано',
+      continuesInBackground: 'Продолжается в фоне',
       memoryWriteNoted: 'Запись в память отмечена',
       actions: {
         read: 'Чтение',

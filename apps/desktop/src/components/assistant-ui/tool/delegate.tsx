@@ -3,6 +3,7 @@
 import { useStore } from '@nanostores/react'
 import { type FC, type ReactNode, useMemo } from 'react'
 
+import { openSubagentPane } from '@/app/chat/open-subagent'
 import { useSessionView } from '@/app/chat/session-view'
 import { useElapsedSeconds } from '@/components/chat/activity-timer'
 import { ActivityTimerText } from '@/components/chat/activity-timer-text'
@@ -16,7 +17,6 @@ import { displayModelName } from '@/lib/model-status-label'
 import { useSessionSlice } from '@/lib/use-session-slice'
 import { cn } from '@/lib/utils'
 import { $subagentsBySession } from '@/store/subagents'
-import { openSessionInNewWindow } from '@/store/windows'
 
 import {
   type DelegateRow,
@@ -84,8 +84,9 @@ function DelegateRowView({ row }: { row: DelegateRow }) {
     !live && row.durationSeconds ? formatDurationSeconds(row.durationSeconds) : ''
   ].filter(Boolean)
 
-  // Only a child that reported its own session id has somewhere to go.
-  const open = sessionId ? () => void openSessionInNewWindow(sessionId, { watch: true, parentSessionId }) : undefined
+  // Only a child that reported its own session id has somewhere to go: its
+  // live transcript, in a spectator pane to the right of this chat.
+  const open = sessionId ? () => void openSubagentPane(sessionId, { parentSessionId, title: row.goal }) : undefined
 
   // The scaffold mark goes on the goal row, NEVER on this wrapper: it fades to
   // 0.67, and opacity opens a stacking context around the ticker's transformed

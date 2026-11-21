@@ -14,6 +14,9 @@ from gateway.session_authority import LiveSession, SessionAuthority
 from gateway.session_controls import AuthorityConnection
 from hermes_state import SessionDB
 from hermes_state_runtime import begin_runtime_epoch
+# Imported at collection: its first import bootstraps against the real home, which the
+# per-test home I/O guard refuses (the handler imports it lazily).
+from tui_gateway import server  # noqa: F401
 
 
 @pytest.fixture
@@ -53,9 +56,17 @@ async def test_complete_path_lists_the_session_folder(rpc):
 
 
 @pytest.mark.asyncio
-async def test_complete_path_lists_nothing_for_a_remote_backend_or_without_a_session(rpc):
+async def test_complete_path_lists_a_new_chat_drafts_workspace(rpc, tmp_path):
+    """A new chat's composer has no session id yet; `@` must still list its workspace."""
+    call, _ = rpc
+    reply = await call({'word': '@file:', 'cwd': str(tmp_path / 'project')})
+    texts = [item['text'] for item in reply['result']['items']]
+    assert '@file:project-notes.md' in texts
+
+
+@pytest.mark.asyncio
+async def test_complete_path_lists_nothing_for_a_remote_backend(rpc):
     call, backend = rpc
-    assert (await call({'word': '@file:'}))['result'] == {'items': []}
     backend['TERMINAL_ENV'] = 'ssh'
     assert (await call({'word': '@file:', 'session_id': 's'}))['result'] == {'items': []}
 

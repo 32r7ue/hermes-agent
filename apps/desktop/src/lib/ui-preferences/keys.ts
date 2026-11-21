@@ -78,6 +78,10 @@ const SHARED_KEYS: ReadonlySet<string> = new Set([
   'hermes.desktop.tours.v1',
   // Sound and media.
   'hermes.desktop.autoSpeakReplies',
+  'hermes.desktop.chatCue.approval',
+  'hermes.desktop.chatCue.fileEdited',
+  'hermes.desktop.chatCue.sent',
+  'hermes.desktop.chatCue.thinking',
   'hermes.desktop.completionSoundVariantId',
   'hermes.desktop.hapticsMuted',
   'hermes.desktop.videoPlaybackSpeed',

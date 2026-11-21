@@ -74,13 +74,11 @@ export const zhHantCommandCenter = {
       installs: count => `${count} 次安裝`
     },
     settingsFields: '設定欄位',
-    mcpServers: 'MCP 伺服器',
     archivedChats: '已封存聊天',
     sections: { sessions: '工作階段', system: '系統', usage: '使用量' },
     nav: {
       newChat: { title: '新工作階段', detail: '開始新的工作階段' },
       settings: { title: '設定', detail: '設定 Hermes 桌面端' },
-      capabilities: { title: '技能與工具', detail: '啟用技能、工具集和提供方' },
       messaging: { title: '訊息平台', detail: '設定 Telegram、Slack、Discord 等' },
       artifacts: { title: '成品', detail: '瀏覽產生的輸出' }
     },

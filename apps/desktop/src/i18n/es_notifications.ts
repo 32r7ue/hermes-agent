@@ -60,5 +60,23 @@ export const esNotifications = {
   completionSoundTitle: 'Sonido de finalización',
   completionSoundDesc:
     'Reproduce un sonido cuando termina el turno de un agente. Elige un ajuste predefinido y pruébalo aquí.',
-  completionSoundPreview: 'Vista previa'
+  completionSoundPreview: 'Vista previa',
+  chatCues: {
+    sent: {
+      label: 'Sonido al enviar',
+      description: 'El sonido de Cursor al enviar o redirigir un mensaje.'
+    },
+    thinking: {
+      label: 'Sonido de pensando',
+      description: 'El pulso suave de Cursor mientras el agente trabaja: a los 4 segundos y luego cada ~6 segundos hasta que el turno termina o te necesita.'
+    },
+    fileEdited: {
+      label: 'Sonido de archivo editado',
+      description: 'El sonido de Cursor cuando el agente termina de editar un archivo.'
+    },
+    approval: {
+      label: 'Sonido de aprobación',
+      description: 'Los sonidos de Cursor al aprobar o rechazar una solicitud.'
+    }
+  }
 }

@@ -38,7 +38,7 @@ describe('settings subpage routing', () => {
         expect(resolveSettingsSubpage(view, new URLSearchParams({ page: page.id }))).toBe(page.id)
 
         for (const locale of Object.values(TRANSLATIONS)) {
-          expect(locale.settings.subpages[page.labelKey]).toBeTruthy()
+          expect(page.label?.(locale) ?? locale.settings.subpages[page.labelKey]).toBeTruthy()
         }
       }
     }
@@ -69,10 +69,6 @@ describe('settings subpage routing', () => {
       for (const view of Object.keys(OTHER_SUBPAGES)) {
         expect(nav[view]).toBeTruthy()
       }
-
-      // Sessions also holds the default project folder, so it can't wear the
-      // label of the palette row that lands on its archive page.
-      expect(nav.sessions).not.toBe(nav.archivedChats)
     }
   })
 

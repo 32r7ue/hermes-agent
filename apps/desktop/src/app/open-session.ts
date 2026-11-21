@@ -25,7 +25,8 @@ import {
   frontMainIfSelected,
   openSessionTile,
   reuseBlankDraftTile,
-  setSessionTileWorkspaceScope
+  setSessionTileWorkspaceScope,
+  watchSessionTile
 } from '@/store/session-states'
 import { canOpenSessionWindow, openSessionInNewWindow } from '@/store/windows'
 
@@ -133,7 +134,13 @@ export function openSession(
 
   if (resolved === 'window') {
     if (canOpenSessionWindow()) {
-      void openSessionInNewWindow(storedSessionId)
+      // A subagent spectator tile pops out as what it is — a watch window
+      // routed via its parent — never a window that resumes and owns the child.
+      const watch = watchSessionTile(storedSessionId)
+
+      void (watch
+        ? openSessionInNewWindow(storedSessionId, { parentSessionId: watch.watchParentSessionId, watch: true })
+        : openSessionInNewWindow(storedSessionId))
 
       return
     }

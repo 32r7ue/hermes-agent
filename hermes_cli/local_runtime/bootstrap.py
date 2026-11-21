@@ -479,6 +479,9 @@ def ensure_local_runtime(config: dict, force: bool = False) -> object | None:
             _stop_at_exit()
             logger.info("managed llama-server up at %s (backend=%s tag=%s)", sup.base_url, engine.backend, engine.tag)
             _start_idle_sweeper(sup)
+            from hermes_cli.local_runtime import room
+
+            room.watch(sup, list(section.get("free_apps") or []))
             return sup
         except Exception as exc:
             _SERVING_ENGINE = None

@@ -2,10 +2,13 @@ import type { ToolCallMessagePart } from '@assistant-ui/react'
 
 import { isPreviewableTarget, toolPreviewOutcome } from '@/components/assistant-ui/tool/fallback-model'
 import { leaveIntroOnLayout } from '@/components/onboarding/first-run/intro'
+import { backgroundHandoff } from '@/lib/background-handoff'
+import { playFileEditSound } from '@/lib/chat-cue-sounds'
 import { toolCallOwnerMessageId } from '@/lib/chat-messages'
 import { connectorText, recordOf } from '@/lib/connector-tools'
 import { invalidateSlashCompletions } from '@/lib/slash-completion-cache'
-import { refreshBackgroundProcesses } from '@/store/composer-status'
+import { isFileEditTool } from '@/lib/tool-render-class'
+import { refreshBackgroundProcesses, seedBackgroundProcess } from '@/store/composer-status'
 import { flashPetActivity, setPetActivity } from '@/store/pet'
 import { recordPreviewArtifact, reofferPreviewArtifact } from '@/store/preview-status'
 import { $sessionStates, storedSessionIdForRuntimeId } from '@/store/session-states'
@@ -39,6 +42,19 @@ function recordToolPreview(ctx: GatewayEventContext, sessionId: string, cwd: str
   if (status === 'success' && previewTarget && isPreviewableTarget(previewTarget)) {
     const record = pendingProduction ? reofferPreviewArtifact : recordPreviewArtifact
     record(sessionId, previewTarget, cwd, storedSessionIdForRuntimeId(sessionId) ?? sessionId)
+  }
+}
+
+/** A terminal command handed to a background process shows in the status stack at once, not a poll later. */
+function seedHandedOffProcess(sessionId: string, payload: GatewayEventContext['payload']): void {
+  const result = payload?.result
+  const record =
+    result && typeof result === 'object' && !Array.isArray(result) ? (result as Record<string, unknown>) : {}
+  const handoff = backgroundHandoff(String(payload?.name ?? ''), record)
+
+  if (handoff) {
+    const args = payload?.args && typeof payload.args === 'object' ? (payload.args as Record<string, unknown>) : {}
+    seedBackgroundProcess(sessionId, handoff.processId, typeof args.command === 'string' ? args.command : '')
   }
 }
 
@@ -177,6 +193,11 @@ export function handleToolEvent(ctx: GatewayEventContext): boolean {
 
       noteToolOutcome(ctx, sessionId, state?.cwd ?? '', pendingProduction)
 
+      // Cursor's file-edited cue: live, successful edits only (never a replay).
+      if (pendingProduction && !payload?.error && isFileEditTool(String(payload?.name ?? ''))) {
+        playFileEditSound(`${sessionId}:${String(payload?.tool_id ?? '')}`)
+      }
+
       if (isActiveEvent) {
         setPetActivity({ toolRunning: false })
 
@@ -199,6 +220,10 @@ export function handleToolEvent(ctx: GatewayEventContext): boolean {
       // even on an interrupted turn (idempotent re-sync; the 5s poll may be
       // unarmed when no running row is on screen yet, #81114).
       if (payload?.name === 'terminal' || payload?.name === 'process') {
+        if (!event.replayed) {
+          seedHandedOffProcess(sessionId, payload)
+        }
+
         void refreshBackgroundProcesses(sessionId)
       }
     }

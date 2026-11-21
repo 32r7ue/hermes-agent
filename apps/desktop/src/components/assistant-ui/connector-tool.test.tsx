@@ -151,7 +151,7 @@ describe('ConnectorOffer named-account notice', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Rename' }))
 
     expect(screen.getByTestId('where').textContent).toBe(
-      '/capabilities?tab=connectors&connector=gmail&profile=default&rename=ca_work'
+      '/settings?tab=capabilities&page=connectors&connector=gmail&profile=default&rename=ca_work'
     )
   })
 })

@@ -1,6 +1,6 @@
 import { afterEach, expect, test, vi } from 'vitest'
 
-import { listPreparedImageDrafts, type PreparedSubmission, preparedSubmissionKey, readPreparedSubmission, removePreparedSubmission, writePreparedSubmission } from './prepared-submissions'
+import { adoptPreparedSubmission, listPreparedImageDrafts, mintSubmissionId, type PreparedSubmission, preparedSubmissionKey, readPreparedSubmission, removePreparedSubmission, writePreparedSubmission } from './prepared-submissions'
 import { storedJournal } from './prepared-submissions-test-utils'
 import type { SubmissionDestination } from './submission-destination'
 
@@ -98,4 +98,23 @@ test('tabs without Web Locks never share one slash command retry record', async 
   } finally {
     Reflect.deleteProperty(navigator, 'locks')
   }
+})
+
+test('a freshly minted send adopts nothing without a journal round trip, until it is journaled', async () => {
+  const native = { read: vi.fn(async () => '{}'), update: vi.fn(async () => undefined) }
+  vi.stubGlobal('hermesDesktop', { preparedSubmissions: native })
+  const id = mintSubmissionId()
+  const intent = JSON.stringify(['local::default', 'stored', 'hi', [], null, false, id])
+
+  // The optimistic bubble waits on this: it must settle in microtasks, never on the main process.
+  expect(await adoptPreparedSubmission(intent, id)).toBeUndefined()
+  expect(native.read).not.toHaveBeenCalled()
+
+  await writePreparedSubmission(intent, { id, text: 'hi', attachments: [], params: {} } as unknown as PreparedSubmission)
+  native.read.mockResolvedValue(JSON.stringify({ [intent]: { id, text: 'hi', attachments: [], params: {} } }))
+
+  // Journaled: an explicit retry of that id reads the journal again and finds it.
+  expect((await adoptPreparedSubmission(intent, id))?.entry.id).toBe(id)
+  expect(native.read).toHaveBeenCalled()
+  vi.stubGlobal('hermesDesktop', undefined)
 })

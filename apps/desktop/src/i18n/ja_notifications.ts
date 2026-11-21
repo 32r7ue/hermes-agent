@@ -57,5 +57,23 @@ export const jaNotifications = {
     '完了・ウェイクワード・思考中の自動通知音、触覚フィードバック、OS 通知の音を無効にします。サウンドのプレビューと音声による応答は引き続き再生されます。',
   completionSoundTitle: '完了サウンド',
   completionSoundDesc: 'エージェントのターン終了時に再生されます。プリセットを選んでここで試聴できます。',
-  completionSoundPreview: '試聴'
+  completionSoundPreview: '試聴',
+  chatCues: {
+    sent: {
+      label: '送信サウンド',
+      description: 'メッセージを送信・軌道修正したときの Cursor のサウンド。'
+    },
+    thinking: {
+      label: '思考中サウンド',
+      description: 'エージェントの作業中に鳴る Cursor の控えめなパルス。4 秒後から約 6 秒ごとに、ターン終了または入力待ちまで。'
+    },
+    fileEdited: {
+      label: 'ファイル編集サウンド',
+      description: 'エージェントがファイルの編集を終えたときの Cursor のサウンド。'
+    },
+    approval: {
+      label: '承認サウンド',
+      description: 'リクエストを承認・拒否したときの Cursor のサウンド。'
+    }
+  }
 }

@@ -15,13 +15,16 @@ from gateway.config import Platform
 logger = logging.getLogger(__name__)
 
 
-async def expand_references(text, *, cwd, context_length, plugins=True):
+async def expand_references(text, *, cwd, context_length, plugins=True, has_file_tools=True):
     """``(text, refusal)``: the expanded text, or the refusal when the injection was refused. A failed
     expansion leaves the text as typed."""
     from agent.i18n import t
     try:
         from agent.context_references import preprocess_context_references_async
-        expand = partial(preprocess_context_references_async, cwd=cwd, context_length=context_length, allowed_root=cwd)
+        expand = partial(
+            preprocess_context_references_async, cwd=cwd, context_length=context_length,
+            allowed_root=cwd, has_file_tools=has_file_tools,
+        )
         result = await (expand(text) if plugins else expand(text, plugins=False))
     except Exception as exc:
         logger.warning("@ context reference expansion failed: %s", exc, exc_info=True)
@@ -44,6 +47,19 @@ def _inbound_cwd(runner, source):
     return terminal_env("TERMINAL_CWD", os.path.expanduser("~"))
 
 
+def _session_has_file_tools(runner, source, session_key) -> bool:
+    """False when this session runs a local model in ``chat`` mode (web-only, no file/terminal tools)."""
+    with suppress(Exception):
+        from agent.local_mode import is_local_chat_mode
+        from gateway.run import _load_gateway_config
+        _, runtime = runner._resolve_session_agent_runtime(
+            source=source, session_key=session_key, user_config=_load_gateway_config(),
+        )
+        if is_local_chat_mode(runtime.get("provider") or "", runtime.get("base_url") or ""):
+            return False
+    return True
+
+
 async def inbound_references(runner, source, session_key, text):
     """``expand_references`` for an inbound turn: a local session's policy cwd, else the terminal cwd."""
     try:
@@ -52,7 +68,10 @@ async def inbound_references(runner, source, session_key, text):
     except Exception as exc:
         logger.warning("@ context reference expansion failed: %s", exc, exc_info=True)
         return text, None
-    return await expand_references(text, cwd=cwd, context_length=context_length)
+    return await expand_references(
+        text, cwd=cwd, context_length=context_length,
+        has_file_tools=_session_has_file_tools(runner, source, session_key),
+    )
 
 
 async def turn_references(runner, event, source, session_key, text):
@@ -103,8 +122,12 @@ async def managed_turn_text(authority, row, policy):
     except Exception as exc:
         logger.warning("@ context reference expansion failed: %s", exc, exc_info=True)
         return text, None
-    return await expand_references(text, cwd=policy.cwd, context_length=context_length,
-                                   plugins=not policy.ignore_user_config)
+    from agent.local_mode import is_local_chat_mode
+    return await expand_references(
+        text, cwd=policy.cwd, context_length=context_length,
+        plugins=not policy.ignore_user_config,
+        has_file_tools=not is_local_chat_mode(policy.provider or '', policy.base_url or ''),
+    )
 
 
 def refused_turn_result(row, refusal):

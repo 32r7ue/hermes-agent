@@ -162,6 +162,15 @@ export function setLocalPromptMode(mode: LocalPromptMode, scope?: LocalModelsSco
   })
 }
 
+export function setLocalWebSearch(enabled: boolean, scope?: LocalModelsScope): Promise<{ ok: boolean; web_search: boolean }> {
+  return hermesApi<{ ok: boolean; web_search: boolean }>({
+    ...(scope ?? profileScoped()),
+    body: { enabled },
+    method: 'POST',
+    path: '/api/local-models/web-search'
+  })
+}
+
 export function setLocalServer(action: 'start' | 'stop', scope?: LocalModelsScope): Promise<{ ok: boolean }> {
   return hermesApi<{ ok: boolean }>({
     ...(scope ?? profileScoped()),

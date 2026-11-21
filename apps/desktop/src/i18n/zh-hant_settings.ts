@@ -127,14 +127,13 @@ export const zhHantSettings = {
       keybinds: '鍵盤快捷鍵',
       keysTools: '工具',
       keysSettings: '設定',
-      mcp: 'MCP',
-      archivedChats: '已封存聊天',
       sessions: '工作階段',
       about: '關於',
       billing: '帳單',
       notifications: '通知',
       vault: '密碼與登入',
-      plugins: '外掛程式'
+      plugins: '外掛程式',
+      capabilities: '技能與工具'
     },
     vault: {
       title: '密碼與登入',
@@ -264,7 +263,25 @@ export const zhHantSettings = {
       muteSoundsDesc: '關閉自動完成、喚醒詞和思考提示音、觸感回饋以及系統通知聲音。聲音預覽和語音回覆仍會播放。',
       completionSoundTitle: '完成提示音',
       completionSoundDesc: '代理回合結束時播放。可在此選擇預設並預覽。',
-      completionSoundPreview: '預覽'
+      completionSoundPreview: '預覽',
+      chatCues: {
+        sent: {
+          label: '傳送音效',
+          description: '傳送或調整訊息時播放 Cursor 的提示音。'
+        },
+        thinking: {
+          label: '思考音效',
+          description: '代理工作時 Cursor 的輕柔脈衝：4 秒後開始，之後約每 6 秒一次，直到回合結束或需要你操作。'
+        },
+        fileEdited: {
+          label: '檔案編輯音效',
+          description: '代理完成檔案編輯時播放 Cursor 的提示音。'
+        },
+        approval: {
+          label: '審批音效',
+          description: '核准或拒絕請求時播放 Cursor 的提示音。'
+        }
+      }
     },
     sections: {
       model: '模型',

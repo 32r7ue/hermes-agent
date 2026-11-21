@@ -20,7 +20,7 @@ from agent.error_classifier import RETRYABLE_CLIENT_REASONS, FailoverReason, cla
 from agent.turn_overflow import recover_from_overflow
 from agent.turn_recovery import (
     _NONRETRYABLE_LABELS, abort_turn_on_interrupt, compute_error_backoff, free_tier_cooldown_ends_turn,
-    interruptible_backoff_sleep, log_api_error_attempt,
+    interruptible_backoff_sleep, limit_wait_stopped_result, log_api_error_attempt,
     max_retries_exhausted_result, nonretryable_client_error_result, recover_after_classification,
     recover_before_classification, route_classified_error, settle_delivered_partial,
 )
@@ -430,7 +430,8 @@ def settle_unrecovered_error(
         activity_label=f"error retry backoff ({retry_count}/{max_retries})",
     )
     if _interrupted is not None:
-        return _verdict("return", _interrupted)
+        # Stopped while waiting out a provider limit: the limit, not the stop, ended the turn.
+        return _verdict("return", limit_wait_stopped_result(agent, _interrupted, api_error, classified, _provider))
     if _retry.restart_with_redirected_messages:
         # Leave the retry loop — the caller rebuilds this iteration from the correction
         # instead of re-firing the stale request.

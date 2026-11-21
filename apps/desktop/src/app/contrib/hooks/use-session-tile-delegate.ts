@@ -34,7 +34,9 @@ import {
   $sessionTiles,
   publishSessionState,
   sessionTileOwnerRoute,
-  setSessionTileDelegate
+  setSessionTileDelegate,
+  watchSessionTile,
+  watchSessionTileOwner
 } from '@/store/session-states'
 import type { SessionResumeResult } from '@/types/hermes'
 
@@ -218,8 +220,11 @@ export function useSessionTileDelegate({
     // row's owner (exact when connection-tagged, else the hint / profile) →
     // the async cross-profile probe (exact when the resolved row is tagged).
     const ownerForStoredSession = async (storedSessionId: string): Promise<SessionOwnerScope> => {
+      // A spectator tile carries its PARENT's owner (route or bare profile): a
+      // delegated child is unlisted and runs on the backend that spawned it.
       const owner =
         sessionTileOwnerRoute(storedSessionId) ??
+        watchSessionTileOwner(storedSessionId) ??
         knownSessionOwner(ownerLookupSessionRows(), storedSessionId) ??
         (await resolveSessionOwner(storedSessionId))
 
@@ -395,6 +400,7 @@ export function useSessionTileDelegate({
         const resumeRequestBaselineMessages = cached?.messages ?? []
         const refreshTranscript = options?.refreshTranscript === true
         const authoritativeSnapshot = options?.authoritativeSnapshot === true
+        const watch = Boolean(watchSessionTile(storedSessionId))
 
         // Warm path: reuse a live binding — but only when it still carries a
         // transcript (or is mid-turn, where messages legitimately stream in).
@@ -472,7 +478,10 @@ export function useSessionTileDelegate({
                 requestForSessionProfile<SessionResumeResult>(owner, requestGateway, 'session.resume', {
                   session_id: storedSessionId,
                   cols: 96,
-                  omit_messages: !authoritativeSnapshot,
+                  // A spectator tile resumes exactly like a watch window: lazy
+                  // (no agent build, so the gateway keeps live-mirroring the
+                  // child's run into this runtime) with the history inline.
+                  ...(watch ? { lazy: true, defer_history: false } : { omit_messages: !authoritativeSnapshot }),
                   ...(owner ? { profile: typeof owner === 'string' ? owner : owner.profile } : {})
                 }),
               { requiresMessages: authoritativeSnapshot, scope: owner }
@@ -596,6 +605,17 @@ export function useSessionTileDelegate({
           await refreshCronRunWriteGate(storedSessionId, id =>
             ownerForStoredSession(id).then(owner => getSession(id, profileScopeForSessionOwner(owner)))
           )
+        }
+
+        // A spectator tile never drives the child it watches: a prompt would
+        // upgrade the lazy watch session into a second agent on the child.
+        if (
+          watchSessionTile(storedSessionId) ||
+          $sessionTiles.get().some(tile => tile.watch && tile.runtimeId === runtimeId)
+        ) {
+          notify({ kind: 'info', message: translateNow('desktop.readOnlyTranscriptSendBlocked') })
+
+          return { runtimeSessionId: runtimeId, storedSessionId: null }
         }
 
         // A read-only stored-transcript tile has no live runtime to submit

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import {
+  DropdownMenuCheckboxItem,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
@@ -9,7 +10,7 @@ import {
   dropdownMenuSectionLabel,
   DropdownMenuSeparator
 } from '@/components/ui/dropdown-menu'
-import { ejectLocalModel, getLocalModelsStatus, loadLocalModel, setLocalPromptMode } from '@/hermes'
+import { ejectLocalModel, getLocalModelsStatus, loadLocalModel, setLocalPromptMode, setLocalWebSearch } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { notifyError } from '@/store/notifications'
 import type { LocalModelsStatus, LocalPromptMode } from '@/types/hermes'
@@ -48,6 +49,7 @@ export function LocalModelOptions({ model }: { model: string }) {
   const loaded = residency === 'loaded' || residency === 'ready'
   const loading = residency === 'loading' || Boolean(progress)
   const mode = status?.prompt_mode ?? 'chat'
+  const webSearch = status?.web_search ?? true
 
   const stateLabel = loaded
     ? copy.localLoaded
@@ -122,6 +124,19 @@ export function LocalModelOptions({ model }: { model: string }) {
           </DropdownMenuRadioItem>
         ))}
       </DropdownMenuRadioGroup>
+      <DropdownMenuSeparator className="mx-0" />
+      <DropdownMenuCheckboxItem
+        checked={webSearch}
+        className={dropdownMenuRow}
+        onCheckedChange={checked => {
+          const next = Boolean(checked)
+          setStatus(prev => (prev ? { ...prev, web_search: next } : prev))
+          run(() => setLocalWebSearch(next))
+        }}
+        onSelect={event => event.preventDefault()}
+      >
+        Web search
+      </DropdownMenuCheckboxItem>
       <div className="px-2.5 pt-0.5 pb-2 text-[0.6875rem] text-(--ui-text-tertiary)">{copy.localModeHint}</div>
     </>
   )

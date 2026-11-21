@@ -99,7 +99,7 @@ import {
   $workspaceIsPage,
   AGENTS_ROUTE,
   ARTIFACTS_ROUTE,
-  CAPABILITIES_ROUTE,
+  capabilitiesHref,
   CRON_ROUTE,
   MESSAGING_ROUTE,
   navigateToWorkspacePage,
@@ -115,7 +115,7 @@ export interface KeybindRuntimeDeps {
   /** Open/close the command center overlay (sessions / system / usage). */
   toggleCommandCenter: () => void
   /** Drop to a fresh new-session draft. */
-  startFreshSession: () => void
+  startFreshSession: (options?: { rotateFreshDraftKey?: boolean }) => void
   /** Open a fresh session as a tab in the main zone (⌘T), leaving the primary. */
   openNewSessionTab: () => void
   /** Pin/unpin the active session. */
@@ -290,7 +290,7 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
     'nav.commandCenter': deps.toggleCommandCenter,
     'nav.settings': () => navigate(SETTINGS_ROUTE),
     'nav.profiles': () => navigate(PROFILES_ROUTE),
-    'nav.capabilities': () => navigateToWorkspacePage(navigate, CAPABILITIES_ROUTE),
+    'nav.capabilities': () => navigate(capabilitiesHref()),
     'nav.messaging': () => navigateToWorkspacePage(navigate, MESSAGING_ROUTE),
     'nav.artifacts': () => navigateToWorkspacePage(navigate, ARTIFACTS_ROUTE),
     'nav.cron': () => navigate(CRON_ROUTE),
@@ -299,10 +299,12 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
     'session.new': () => {
       // Match the sidebar New Session button. A plain keyboard new chat should
       // target the current live profile, not a stale per-profile quick-create
-      // selection from a prior action.
+      // selection from a prior action. Like the sidebar door, it returns to the
+      // pending new-chat draft instead of rotating its key (which would strand
+      // the unsent prompt).
       setWorkspaceScope('sessions')
       $newChatProfile.set(null)
-      deps.startFreshSession()
+      deps.startFreshSession({ rotateFreshDraftKey: false })
       window.dispatchEvent(new CustomEvent('hermes:new-session-shortcut'))
     },
     'session.newTab': () => deps.openNewSessionTab(),

@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { useI18n } from '@/i18n'
+import { gatewayWebSocketUrl, GeminiLiveSession } from '@/lib/gemini-live'
 import { sanitizeTextForSpeech } from '@/lib/speech-text'
-import { type LiveHistoryMessage, type LiveTranscriptFragment, VoiceLiveSession } from '@/lib/voice-live'
+import {
+  type LiveHistoryMessage,
+  type LiveTranscriptFragment,
+  type VoiceLiveHandlers,
+  VoiceLiveSession
+} from '@/lib/voice-live'
 import { isVoiceStopCommand } from '@/lib/voice-stop-word'
 import { notify, notifyError } from '@/store/notifications'
+import { selectedVoiceChatMode } from '@/store/voice-live'
 
 import { useComposerScope } from '../scope'
 
@@ -122,7 +129,7 @@ export function useVoiceLiveConversation({
   // Mirrors delegationRef for the reply-drive effect: a new delegation must
   // restart the feed loop, and a ref write alone does not re-render.
   const [activeDelegation, setActiveDelegation] = useState<null | string>(null)
-  const sessionRef = useRef<null | VoiceLiveSession>(null)
+  const sessionRef = useRef<GeminiLiveSession | null | VoiceLiveSession>(null)
   // The scope's session owner (a Bot's own connection + profile) picks the
   // GPT-Live backend and voice; a ref keeps the long-lived start closures
   // reading the current value.
@@ -246,12 +253,11 @@ export function useVoiceLiveConversation({
       return
     }
 
-    const session = new VoiceLiveSession(
-      {
+    const liveHandlers: VoiceLiveHandlers = {
         // The voice model answers a bare "stop" itself (it just goes quiet) and
         // never delegates it, so the spoken stop phrase is judged on the user
         // transcript once the utterance settles.
-        onTranscript: fragment => {
+        onTranscript: (fragment: LiveTranscriptFragment) => {
           if (fragment.speaker !== 'user') {
             return
           }
@@ -330,14 +336,27 @@ export function useVoiceLiveConversation({
         onError: (message, fatal) => {
           notify({ kind: fatal ? 'error' : 'warning', message, title: voiceCopy.liveError })
         },
-        onSpeakingChange: speaking => {
+        onSpeakingChange: (speaking: boolean) => {
           speakingRef.current = speaking
           setLevel(speaking ? 0.6 : 0)
           refreshStatus()
         }
-      },
-      ownerRef.current
-    )
+    }
+
+    const useGemini = selectedVoiceChatMode() === 'gemini-live'
+
+    const session: GeminiLiveSession | VoiceLiveSession = useGemini
+      ? new GeminiLiveSession({
+          handlers: {
+            ...liveHandlers,
+            onEndCall: () => {
+              void end()
+              latest.current.onStopWord?.()
+            }
+          },
+          wsUrl: gatewayWebSocketUrl('/api/audio/voice-live/gemini/ws')
+        })
+      : new VoiceLiveSession(liveHandlers, ownerRef.current)
 
     sessionRef.current = session
     startingRef.current = false

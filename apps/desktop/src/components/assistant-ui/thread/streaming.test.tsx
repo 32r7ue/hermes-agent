@@ -589,6 +589,22 @@ describe('assistant-ui streaming renderer', () => {
     expect(container.textContent).not.toContain('```ts')
   })
 
+  it('expands the live thinking preview to the full thought on the first click', () => {
+    const { container } = render(
+      <RunningMessageHarness message={assistantReasoningMessage('First thought. More reasoning.', true)} />
+    )
+
+    const body = () => container.querySelector<HTMLDivElement>('[data-slot="aui_thinking-body"]')
+    const toggle = within(container).getByRole('button', { name: /thinking/i })
+
+    expect(body()?.className).toContain('max-h-40')
+    fireEvent.click(toggle)
+    expect(body()).toBeTruthy()
+    expect(body()!.className).not.toContain('max-h-40')
+    fireEvent.click(toggle)
+    expect(body()).toBeNull()
+  })
+
   it('preserves the thinking reading position on growth and resumes following at the bottom', () => {
     const { container, rerender } = render(
       <RunningMessageHarness message={assistantReasoningMessage('First thought.', true)} />
@@ -761,12 +777,52 @@ describe('assistant-ui streaming renderer', () => {
     const disclosures = container.querySelectorAll('[data-slot="aui_thinking-disclosure"]')
     expect(disclosures.length).toBe(1)
 
-    fireEvent.click(disclosures[0].querySelector('button')!)
+    // The header is the first part's sentence; opened, the body continues
+    // with the rest instead of repeating it.
+    const row = disclosures[0].querySelector('button')!
+    expect(row.textContent).toBe('First thought.')
+    fireEvent.click(row)
 
     const reasoningParts = container.querySelectorAll('[data-slot="aui_reasoning-text"]')
-    expect(reasoningParts.length).toBe(2)
-    expect(reasoningParts[0]?.textContent).toBe('First thought.')
-    expect(reasoningParts[1]?.textContent).toBe('Second thought.')
+    expect(reasoningParts.length).toBe(1)
+    expect(reasoningParts[0]?.textContent).toBe('Second thought.')
+  })
+
+  it('does not repeat the opening-sentence header in the opened body', () => {
+    const text =
+      'I want the **ask panel** to look like the file-changed card: same border, radius, and padding. ' +
+      'It uses a serif font, which I need to keep in mind.\n\nNow I will find the components.'
+
+    function LeadHarness() {
+      const runtime = useExternalStoreRuntime<ThreadMessage>({
+        messages: [assistantReasoningMessage(text)],
+        isRunning: false,
+        onNew: async () => {}
+      })
+
+      return (
+        <AssistantRuntimeProvider runtime={runtime}>
+          <Thread />
+        </AssistantRuntimeProvider>
+      )
+    }
+
+    const { container } = render(<LeadHarness />)
+    const disclosure = container.querySelector('[data-slot="aui_thinking-disclosure"]')!
+    const label = disclosure.querySelector('[data-slot="aui_thinking-label"]')!
+    const header = 'I want the ask panel to look like the file-changed card: same border, radius, and padding.'
+
+    expect(label.textContent).toBe(header)
+    expect(label.className).toContain('truncate')
+
+    fireEvent.click(disclosure.querySelector('button')!)
+
+    // Opened: the header wraps to show its whole sentence; the body picks up after it.
+    expect(label.className).not.toContain('truncate')
+    const body = disclosure.querySelector('[data-slot="aui_thinking-body"]')!.textContent ?? ''
+    expect(body).not.toContain('file-changed card')
+    expect(body).toContain('It uses a serif font')
+    expect(body).toContain('Now I will find the components.')
   })
 
   it('does not reopen an earlier completed thinking group when a later group is running', () => {

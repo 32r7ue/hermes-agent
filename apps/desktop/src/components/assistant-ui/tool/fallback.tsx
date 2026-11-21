@@ -42,6 +42,7 @@ import { FileTypeIcon } from '@/components/ui/file-type-icon'
 import { GlyphSpinner } from '@/components/ui/glyph-spinner'
 import { ToolIcon } from '@/components/ui/tool-icon'
 import { useI18n } from '@/i18n'
+import { backgroundHandoff } from '@/lib/background-handoff'
 import { connectorCalls, mcpTargets } from '@/lib/connector-tools'
 import { PrettyLink, LinkifiedText as SharedLinkifiedText, urlSlugTitleLabel } from '@/lib/external-link'
 import { AlertCircle, CheckCircle2 } from '@/lib/icons'
@@ -63,6 +64,7 @@ import {
 } from '@/store/tool-view'
 
 import { isApprovalActivity, isCurrentTurnMessage } from './approval-activity'
+import { type HandoffView, useHandoffView } from './background-handoff-state'
 import {
   breaksToolRun,
   buildToolView,
@@ -369,6 +371,36 @@ function ToolRunningMeta({ seconds, toolCallId = '' }: { seconds: number; toolCa
   )
 }
 
+/**
+ * A command handed to a background process (yielded on steer, or promoted past
+ * the foreground cap) has a result but is not done: say it still runs, then
+ * how it ended once the process registry reports the exit.
+ */
+function BackgroundHandoffMeta({ label, view }: { label: string; view: HandoffView }) {
+  if (view.state === 'running') {
+    return (
+      <span className={cn(SCAFFOLD_META_CLASS, 'shimmer')} data-slot="tool-background-handoff">
+        {label}
+      </span>
+    )
+  }
+
+  if (view.exitCode === undefined) {
+    return null
+  }
+
+  return (
+    <span
+      className={cn(SCAFFOLD_META_CLASS, view.exitCode === 0 ? 'text-(--ui-green)' : 'text-(--ui-red)')}
+      data-slot="tool-background-exit"
+    >
+      exit {view.exitCode}
+    </span>
+  )
+}
+
+const NO_PROCESS_IDS: readonly string[] = []
+
 function ToolEntry({ part }: ToolEntryProps) {
   const { t } = useI18n()
   const copy = t.assistant.tool
@@ -429,6 +461,15 @@ function ToolEntry({ part }: ToolEntryProps) {
   const dismissed = useStore($toolRowDismissed(disclosureId))
   const isPending = messageRunning && result === undefined && completedAt === undefined
   const inlineDiff = inlineDiffFromResult(toolResultRecord(stablePart))
+
+  const handoffIds = useMemo(() => {
+    const handoff = backgroundHandoff(toolName, toolResultRecord(stablePart))
+
+    return handoff ? [handoff.processId] : NO_PROCESS_IDS
+  }, [stablePart, toolName])
+
+  const handoff = useHandoffView(handoffIds)
+  const inBackground = handoff.state === 'running'
   const isFileEdit = isFileEditTool(toolName)
   const disclosureOpen = useDisclosureOpen(disclosureId)
   // A row inside a summary group is a step of that group: it can't be dismissed on its own.
@@ -648,7 +689,7 @@ function ToolEntry({ part }: ToolEntryProps) {
               filePath={isFileEdit ? view.subtitle : undefined}
               icon={view.icon}
               legendary={memoryLegendary}
-              status={leadingStatus(isPending, view.status)}
+              status={leadingStatus(isPending || inBackground, view.status)}
             />
             <ToolTitle
               isPending={isPending}
@@ -670,8 +711,14 @@ function ToolEntry({ part }: ToolEntryProps) {
                 )}
               </span>
             )}
-            {!isFileEdit && !isPending && view.durationLabel && (
-              <span className={cn(SCAFFOLD_META_CLASS, memoryMetaClass)}>{view.durationLabel}</span>
+            {handoffIds.length > 0 ? (
+              <BackgroundHandoffMeta label={copy.continuesInBackground} view={handoff} />
+            ) : (
+              !isFileEdit &&
+              !isPending &&
+              view.durationLabel && (
+                <span className={cn(SCAFFOLD_META_CLASS, memoryMetaClass)}>{view.durationLabel}</span>
+              )
             )}
           </span>
         </DisclosureRow>
@@ -691,7 +738,7 @@ function ToolEntry({ part }: ToolEntryProps) {
             />
           )}
           {part.toolName === 'terminal' && toolViewMode !== 'technical' && (
-            <TerminalTranscript command={view.terminalCommand} exitCode={view.terminalExitCode} />
+            <TerminalTranscript command={view.terminalCommand} exitCode={view.terminalExitCode ?? handoff.exitCode} />
           )}
           {view.imageUrl && (
             <div className="max-w-72 overflow-hidden rounded-[0.25rem] border border-(--ui-stroke-tertiary)">
@@ -882,6 +929,7 @@ export function splitRunItems(toolNames: readonly string[]): RunItem[] {
 // files, ran 5 commands". Live, it narrates in the present tense above the
 // ticker by default; its toggle can reveal the activity before it settles.
 function ToolRunHeader({
+  backgroundLabel,
   completedAt,
   diff,
   live,
@@ -890,6 +938,8 @@ function ToolRunHeader({
   startedAt,
   summary
 }: {
+  /** Set while a command of this run still runs as a background process. */
+  backgroundLabel?: string
   completedAt?: number
   /** Lines the run's file edits added/removed, summed — the run's deliverable at a glance. */
   diff?: { added: number; removed: number }
@@ -921,6 +971,16 @@ function ToolRunHeader({
             {diff.removed > 0 && <span className="text-(--ui-red)">−{diff.removed}</span>}
           </span>
         )}
+        {backgroundLabel && (
+          <span className="flex shrink-0 items-center gap-1" data-slot="tool-run-background">
+            <GlyphSpinner
+              ariaLabel={backgroundLabel}
+              className="size-3.5 shrink-0 text-[0.95rem] text-(--ui-text-tertiary)"
+              spinner="breathe"
+            />
+            <span className={cn(SCAFFOLD_META_CLASS, 'shimmer')}>{backgroundLabel}</span>
+          </span>
+        )}
       </ScaffoldRow>
     </div>
   )
@@ -946,6 +1006,8 @@ function LiveRunElapsed({ since }: { since?: number }) {
 
 interface ToolRunState {
   approvalActivity: boolean
+  /** Background processes the run's commands were handed to (yielded / promoted). */
+  backgroundIds: readonly string[]
   completedAt?: number
   count: number
   diff: { added: number; removed: number }
@@ -1025,6 +1087,7 @@ function useToolRun(startIndex: number, endIndex: number): ToolRunState {
           count: tools.length,
           diff: runDiffStats(tools),
           approvalActivity: tools.length > 0 && tools.every(isApprovalActivity),
+          backgroundIds: runBackgroundIds(timelineTools),
           entryIds: tools.map(tool => toolEntryDisclosureId(state.message.id, tool)),
           key: `${state.message.id}:${tools[0]?.toolCallId ?? ''}`,
           live,
@@ -1045,6 +1108,16 @@ function useToolRun(startIndex: number, endIndex: number): ToolRunState {
 
     return cache.current.value
   })
+}
+
+function runBackgroundIds(tools: readonly ToolPart[]): readonly string[] {
+  const ids = tools.flatMap(tool => {
+    const handoff = backgroundHandoff(tool.toolName, toolResultRecord(tool))
+
+    return handoff ? [handoff.processId] : []
+  })
+
+  return ids.length ? ids : NO_PROCESS_IDS
 }
 
 /** Landed file edits' +/- summed across a run (a pending or failed edit has no diff). */
@@ -1092,10 +1165,22 @@ export const ToolRun: FC<PropsWithChildren<{ endIndex: number; liveStep?: null |
   const messageRunning = useAuiState(selectMessageRunning)
   const heldReply = useStore($replyReveal) === 'reveal'
 
-  const { awaitingReply, completedAt, count, diff, entryIds, key, live, startedAt, summary, approvalActivity } = useToolRun(
-    startIndex,
-    endIndex
-  )
+  const {
+    awaitingReply,
+    backgroundIds,
+    completedAt,
+    count,
+    diff,
+    entryIds,
+    key,
+    live,
+    startedAt,
+    summary,
+    approvalActivity
+  } = useToolRun(startIndex, endIndex)
+
+  const { t } = useI18n()
+  const inBackground = useHandoffView(backgroundIds).state === 'running'
 
   const sessionId = useStore(useSessionView().$runtimeId)
   const approval = useStore(useMemo(() => sessionApprovalRequest(sessionId), [sessionId]))
@@ -1127,6 +1212,7 @@ export const ToolRun: FC<PropsWithChildren<{ endIndex: number; liveStep?: null |
       >
         {count > 0 && !representedByApproval && (
           <ToolRunHeader
+            backgroundLabel={inBackground ? t.assistant.tool.continuesInBackground : undefined}
             completedAt={completedAt}
             diff={diff}
             live={live || (awaitingReply && heldReply)}

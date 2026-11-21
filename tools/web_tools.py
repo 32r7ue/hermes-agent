@@ -299,11 +299,13 @@ def _finish_debug(call_name: str, debug_call_data: dict, error_msg: Optional[str
     return None if error_msg is None else tool_error(error_msg)
 
 
-def web_search_tool(query: str, limit: int = 5) -> str:
+def web_search_tool(query: str, limit: int = 5, snippet_chars: Optional[int] = None) -> str:
     """Search the web via the configured backend.
 
     Returns a JSON string ``{"success": bool, "data": {"web": [{"title", "url", "description", "position"},
     ...]}}`` (metadata only — use web_extract_tool for page content) or ``{"success": false, "error": ...}``.
+    ``snippet_chars`` (set by agent/local_mode.py, not exposed to the model) caps each description and
+    emits compact JSON, for local models whose prompt processing is slow.
     """
     try:
         limit = min(max(int(limit), 1), 100)
@@ -339,12 +341,29 @@ def web_search_tool(query: str, limit: int = 5) -> str:
             response_data = _memoized_search(provider, query, limit)
 
         debug_call_data["results_count"] = len(response_data.get("data", {}).get("web", []))
-        result_json = json.dumps(response_data, indent=2, ensure_ascii=False)
+        if snippet_chars:
+            response_data = _clip_snippets(response_data, snippet_chars)
+            result_json = json.dumps(response_data, ensure_ascii=False, separators=(",", ":"))
+        else:
+            result_json = json.dumps(response_data, indent=2, ensure_ascii=False)
         debug_call_data["final_response_size"] = len(result_json)
         _finish_debug("web_search_tool", debug_call_data)
         return result_json
     except Exception as e:
         return _finish_debug("web_search_tool", debug_call_data, f"Error searching web: {e!s}")
+
+
+def _clip_snippets(response_data: dict, max_chars: int) -> dict:
+    """Copy of a search response with each result's description cut to ``max_chars``."""
+    results = (response_data.get("data") or {}).get("web")
+    if not isinstance(results, list):
+        return response_data
+    clipped = []
+    for item in results:
+        if isinstance(item, dict) and isinstance(item.get("description"), str) and len(item["description"]) > max_chars:
+            item = {**item, "description": item["description"][:max_chars].rstrip() + "…"}
+        clipped.append(item)
+    return {**response_data, "data": {**response_data["data"], "web": clipped}}
 
 
 def _memoized_search(provider, query: str, limit: int) -> dict:
@@ -389,7 +408,10 @@ def _memoized_search(provider, query: str, limit: int) -> dict:
     return slice_search_response(response_data, limit)
 
 
-async def web_extract_tool(urls: list[Any], format: str | None = None, char_limit: Optional[int] = None) -> str:
+async def web_extract_tool(
+    urls: list[Any], format: str | None = None, char_limit: Optional[int] = None,
+    *, enabled_tools: Optional[list[str]] = None,
+) -> str:
     """Extract clean page content (no LLM) from URLs via the configured backend.
 
     Pages over ``char_limit`` (default web.extract_char_limit or 15000) are head+tail truncated with a footer
@@ -436,7 +458,7 @@ async def web_extract_tool(urls: list[Any], format: str | None = None, char_limi
         debug_call_data["pages_extracted"] = len(results)
         debug_call_data["original_response_size"] = len(json.dumps({"results": results}))
         debug_call_data["processing_applied"].append("truncate_and_store")
-        _truncate_results(results, _effective_char_limit(char_limit), debug_call_data)
+        _truncate_results(results, _effective_char_limit(char_limit), debug_call_data, enabled_tools=enabled_tools)
         trimmed = _trim_results(results)
         result_json = (
             json.dumps({"results": trimmed}, indent=2, ensure_ascii=False) if trimmed
@@ -575,7 +597,8 @@ def check_web_extract_ready() -> bool:
 
 registry.register(
     name="web_search", toolset="web", schema=WEB_SEARCH_SCHEMA,
-    handler=lambda args, **kw: web_search_tool(args.get("query", ""), limit=args.get("limit", 5)),
+    handler=lambda args, **kw: web_search_tool(args.get("query", ""), limit=args.get("limit", 5),
+                                               snippet_chars=args.get("_snippet_chars")),
     check_fn=check_web_api_key, requires_env=_web_requires_env(), emoji="🔍",
     max_result_size_chars=100_000,
 )
@@ -584,6 +607,7 @@ registry.register(
     handler=lambda args, **kw: web_extract_tool(
         args.get("urls", [])[:5] if isinstance(args.get("urls"), list) else [], "markdown",
         char_limit=args.get("char_limit"),
+        enabled_tools=kw.get("enabled_tools"),
     ),
     check_fn=check_web_extract_ready, requires_env=_web_requires_env(), is_async=True, emoji="📄",
     max_result_size_chars=100_000,

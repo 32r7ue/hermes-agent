@@ -85,6 +85,52 @@ def untyped_failed_turn_display_kind(role: Any, content: Any) -> Optional[str]:
     return None
 
 
+# Classifier reasons whose boundary tells the model a provider limit, not a fault, ended the turn.
+_LIMIT_FAILURE_CODES = frozenset({
+    FailoverReason.rate_limit.value, FailoverReason.upstream_rate_limit.value, FailoverReason.billing.value,
+    "usage_window", "billing_unverified", "free_tier_rate_limited",
+})
+
+
+def _display_metadata_dict(message: Any) -> dict:
+    metadata = message.get("display_metadata") if isinstance(message, dict) else None
+    if isinstance(metadata, str):
+        import json
+
+        try:
+            metadata = json.loads(metadata)
+        except ValueError:
+            return {}
+    return metadata if isinstance(metadata, dict) else {}
+
+
+def failed_turn_model_content(message: Any) -> Optional[str]:
+    """What the MODEL reads for a failed-turn boundary row, or None for any other row.
+
+    The stored ``content`` is user-facing copy in the assistant role ("Your request was not
+    processed…"); replayed verbatim, the model reads it as something it said. The wire copy is a
+    bracketed Hermes note naming why the turn ended instead. Deterministic per row, so the
+    prompt-cache prefix stays byte-stable across turns."""
+    if not isinstance(message, dict) or message.get("role") != "assistant":
+        return None
+    content = message.get("content")
+    kind = message.get("display_kind") or untyped_failed_turn_display_kind("assistant", content)
+    if kind != FAILED_TURN_DISPLAY_KIND:
+        return None
+    metadata = _display_metadata_dict(message)
+    surface = metadata.get("error_surface") if isinstance(metadata.get("error_surface"), dict) else {}
+    if surface.get("code") in _LIMIT_FAILURE_CODES:
+        cause = "the model provider's usage or rate limit was reached"
+    elif metadata.get("interrupted") is True:
+        cause = "it was stopped"
+    else:
+        cause = "it failed"
+    text = content.strip() if isinstance(content, str) else ""
+    ran = " Tool calls above may already have run." if text in (
+        PARTIAL_FAILED_TURN_NOTICE, AUTOMATION_INTERRUPTED_NOTICE) else ""
+    return f"[Hermes note, not written by you: the previous turn ended without a reply because {cause}.{ran}]"
+
+
 def failed_turn_notice(turn_messages: Any) -> str:
     """Boundary copy for a failed turn: never claim "not processed" when a tool may have run."""
     for row in turn_messages or ():

@@ -3,6 +3,7 @@ import { useStore } from '@nanostores/react'
 import type * as React from 'react'
 
 import { type NewSessionSplitHandler, startNewProjectDrag, startNewSessionDrag } from '@/app/chat/new-session-drag'
+import { SidebarPanelLabel } from '@/app/shell/sidebar-label'
 import { Button } from '@/components/ui/button'
 import { Codicon } from '@/components/ui/codicon'
 import { DisclosureCaret } from '@/components/ui/disclosure-caret'
@@ -126,14 +127,69 @@ export function SidebarRowNest({ className, ...props }: React.ComponentProps<'di
 export function SidebarDateDivider({
   action,
   className,
+  first = false,
   label,
   toggle,
+  variant = 'inline',
   ...props
 }: React.ComponentProps<'div'> & {
   action?: React.ReactNode
+  /** Section variant only: the list's first header sits tight to the top. */
+  first?: boolean
   label: string
   toggle?: { ariaLabel: string; onToggle: () => void; open: boolean }
+  /** `section`: a top-level list section header (Pinned / Today / Last 7 Days),
+   *  the same label as the sidebar's section headers with generous space above
+   *  it and no rule. `inline`: the compact captioned rule used inside lanes. */
+  variant?: 'inline' | 'section'
 }) {
+  if (variant === 'section') {
+    const body = (
+      <>
+        <SidebarPanelLabel>{label}</SidebarPanelLabel>
+        {toggle && (
+          <DisclosureCaret
+            className="text-(--ui-text-tertiary) opacity-0 transition group-hover/workspace:opacity-100 group-focus-within/workspace:opacity-100"
+            open={toggle.open}
+          />
+        )}
+      </>
+    )
+
+    return (
+      <div
+        className={cn(
+          // Cursor geometry: a 32px header row (one session row's pitch), with
+          // 16px of air above every section but the first. Padding, not
+          // margin, so the virtualizer's measured height includes the gap.
+          'group/workspace box-border flex shrink-0 select-none items-center justify-between gap-1',
+          first ? 'h-8' : 'h-12 pt-4',
+          className
+        )}
+        data-slot="sidebar-section-divider"
+        {...props}
+      >
+        {toggle ? (
+          <button
+            aria-expanded={toggle.open}
+            aria-label={toggle.ariaLabel}
+            className={cn(
+              'flex w-fit min-w-0 items-center gap-1 rounded-sm bg-transparent text-left leading-none',
+              SIDEBAR_FOCUS_VISIBLE
+            )}
+            onClick={toggle.onToggle}
+            type="button"
+          >
+            {body}
+          </button>
+        ) : (
+          <div className="flex w-fit min-w-0 items-center gap-1 leading-none">{body}</div>
+        )}
+        {action}
+      </div>
+    )
+  }
+
   const caption = (
     <span className="shrink-0 text-[0.64rem] font-semibold uppercase tracking-[0.12em] text-(--ui-text-tertiary)">
       {label}

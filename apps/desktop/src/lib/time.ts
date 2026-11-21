@@ -64,7 +64,17 @@ export function relativeTime(targetMs: number, nowMs = Date.now()): string {
 // never one per day, and never a rolling window like "previous 7 days" that
 // semantically overlaps the groups above it. `kind` drives the label; `at` is
 // the session's nominal day start (ms) for month formatting.
-export type SessionBucketKind = 'lastWeek' | 'month' | 'monthYear' | 'thisMonth' | 'thisWeek' | 'today' | 'yesterday'
+export type SessionBucketKind =
+  | 'last30Days'
+  | 'last7Days'
+  | 'lastWeek'
+  | 'month'
+  | 'monthYear'
+  | 'older'
+  | 'thisMonth'
+  | 'thisWeek'
+  | 'today'
+  | 'yesterday'
 
 export interface SessionBucket {
   at: number
@@ -74,7 +84,10 @@ export interface SessionBucket {
 
 // Fixed divider labels, resolved from i18n (month labels come from Intl).
 export interface SessionBucketLabels {
+  last30Days: string
+  last7Days: string
   lastWeek: string
+  older: string
   thisMonth: string
   thisWeek: string
   today: string
@@ -167,6 +180,29 @@ export function calendarBucket(
   return sameYear ? { at: nominal, key: `m-${ym}`, kind: 'month' } : { at: nominal, key: `my-${ym}`, kind: 'monthYear' }
 }
 
+// Rolling recency section for the sidebar's date grouping (Cursor-style):
+// Today → Last 7 Days → Last 30 Days → Older. Four fixed sections, so every
+// session lands in the same place whatever else is in the list. "Today" honors
+// the 4 AM nominal-day rollover like every other day boundary here.
+export function recencySection(seconds: number, nowMs = Date.now()): SessionBucket {
+  const nominal = nominalDayStart(seconds * SECOND)
+  const dayDiff = Math.round((nominalDayStart(nowMs) - nominal) / DAY)
+
+  if (dayDiff <= 0) {
+    return { at: nominal, key: 'today', kind: 'today' }
+  }
+
+  if (dayDiff <= 7) {
+    return { at: nominal, key: 'last-7-days', kind: 'last7Days' }
+  }
+
+  if (dayDiff <= 30) {
+    return { at: nominal, key: 'last-30-days', kind: 'last30Days' }
+  }
+
+  return { at: nominal, key: 'older', kind: 'older' }
+}
+
 // Localized divider label for a bucket: fixed relative strings from i18n,
 // Intl-formatted month / month-year for the rest.
 export function sessionBucketLabel(bucket: SessionBucket, labels: SessionBucketLabels): string {
@@ -185,6 +221,15 @@ export function sessionBucketLabel(bucket: SessionBucket, labels: SessionBucketL
 
     case 'thisMonth':
       return labels.thisMonth
+
+    case 'last7Days':
+      return labels.last7Days
+
+    case 'last30Days':
+      return labels.last30Days
+
+    case 'older':
+      return labels.older
 
     case 'month':
       return fmtMonth.format(bucket.at)

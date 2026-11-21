@@ -94,6 +94,26 @@ describe('focusComposerInput', () => {
     expect(document.activeElement).toBe(visible)
   })
 
+  it('queued composer retries leave focus in a dialog that opened after the request', () => {
+    vi.useFakeTimers()
+
+    try {
+      const input = mountInput()
+      focusComposerInput(input)
+      // `/model`: the composer clears and queues its refocus, then the picker opens.
+      const dialog = document.createElement('div')
+      dialog.setAttribute('role', 'dialog')
+      const search = document.createElement('input')
+      dialog.append(search)
+      document.body.append(dialog)
+      search.focus()
+      vi.runAllTimers()
+      expect(document.activeElement).toBe(search)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('queued composer retries yield to newer tab focus while a fresh explicit request still wins', () => {
     vi.useFakeTimers()
 

@@ -346,6 +346,17 @@ describe('toChatMessages', () => {
     expect(chatMessageText(assistant)).toBe(content)
   })
 
+  it('drops a per-turn [System: …] note the agent appended after the image placeholders', () => {
+    const path = '/cache/native-inputs/hash/shot.png'
+    const note =
+      '[System: The skills available in this conversation changed after its system prompt was built.\nNo longer available: a, b]'
+    const content = `can you fix that\n\n[Image attached at: ${path}]\n[screenshot]\n${note}`
+    const [message] = toChatMessages([{ role: 'user' as const, content, timestamp: 1, row_id: 24 }])
+
+    expect(chatMessageText(message)).toBe('can you fix that')
+    expect(message.attachmentRefs).toEqual([`@image:${path}`])
+  })
+
   it('lifts @image directive lines into attachmentRefs instead of inline text', () => {
     const [message] = toChatMessages([
       {
@@ -606,13 +617,40 @@ describe('toChatMessages', () => {
       }
     ])
 
-    expect(messages.map(message => message.role)).toEqual(['user', 'assistant', 'system'])
+    // One ending renders once: the card stands for the boundary row; its generic sentence is not repainted.
+    expect(messages.map(message => message.role)).toEqual(['user', 'assistant'])
     expect(messages[1]).toMatchObject({
       error: 'Connection error.',
-      errorSurface: { code: 'timeout', layer: 'provider', provider: 'opencode-go' },
-      serverRowSpan: 0
+      errorSurface: { code: 'timeout', layer: 'provider', provider: 'opencode-go' }
     })
-    expect(chatMessageText(messages[2])).toBe('Your request was not processed.')
+    expect(messages[1].serverRowSpan).toBeUndefined()
+  })
+
+  it('folds back-to-back identical failed-turn notices with only hidden prompts between them', () => {
+    const notice = 'Your request was not processed. Send it again if you still want me to carry it out.'
+
+    const messages = toChatMessages([
+      { role: 'user', content: 'run it', timestamp: 1 },
+      { role: 'assistant', content: 'Done.', timestamp: 2 },
+      { role: 'user', content: 'The user ran this command from your answer: x', display_kind: 'hidden', timestamp: 3 },
+      { role: 'assistant', content: notice, display_kind: 'failed_turn', timestamp: 4 },
+      { role: 'user', content: 'The user ran this command from your answer: x', display_kind: 'hidden', timestamp: 5 },
+      { role: 'assistant', content: notice, display_kind: 'failed_turn', timestamp: 6 }
+    ])
+
+    const notices = messages.filter(message => chatMessageText(message) === notice)
+    expect(notices).toHaveLength(1)
+    expect(notices[0].serverRowSpan).toBe(2)
+
+    // A visible message between two failed turns keeps both endings.
+    const separate = toChatMessages([
+      { role: 'user', content: 'a', timestamp: 1 },
+      { role: 'assistant', content: notice, display_kind: 'failed_turn', timestamp: 2 },
+      { role: 'user', content: 'b', timestamp: 3 },
+      { role: 'assistant', content: notice, display_kind: 'failed_turn', timestamp: 4 }
+    ])
+
+    expect(separate.filter(message => chatMessageText(message) === notice)).toHaveLength(2)
   })
 
   it('shows only the notice for a boundary row without a usable error surface', () => {

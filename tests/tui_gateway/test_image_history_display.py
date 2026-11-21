@@ -59,3 +59,15 @@ def test_unavailable_or_mismatched_image_keeps_inline_payload(tmp_path):
     assert url in server._history_to_messages([row])[0]["text"]
     image.unlink()
     assert url in server._history_to_messages([row])[0]["text"]
+
+
+def test_turn_note_appended_after_the_image_does_not_unproject_it(tmp_path):
+    """Per-turn notes (skills changed, …) ride a multimodal turn as a trailing text part; never shown."""
+    image = tmp_path / "shot.png"
+    image.write_bytes(b"image bytes")
+    url = "data:image/png;base64," + base64.b64encode(image.read_bytes()).decode()
+    content = [{"type": "text", "text": f"Caption\n\n[Image attached at: {image}]"},
+               {"type": "image_url", "image_url": {"url": url}},
+               {"type": "text", "text": "[System: The skills available in this conversation changed.\nNo longer available: a]"}]
+    assert server._history_to_messages([{"role": "user", "content": content}]) == [
+        {"role": "user", "text": f"Caption\n\n@image:{image}"}]

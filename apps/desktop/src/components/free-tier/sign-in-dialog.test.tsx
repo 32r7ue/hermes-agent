@@ -121,7 +121,7 @@ describe('FreeTierSignInDialog', () => {
 
       await act(async () => screen.getByRole('button', { name: 'Reconnect' }).click())
 
-      expect(window.location.hash).toBe('#/capabilities?tab=connectors&connector=slack')
+      expect(window.location.hash).toBe('#/settings?tab=capabilities&page=connectors&connector=slack')
       expect($freeTierSignIn.get()).toEqual({ status: 'closed' })
     })
 

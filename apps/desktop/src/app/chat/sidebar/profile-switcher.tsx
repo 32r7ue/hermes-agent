@@ -662,7 +662,9 @@ export function ProfileRail() {
                       />
                     )
                   )
-                : activeStrip}
+                : // Single gateway: no named-profile squares in the rail (user preference);
+                  // profiles stay reachable from Manage (⋯) and the Bots tab.
+                  null}
             </div>
           </div>
           <AddProfileButton label={p.newProfile} onClick={() => setCreateOpen(true)} />

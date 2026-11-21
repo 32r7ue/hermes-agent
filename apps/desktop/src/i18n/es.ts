@@ -392,6 +392,8 @@ export const esOverrides = {
     retry: 'Reintentar',
     run: 'Ejecutar',
     send: 'Enviar',
+    yes: 'Sí',
+    no: 'No',
     set: 'Definir',
     skip: 'Omitir',
     update: 'Actualizar',
@@ -788,13 +790,12 @@ export const esOverrides = {
       keybinds: 'Atajos de teclado',
       keysTools: 'Herramientas',
       keysSettings: 'Configuración',
-      mcp: 'MCP',
-      archivedChats: 'Chats archivados',
       sessions: 'Sesiones',
       about: 'Acerca de',
       billing: 'Facturación',
       notifications: 'Notificaciones',
-      vault: 'Contraseñas e inicios de sesión'
+      vault: 'Contraseñas e inicios de sesión',
+      capabilities: 'Capacidades'
     },
     plugins: {
       title: 'Plugins de escritorio',
@@ -2504,10 +2505,6 @@ export const esOverrides = {
       emptyHint: 'Explora el catálogo de abajo e instala un plugin revisado con un clic.',
       loadFailed: 'No se pudieron cargar los plugins del agente',
       toggleFailed: (name: string) => `No se pudo cambiar ${name}`,
-      toolsetOn: (name: string, profile: string) => `Herramientas de agente de ${name} activadas para ${profile}`,
-      toolsetOff: (name: string, profile: string) => `Herramientas de agente de ${name} desactivadas para ${profile}`,
-      toolsetToggleFailed: (name: string) =>
-        `No se pudieron cambiar las herramientas de agente de ${name}; el panel de Escritorio no se modificó`,
       legacyBackend:
         'Este backend es anterior a los interruptores de plugins por clave: actualiza Hermes para gestionarlo aquí.',
       portableBadge: 'portátil',
@@ -2768,7 +2765,6 @@ export const esOverrides = {
       installs: count => `${count} instalaciones`
     },
     settingsFields: 'Campos de configuración',
-    mcpServers: 'Servidores MCP',
     archivedChats: 'Chats archivados',
     sections: {
       maintenance: 'Mantenimiento',
@@ -2784,10 +2780,6 @@ export const esOverrides = {
       settings: {
         title: 'Configuración',
         detail: 'Configura Hermes Desktop'
-      },
-      capabilities: {
-        title: 'Capacidades',
-        detail: 'Skills, herramientas, servidores MCP y plugins'
       },
       messaging: {
         title: 'Mensajería',
@@ -3636,7 +3628,9 @@ export const esOverrides = {
       open: 'Abierta',
       merged: 'Fusionada',
       closed: 'Cerrada',
-      noPR: 'Sin PR'
+      noPR: 'Sin PR',
+      date: 'Fecha',
+      none: 'Ninguna'
     },
     gatewayGroups: {
       grouping: 'Gateway y perfil',
@@ -3652,7 +3646,6 @@ export const esOverrides = {
     profileRail: 'Barra de perfiles',
     nav: {
       'new-session': 'Nueva sesión',
-      capabilities: 'Capacidades',
       messaging: 'Mensajería',
       artifacts: 'Artefactos',
       cron: 'Tareas programadas'
@@ -3743,16 +3736,20 @@ export const esOverrides = {
       ageMin: 'm'
     },
     dateDivider: {
-      today: 'Hoy, más temprano',
+      today: 'Hoy',
       yesterday: 'Ayer',
       thisWeek: 'Esta semana',
       lastWeek: 'La semana pasada',
-      thisMonth: 'Este mes'
+      thisMonth: 'Este mes',
+      last7Days: 'Últimos 7 días',
+      last30Days: 'Últimos 30 días',
+      older: 'Anteriores'
     },
     statusDivider: {
       working: 'En progreso',
       done: 'Completado'
     },
+    sectionMore: 'Más',
     markAllRead: 'Marcar todo como leído'
   },
   composer: {
@@ -5077,6 +5074,13 @@ export const esOverrides = {
       errorStartNewChatLink: 'Empezar un chat nuevo',
       errorChooseModelLink: 'Elegir otro modelo',
       errorRetryAtResetShort: (time: string) => `Reintentar a las ${time}`,
+      errorUsageLimitTitle: 'Límite de uso alcanzado',
+      errorUsageLimitBody: (provider: string) => `${provider} no acepta más solicitudes por ahora.`,
+      errorUsageLimitResets: (time: string, wait: string) => `Se restablece a las ${time} (en ${wait}).`,
+      errorTryAgain: 'Reintentar',
+      errorAutoResume: 'Reanudar automáticamente',
+      errorAutoResumeAt: (time: string) => `próximo intento a las ${time}`,
+      errorAutoResumeRunning: 'reanudando…',
       errorRateLimitResetBody: (provider: string, time: string) =>
         `Alcanzaste el límite de solicitudes de ${provider}. Se restablece a las ${time}.`,
       errorGenericProvider: 'El servicio de IA',
@@ -5241,6 +5245,7 @@ export const esOverrides = {
       statusDone: 'Listo',
       resultUnavailable: 'Resultado no disponible',
       resultInterrupted: 'Interrumpido',
+      continuesInBackground: 'Sigue en segundo plano',
       memoryWriteNoted: 'Escritura de memoria anotada',
       actions: {
         read: 'Leyó',
@@ -5529,10 +5534,6 @@ export const esOverrides = {
       'new-session': {
         title: 'Empieza de cero',
         text: 'Un chat nuevo tiene su propio contexto, terminal y directorio de trabajo.'
-      },
-      skills: {
-        title: 'Enséñale una vez',
-        text: 'Las skills son carpetas de instrucciones que Hermes carga cuando el trabajo las necesita.'
       },
       messaging: {
         title: 'Hermes lejos de tu escritorio',

@@ -208,6 +208,40 @@ def title_upgrade_must_wait_for_turn(main_runtime: Optional[dict]) -> bool:
     return not pinned_base_url or pinned_base_url == main_base_url
 
 
+def _is_local_main_runtime(main_runtime: Optional[dict]) -> bool:
+    """True when *main_runtime* points at a local model (never send local chats to cloud titlers)."""
+    if not isinstance(main_runtime, dict):
+        return False
+    try:
+        from agent.local_mode import _is_local_target
+        return _is_local_target(
+            str(main_runtime.get("provider") or ""),
+            str(main_runtime.get("base_url") or ""),
+        )
+    except Exception:
+        return False
+
+
+def _next_local_initialisation_title(session_db) -> str:
+    """Return the next ``initialisation #N`` title for private local-model sessions."""
+    max_num = 0
+    try:
+        read_ctx = getattr(session_db, "_read_ctx", None)
+        if callable(read_ctx):
+            with read_ctx() as conn:
+                rows = conn.execute(
+                    "SELECT title FROM sessions WHERE title LIKE 'initialisation #%' COLLATE NOCASE"
+                ).fetchall()
+            for row in rows:
+                t = str(row[0] if not isinstance(row, dict) else row.get("title") or "").strip()
+                m = re.fullmatch(r"initialisation\s*#(\d+)", t, flags=re.IGNORECASE)
+                if m:
+                    max_num = max(max_num, int(m.group(1)))
+    except Exception:
+        logger.debug("Failed to scan existing initialisation titles", exc_info=True)
+    return f"initialisation #{max_num + 1}"
+
+
 def _is_self_hosted_provider(provider: str) -> bool:
     """``custom``, a named ``custom:<name>`` route, LM Studio or ``local`` (vllm/llama.cpp): one local server per route.
 
@@ -487,6 +521,9 @@ def generate_title(
     """
     if not _auto_title_enabled():
         logger.debug("Auto-title skipped: auxiliary.title_generation.enabled=false")
+        return None
+    if _is_local_main_runtime(main_runtime):
+        logger.debug("Auto-title LLM call skipped for private local-model session")
         return None
     try:
         if runtime_validator is not None and not runtime_validator():
@@ -777,6 +814,14 @@ def maybe_auto_title(
         return None
     if not _auto_title_enabled():  # config read after the cheap guards so the file isn't touched every turn
         logger.debug("Auto-title skipped: auxiliary.title_generation.enabled=false")
+        return None
+    if _is_local_main_runtime(main_runtime):
+        if _session_is_untitled(session_db, session_id):
+            with suppress(Exception):
+                local_title = _next_local_initialisation_title(session_db)
+                persisted = _persist_session_title(session_db, session_id, local_title, source="llm")
+                if persisted:
+                    _notify_title(title_callback, persisted, "llm", "Local private session title")
         return None
     apply_instant_title(session_db, session_id, user_message, title_callback, title_preview=title_preview)
     if not _model_title_upgrade_enabled():

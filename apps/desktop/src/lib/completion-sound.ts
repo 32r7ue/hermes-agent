@@ -3,6 +3,7 @@
 // ("None") to turn the cue off. Default is variant 1.
 
 import { getAudioContext } from '@/lib/audio-context'
+import { playSample, type SampleSoundId } from '@/lib/sample-sounds'
 import { ownsAmbientCue } from '@/store/ambient'
 import {
   $completionSoundVariantId,
@@ -204,7 +205,11 @@ export interface CompletionSoundVariant {
   name: string
   // `master` is warm (runs through low-pass + room tail).
   play: (ac: AudioContext, master: GainNode, t0: number) => void
+  // Recorded variants: one of these plays, untouched (no filter, no reverb).
+  samples?: readonly SampleSoundId[]
 }
+
+const noSynth = () => undefined
 
 // Note frequencies (equal temperament). Everything lives in a low-mid register
 // (C3–C5) so the chimes feel warm and "appy" rather than bright and arcade-y.
@@ -389,8 +394,26 @@ export const COMPLETION_SOUND_VARIANTS: readonly CompletionSoundVariant[] = [
         })
       })
     }
+  },
+  // Cursor's agent-finished chime.
+  {
+    id: 15,
+    name: 'Cursor',
+    play: noSynth,
+    samples: ['cursorDone']
+  },
+  // VS Code / Cursor chat response chimes, one of four at random like VS Code.
+  {
+    id: 16,
+    name: 'Cursor response',
+    play: noSynth,
+    samples: ['cursorResponse1', 'cursorResponse2', 'cursorResponse3', 'cursorResponse4']
   }
 ] as const
+
+export function isSampleCompletionVariant(variantId: number): boolean {
+  return Boolean(COMPLETION_SOUND_VARIANTS.find(v => v.id === variantId)?.samples)
+}
 
 function playVariant(variantId: number) {
   // "None": bail before any WebAudio scheduling so silence costs nothing.
@@ -402,6 +425,10 @@ function playVariant(variantId: number) {
 
   if (!variant) {
     return
+  }
+
+  if (variant.samples) {
+    return playSample(variant.samples[Math.floor(Math.random() * variant.samples.length)])
   }
 
   const ac = getAudioContext()

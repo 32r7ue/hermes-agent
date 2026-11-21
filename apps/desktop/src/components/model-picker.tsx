@@ -11,7 +11,7 @@ import {
 import { fuzzyRank, modelSearchText } from '@hermes/shared'
 import { useStore } from '@nanostores/react'
 import { useQuery } from '@tanstack/react-query'
-import { type ReactElement, useMemo, useRef, useState } from 'react'
+import { type ReactElement, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useI18n } from '@/i18n'
 import { catalogProviderMatches, modelOptionsQueryKey, requestModelOptions } from '@/lib/model-options'
@@ -181,6 +181,8 @@ export function ModelPickerDialog({
     onOpenChange(false)
   }
 
+  const [selectedValue, setSelectedValue] = useState('')
+
   const enterSlug = () => {
     setSlugEntry(true)
     searchRef.current?.focus()
@@ -200,7 +202,12 @@ export function ModelPickerDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <Command className="rounded-none bg-card" shouldFilter={false}>
+        <Command
+          className="rounded-none bg-card"
+          onValueChange={setSelectedValue}
+          shouldFilter={false}
+          value={selectedValue}
+        >
           <CommandInput
             autoFocus
             onValueChange={setSearch}
@@ -218,6 +225,7 @@ export function ModelPickerDialog({
               loading={loading}
               loadingModels={loadingModels}
               offerCustom={slugEntry}
+              onFirstMatchChange={setSelectedValue}
               onSelectCustomModel={selectCustomModel}
               onSelectModel={selectModel}
               owner={owner}
@@ -252,6 +260,7 @@ function ModelResults({
   currentProvider,
   downloads,
   loadingModels,
+  onFirstMatchChange,
   onSelectModel,
   onSelectCustomModel,
   offerCustom,
@@ -265,6 +274,7 @@ function ModelResults({
   currentProvider: string
   downloads: { jobId: string; target: string }[]
   loadingModels: Record<string, LocalModelLoadProgress>
+  onFirstMatchChange: (value: string) => void
   onSelectModel: (provider: ModelOptionProvider, model: string) => void
   onSelectCustomModel: (provider: ModelOptionProvider, model: string) => void
   /** Offer the typed id as a custom model even while catalog rows match. */
@@ -274,35 +284,25 @@ function ModelResults({
   const { t } = useI18n()
   const copy = t.modelPicker
 
-  if (loading) {
-    return <LoadingResults />
-  }
-
-  if (error) {
-    return (
-      <div className="px-3 py-3">
-        <InlineNotice kind="error" title={copy.loadFailed}>
-          {error}
-        </InlineNotice>
-      </div>
-    )
-  }
-
-  if (providers.length === 0) {
-    return <div className="px-4 py-6 text-sm text-muted-foreground">{copy.noAuthenticatedProviders}</div>
-  }
-
   const q = normalize(search)
 
   // Model rows rank with the same fuzzyRank + modelSearchText the web and TUI
   // pickers use, so one query orders identically on every surface. A query
   // that names the provider itself keeps its whole curated list, in order.
   const rankModels = (provider: ModelOptionProvider, models: readonly string[]) => {
-    if (!q || foldIncludes(provider.name, q) || foldIncludes(provider.slug, q)) {
-      return [...models]
+    if (!q) {
+      return { models: [...models], bestScore: 0 }
     }
-
-    return fuzzyRank(models, q, modelSearchText).map(r => r.item)
+    if (foldIncludes(provider.name, q) || foldIncludes(provider.slug, q)) {
+      return { models: [...models], bestScore: Number.POSITIVE_INFINITY }
+    }
+    const ranked = fuzzyRank(models, q, modelSearchText)
+    const unavailable = new Set(provider.unavailable_models ?? [])
+    const bestSelectable = ranked.find(r => !unavailable.has(r.item))
+    return {
+      models: ranked.map(r => r.item),
+      bestScore: bestSelectable?.score ?? ranked[0]?.score ?? Number.NEGATIVE_INFINITY
+    }
   }
 
   // Only configured providers (those with curated models) are selectable
@@ -323,13 +323,19 @@ function ModelResults({
   const visibleDownloads = downloads.filter(job => !q || foldIncludes(job.target || '', q))
   const hasLocalGroup = configured.some(p => p.slug === LOCAL_PROVIDER_SLUG)
 
-  const groups = configured.map(provider => ({
-    provider,
-    // Empty query: the backend's curated order, verbatim (it already leads a
-    // window plan with its featured picks).
-    models: rankModels(provider, provider.models ?? []),
-    downloads: provider.slug === LOCAL_PROVIDER_SLUG ? visibleDownloads : []
-  }))
+  const groups = configured
+    .map(provider => {
+      const ranked = rankModels(provider, provider.models ?? [])
+      return {
+        provider,
+        // Empty query: the backend's curated order, verbatim (it already leads a
+        // window plan with its featured picks).
+        models: ranked.models,
+        bestScore: ranked.bestScore,
+        downloads: provider.slug === LOCAL_PROVIDER_SLUG ? visibleDownloads : []
+      }
+    })
+    .sort((a, b) => (q ? b.bestScore - a.bestScore : 0))
 
   const hasMatches = groups.some(g => g.models.length > 0 || g.downloads.length > 0)
 
@@ -345,6 +351,45 @@ function ModelResults({
           Number(catalogProviderMatches(b, currentProvider)) - Number(catalogProviderMatches(a, currentProvider))
       )
     : []
+
+  // First selectable item in visual order: snap cmdk's keyboard selection here
+  // whenever the query changes so pressing Enter always picks the top match.
+  let firstSelectable = ''
+  for (const { provider, models } of groups) {
+    const unavailable = new Set(provider.unavailable_models ?? [])
+    const first = models.find(m => !unavailable.has(m))
+    if (first) {
+      firstSelectable = `${provider.slug}:${first}`
+      break
+    }
+  }
+  if (!firstSelectable && customSlug && customProviders.length > 0) {
+    firstSelectable = `custom:${customProviders[0].slug}:${customSlug}`
+  }
+
+  useEffect(() => {
+    if (firstSelectable) {
+      onFirstMatchChange(firstSelectable)
+    }
+  }, [q, firstSelectable, onFirstMatchChange])
+
+  if (loading) {
+    return <LoadingResults />
+  }
+
+  if (error) {
+    return (
+      <div className="px-3 py-3">
+        <InlineNotice kind="error" title={copy.loadFailed}>
+          {error}
+        </InlineNotice>
+      </div>
+    )
+  }
+
+  if (providers.length === 0) {
+    return <div className="px-4 py-6 text-sm text-muted-foreground">{copy.noAuthenticatedProviders}</div>
+  }
 
   return (
     <>

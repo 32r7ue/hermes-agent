@@ -91,3 +91,11 @@ class TestEmbeddedTuiPaneClarifier:
         assert out == PLATFORM_HINTS["tui"], (
             f"HERMES_DESKTOP_TERMINAL={val!r} should not trigger clarifier"
         )
+
+
+def test_desktop_hint_teaches_ask_cmd_only_for_a_command_decision():
+    hint = PLATFORM_HINTS["desktop"]
+    assert 'cmd=\\"hermes gateway restart\\"' not in hint  # rendered quotes, not escaped source
+    assert 'cmd="hermes gateway restart"' in hint
+    assert "IS running a specific command" in hint
+    assert "never mention or spell out the command in prose" in hint

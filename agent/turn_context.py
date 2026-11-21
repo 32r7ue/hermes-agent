@@ -35,6 +35,7 @@ from agent.model_metadata import (
     estimate_request_tokens_rough,
 )
 from agent.image_token_cost import bind_image_token_cost
+from agent.turn_failure_copy import failed_turn_model_content
 from agent.usage_anchor import anchored_context_tokens, restore_usage_anchor
 from agent.turn_author import parse_turn_author
 
@@ -918,10 +919,15 @@ def _merge_gateway_notes(
     tool result carried, then the surface-switch correction. Multimodal (list) content can't take the
     string sidecar — append a durable text part instead."""
     forward_lsp_verdicts(agent)  # late LSP verdicts on last turn's edits ride the plugin-notice queue
+    from agent.session_mailbox import consume_turn_start_notes, note_turn_origin  # notes other agent sessions left while idle
+    note_turn_origin(agent, (  # a turn another session woke may not wake one itself (sessions tool)
+        messages[current_turn_user_idx].get("content")
+        if 0 <= current_turn_user_idx < len(messages) and isinstance(messages[current_turn_user_idx], dict)
+        else None))
     _turn_notes = "\n\n".join(
         part for part in (consume_gateway_turn_context_notes(agent), pop_plugin_notices(agent),
                           consume_surface_switch_note(agent),
-                          consume_skills_index_note(agent)) if part
+                          consume_skills_index_note(agent), consume_turn_start_notes(agent)) if part
     )
     if not _turn_notes:
         return plugin_user_context
@@ -1386,6 +1392,10 @@ def build_api_messages(
             # prefix stays byte-stable. User rows carry the injection sidecar; user
             # and assistant rows may carry a sanitize-divergence sidecar.
             api_msg["content"] = _api_content
+        # A failed-turn boundary is Hermes copy in the assistant role: the model reads a
+        # bracketed note naming why the turn ended, never the user-facing sentence as its own.
+        if (_boundary_note := failed_turn_model_content(msg)) is not None:
+            api_msg["content"] = _boundary_note
 
         # Replay stored reasoning on every carrier the active route reads (and strip the
         # rest): message_sanitization.reasoning_replay_route owns the decision.

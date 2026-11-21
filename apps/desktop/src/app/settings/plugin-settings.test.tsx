@@ -154,6 +154,6 @@ describe('Settings ▸ Plugins', () => {
     render(<Harness />)
 
     await waitFor(() => expect(screen.getByText('No plugin has settings yet.')).toBeTruthy())
-    expect(screen.getByRole('link', { name: /Manage plugins/ }).getAttribute('href')).toBe('#/capabilities?tab=plugins')
+    expect(screen.getByRole('link', { name: /Manage plugins/ }).getAttribute('href')).toBe('#/settings?tab=capabilities&page=plugins')
   })
 })

@@ -32,6 +32,13 @@ export const OTHER_SUBPAGES: Record<string, SettingsSubpage[]> = {
     { id: 'credentials', labelKey: 'vaultCredentials' },
     { id: 'sources', labelKey: 'vaultSources' }
   ],
+  // The former Capabilities page's tabs; their copy is Capabilities' own.
+  capabilities: [
+    { id: 'skills', labelKey: 'capabilitiesSkills', label: t => t.skills.tabSkills },
+    { id: 'plugins', labelKey: 'capabilitiesPlugins', label: t => t.skills.tabPlugins },
+    { id: 'connectors', labelKey: 'capabilitiesConnectors', label: t => t.connectorsPage.title },
+    { id: 'toolsets', labelKey: 'capabilitiesToolsets', label: t => t.skills.tabToolsets }
+  ],
   about: [
     { id: 'updates', labelKey: 'appUpdates' },
     { id: 'uninstall', labelKey: 'uninstall' }

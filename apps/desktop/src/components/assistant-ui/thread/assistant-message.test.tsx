@@ -16,6 +16,7 @@ import type { ErrorCardCopy } from '@/i18n/types'
 import { $touchPointer } from '@/lib/touch-interaction'
 import { TRANSCRIPT_DIRECTIVE_AREA, type TranscriptDirectiveContribution } from '@/lib/transcript-directives'
 import { $displayTimestamps } from '@/store/display-timestamps'
+import { $limitAutoResume, cancelAutoResume } from '@/store/limit-auto-resume'
 import { $activeSessionId } from '@/store/session'
 import { type SessionTileDelegate, setSessionTileDelegate } from '@/store/session-states'
 
@@ -510,7 +511,7 @@ describe('code-keyed error card copy and actions', () => {
     expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
   })
 
-  it('names the provider and keeps Retry for a rate limit', async () => {
+  it('names the provider for a rate limit without a known reset, and keeps a retry', async () => {
     render(
       <Harness
         assistant={failedMessage(
@@ -520,9 +521,9 @@ describe('code-keyed error card copy and actions', () => {
       />
     )
 
-    expect(await screen.findByText(copy(codes.rate_limit.title, 'openai'))).toBeTruthy()
-    expect(screen.getByText(copy(codes.rate_limit.body, 'openai'))).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy()
+    expect(await screen.findByText(en.assistant.thread.errorUsageLimitTitle)).toBeTruthy()
+    expect(screen.getByText(en.assistant.thread.errorUsageLimitBody('openai'))).toBeTruthy()
+    expect(screen.getByRole('button', { name: en.assistant.thread.errorTryAgain })).toBeTruthy()
   })
 
   it('falls back to the generic headline when no descriptor was sent (older backend)', async () => {
@@ -563,7 +564,13 @@ describe('error card layout (Error System Overhaul)', () => {
 
   it('lets the user close a degraded card but not a blocking one', async () => {
     const onDismissError = vi.fn()
-    const view = render(<Harness assistant={rateLimited()} onDismissError={onDismissError} />)
+
+    const view = render(
+      <Harness
+        assistant={failedMessage({ code: 'overloaded', layer: 'provider', provider: 'openai', retryable: true })}
+        onDismissError={onDismissError}
+      />
+    )
 
     const card = await screen.findByRole('alert')
     expect(card.dataset.severity).toBe('degraded')
@@ -681,63 +688,78 @@ describe('error card layout (Error System Overhaul)', () => {
   })
 })
 
-describe('scheduled retry at the usage-limit reset (#98852)', () => {
-  const rateLimited = (resetsAt: number) =>
+describe('usage limit card: Try again + Auto-resume', () => {
+  const rateLimited = (resetsAt?: number) =>
     failedMessage(
-      { code: 'rate_limit', layer: 'provider', provider: 'openai', resetsAt, retryable: true },
-      'HTTP 429: {"error":{"message":"Rate limit reached"}}'
+      { code: 'rate_limit', layer: 'provider', provider: 'anthropic', retryable: true, ...(resetsAt ? { resetsAt } : {}) },
+      "HTTP 429: This request would exceed your account's rate limit. Please try again later."
     )
 
   afterEach(() => {
     vi.useRealTimers()
+    cancelAutoResume('limit-session')
+    $activeSessionId.set(null)
   })
 
-  it('fires the same reload as Retry exactly once, at resets_at and not before', async () => {
+  it('is the red card: a plain headline, the reset time, and Try again in its own box', async () => {
     const onReload = vi.fn(async () => {})
-    const resetsAt = Math.floor(Date.now() / 1000) + 600
+    const resetsAt = Math.floor(Date.now() / 1000) + 4 * 3600
 
     render(<Harness assistant={rateLimited(resetsAt)} onReload={onReload} />)
 
-    const arm = await screen.findByRole('button', { name: /^Retry at \d\d:\d\d$/ })
-
-    vi.useFakeTimers()
-    fireEvent.click(arm)
-
-    expect(screen.getByTestId('error-retry-scheduled').textContent).toMatch(/Retrying at \d\d:\d\d — in \d+m \d\ds/)
-    expect(screen.queryByRole('button', { name: /^Retry at / })).toBeNull()
-
-    await act(async () => vi.advanceTimersByTime(resetsAt * 1000 - Date.now() - 1_000))
-    expect(onReload).not.toHaveBeenCalled()
-
-    await act(async () => vi.advanceTimersByTime(1_000))
-    expect(onReload).toHaveBeenCalledTimes(1)
-
-    await act(async () => vi.advanceTimersByTime(3_600_000))
-    expect(onReload).toHaveBeenCalledTimes(1)
+    const card = await screen.findByRole('alert')
+    expect(card.dataset.severity).toBe('blocking')
+    expect(screen.getByText(en.assistant.thread.errorUsageLimitTitle)).toBeTruthy()
+    expect(screen.getByText(/^Resets at \d\d:\d\d \(in [34]h \d\dm\)\.$/)).toBeTruthy()
+    // One retry control only: Try again in the nested box, no second Retry in the action row.
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: en.assistant.thread.errorTryAgain }))
+    await waitFor(() => expect(onReload).toHaveBeenCalledTimes(1))
+    expect(card.querySelector('[data-slot="aui_error-limit"]')).toBeTruthy()
   })
 
-  it('never fires after Cancel or unmount, and hides the button once the reset has passed', async () => {
+  it('Auto-resume re-runs the turn once, at the reset, and survives the card unmounting', async () => {
+    $activeSessionId.set('limit-session')
     const onReload = vi.fn(async () => {})
     const resetsAt = Math.floor(Date.now() / 1000) + 600
 
     const view = render(<Harness assistant={rateLimited(resetsAt)} onReload={onReload} />)
-    const armName = /^Retry at /
+    const box = await screen.findByRole('checkbox', { name: en.assistant.thread.errorAutoResume })
 
-    fireEvent.click(await screen.findByRole('button', { name: armName }))
-    vi.useFakeTimers()
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-    expect(screen.queryByTestId('error-retry-scheduled')).toBeNull()
+    vi.useFakeTimers({ shouldAdvanceTime: false })
+    fireEvent.click(box)
+    expect((box as HTMLInputElement).checked).toBe(true)
+    expect(screen.getByTestId('error-auto-resume-when').textContent).toMatch(/^next try at \d\d:\d\d$/)
 
-    fireEvent.click(screen.getByRole('button', { name: armName }))
+    // Switching away: the card unmounts, the armed state stays.
     view.unmount()
+    expect($limitAutoResume.get()['limit-session']?.phase).toBe('waiting')
+
+    await act(async () => vi.advanceTimersByTime(resetsAt * 1000 - Date.now() + 6_000))
+    // Came due off screen: it waits for the card instead of re-running some other turn.
+    expect($limitAutoResume.get()['limit-session']?.phase).toBe('due')
+    expect(onReload).not.toHaveBeenCalled()
+
+    vi.useRealTimers()
+    render(<Harness assistant={rateLimited(resetsAt)} onReload={onReload} />)
+    await waitFor(() => expect(onReload).toHaveBeenCalledTimes(1))
+    expect($limitAutoResume.get()['limit-session']?.phase).toBe('resuming')
+  })
+
+  it('unticking stands down', async () => {
+    $activeSessionId.set('limit-session')
+    const onReload = vi.fn(async () => {})
+
+    render(<Harness assistant={rateLimited()} onReload={onReload} />)
+    const box = await screen.findByRole('checkbox', { name: en.assistant.thread.errorAutoResume })
+
+    vi.useFakeTimers()
+    fireEvent.click(box)
+    fireEvent.click(box)
+    expect($limitAutoResume.get()['limit-session']).toBeUndefined()
 
     await act(async () => vi.advanceTimersByTime(3_600_000))
     expect(onReload).not.toHaveBeenCalled()
-    vi.useRealTimers()
-
-    render(<Harness assistant={rateLimited(Math.floor(Date.now() / 1000) - 60)} onReload={onReload} />)
-    expect(await screen.findByRole('button', { name: 'Retry' })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: armName })).toBeNull()
   })
 })
 

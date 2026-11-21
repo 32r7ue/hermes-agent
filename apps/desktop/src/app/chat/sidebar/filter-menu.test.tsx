@@ -42,8 +42,10 @@ it('translates the live filter menu while preserving selected values and the cur
   fireEvent.keyDown(screen.getByRole('button', { name: zh.filters }), { key: 'Enter' })
   const group = screen.getByRole('menuitem', { name: new RegExp(zh.grouping) })
   fireEvent.keyDown(group, { key: 'ArrowRight' })
-  expect(screen.getByRole('menuitemradio', { name: zh.updated }).getAttribute('aria-checked')).toBe('true')
-  fireEvent.keyDown(screen.getByRole('menuitemradio', { name: zh.updated }), { key: 'Escape' })
+  expect(screen.getByRole('menuitemradio', { name: zh.date }).getAttribute('aria-checked')).toBe('true')
+  // Every grouping is choosable from the menu, flat ("none") included.
+  expect(screen.getByRole('menuitemradio', { name: zh.none })).toBeTruthy()
+  fireEvent.keyDown(screen.getByRole('menuitemradio', { name: zh.date }), { key: 'Escape' })
   fireEvent.keyDown(screen.getByRole('button', { name: zh.filters }), { key: 'Enter' })
   fireEvent.keyDown(screen.getByRole('menuitem', { name: zh.status }), { key: 'ArrowRight' })
   fireEvent.click(screen.getByRole('menuitemcheckbox', { name: zh.needsInput }))

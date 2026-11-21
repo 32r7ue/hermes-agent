@@ -157,6 +157,21 @@ def _ic_signal_tool_workers(agent, active: bool, **kw) -> None:
             pass
 
 
+def _ic_yield_tool_workers(agent) -> None:
+    """Ask every tracked tool worker to YIELD (``tools.interrupt.request_yield``): a foreground
+    terminal command hands its live process to the background registry and returns, and a
+    ``process(action='wait')`` stops waiting, so a mid-turn user message reaches the model now
+    instead of after the command. Nothing is killed; tools that don't yield are unaffected."""
+    tracker = getattr(agent, "_tool_worker_threads", None)
+    tracker_lock = getattr(agent, "_tool_worker_threads_lock", None)
+    if tracker is None or tracker_lock is None:
+        return
+    with tracker_lock:
+        worker_tids = list(tracker)
+    for tid in worker_tids:
+        _request_yield(tid)
+
+
 class InterruptControlMixin:
     """interrupt()/hard_interrupt()/clear_interrupt()/steer()/redirect() (see module docstring)."""
 
@@ -308,17 +323,32 @@ class InterruptControlMixin:
         return True
 
     def steer(self, text: str, *, ticket=None) -> bool:
-        """Queue user text for delivery as its own user row after the current tool batch finishes (no
-        interrupt); multiple calls concatenate with newlines. Returns False for empty text. ``ticket``
-        names the submission, so ``withdraw_steer`` can settle exactly it, whatever text others carry."""
+        """Queue user text for delivery as its own user row at the next tool-batch boundary (no
+        interrupt); multiple calls concatenate with newlines. Running tools are asked to YIELD, so
+        the boundary comes now rather than when a long command exits: a foreground terminal command
+        keeps running as a tracked background process (the model may kill it if the message makes it
+        moot) and a ``process wait`` returns. Returns False for empty text, and once the turn is past
+        its last steer drain (``_drain_leftover_steer``) until the next turn starts: a buffer nobody
+        drains would show the user a delivered message the agent never sees, so the caller queues it
+        as the next prompt instead. ``ticket`` names the submission, so ``withdraw_steer`` can settle
+        exactly it, whatever text others carry."""
         if not text or not text.strip():
             return False
         cleaned = text.strip()
         with _ic_lock(self, "_pending_steer_lock"):
+            if vars(self).get("_steer_window_closed"):
+                return False
             _set_steer_parts(self, _steer_parts(self) + [(ticket, cleaned)])
         # The turn no longer ran on its own (first-task-done detection reads this off the result).
         self._turn_user_intervened = True
+        if getattr(self, "_executing_tools", False):
+            _ic_yield_tool_workers(self)
         return True
+
+    def _open_steer_window(self) -> None:
+        """A turn starts: ``steer()`` accepts again (see ``_drain_leftover_steer``)."""
+        with _ic_lock(self, "_pending_steer_lock"):
+            self._steer_window_closed = False
 
     def redirect(self, text: str) -> bool:
         """Redirect the active turn without converting it into a new task: during a model request only that
@@ -343,21 +373,10 @@ class InterruptControlMixin:
                 logger.debug("Codex app-server turn/steer failed", exc_info=True)
                 return False
 
-        # Never kill a tool to deliver guidance; the steer drain puts it on the final tool result.
-        # A foreground terminal command would park that delivery until it exits (a 5-minute
-        # `sleep` poller, a build), so ask the tool workers to YIELD: terminal hands the live
-        # process to the background registry and returns; tools that don't yield are unaffected.
+        # Never kill a tool to deliver guidance: during tool execution a redirect is a steer, which
+        # asks the tool workers to yield (a foreground command keeps running in the background).
         if getattr(self, "_executing_tools", False):
-            accepted = self.steer(cleaned)
-            if accepted:
-                tracker = getattr(self, "_tool_worker_threads", None)
-                tracker_lock = getattr(self, "_tool_worker_threads_lock", None)
-                if tracker is not None and tracker_lock is not None:
-                    with tracker_lock:
-                        worker_tids = list(tracker)
-                    for tid in worker_tids:
-                        _request_yield(tid)
-            return accepted
+            return self.steer(cleaned)
 
         _model_active = getattr(self, "_model_request_active", None)
         with _ic_lock(self, "_pending_redirect_lock"):
@@ -414,6 +433,8 @@ class InterruptControlMixin:
         with _ic_lock(self, "_pending_steer_lock"):
             parts = _steer_parts(self)
             _set_steer_parts(self, [part for part in parts if part[0] is not None])
+            # Last drain of the turn: later steers are refused until the next turn opens the window.
+            self._steer_window_closed = True
         return "\n".join(text for ticket, text in parts if ticket is None) or None
 
     def withdraw_steer(self, ticket) -> bool:

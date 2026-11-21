@@ -3,6 +3,7 @@ import { computed } from 'nanostores'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import { useI18n } from '@/i18n'
+import { playSendSound } from '@/lib/chat-cue-sounds'
 import { chatMessageText, collectUnspokenTurnSpeech, lastTextPartText } from '@/lib/chat-messages'
 import { triggerHaptic } from '@/lib/haptics'
 import {
@@ -179,6 +180,7 @@ export function useComposerVoice({
     }
 
     triggerHaptic('submit')
+    playSendSound()
     resetBrowseState(sessionId)
     clearDraft()
     await onSubmit(text, { voiceTurn: true })
@@ -188,6 +190,7 @@ export function useComposerVoice({
    *  what the user said; the transcript window rides the model input only. */
   const submitLiveDelegation = async (text: string, voiceContext: string) => {
     triggerHaptic('submit')
+    playSendSound()
     resetBrowseState(sessionId)
     clearDraft()
     await onSubmit(text, { surface: 'voice-live', voiceContext })
@@ -264,14 +267,19 @@ export function useComposerVoice({
     const status = $voiceLiveStatus.get()
     let live = false
 
-    if (selectedVoiceChatMode(status) === 'gpt-live') {
-      if (status?.available) {
+    const mode = selectedVoiceChatMode(status)
+
+    if (mode === 'gpt-live' || mode === 'gemini-live') {
+      const ok = mode === 'gemini-live' ? Boolean(status?.geminiAvailable) : Boolean(status?.available)
+      const reason = mode === 'gemini-live' ? status?.geminiReason : status?.reason
+
+      if (ok) {
         live = true
       } else {
         notify({
           id: 'voice-live-unavailable',
           kind: 'warning',
-          message: t.notifications.voice.liveUnavailable(status?.reason ?? 'not configured')
+          message: t.notifications.voice.liveUnavailable(reason ?? 'not configured')
         })
       }
     }

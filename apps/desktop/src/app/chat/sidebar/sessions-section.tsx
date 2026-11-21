@@ -1,7 +1,7 @@
 import type { useSensors } from '@dnd-kit/core'
 import { useStore } from '@nanostores/react'
 import type * as React from 'react'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { type NewSessionSplitHandler, startNewSessionDrag } from '@/app/chat/new-session-drag'
 import { SidebarPanelLabel } from '@/app/shell/sidebar-label'
@@ -12,9 +12,11 @@ import type { SessionInfo } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { flattenSessionsWithBranches } from '@/lib/session-branch-tree'
 import {
+  capSectionRows,
   groupEntriesByRecency,
   groupEntriesByStatus,
   hideCollapsedGroupRows,
+  type SidebarDisplayRow,
   type SidebarListRow,
   toSessionRows
 } from '@/lib/session-date-groups'
@@ -33,6 +35,7 @@ import { $sessionDotStateById, hasLiveTurn } from '@/store/session-dot-state'
 
 import { SIDEBAR_FOCUS_VISIBLE, SidebarDateDivider, SidebarSectionMeta } from './chrome'
 import { GatewayProfileGroups } from './gateway-groups'
+import { SidebarShowMoreRow } from './load-more-row'
 import { mergeVisibleReorder, orderRowsWithinGroups, reorderableRowIds } from './order'
 import {
   EnteredProjectContent,
@@ -181,9 +184,9 @@ interface SidebarSessionsSectionProps {
   // lists (Pinned / search results) in the All-profiles view, where no group
   // header communicates ownership (#66003).
   showProfileTags?: boolean
-  // Which dividers to fold into the flat list: `date` gives the chronological
-  // "Yesterday" / "Last week" separators (flat recents + entered-project lanes),
-  // `status` splits into WORKING / DONE under the same separators. `none` for
+  // Which dividers to fold into the flat list: `date` gives the Cursor-style
+  // Today / Last 7 Days / Last 30 Days / Older sections (flat recents +
+  // entered-project lanes), `status` splits into WORKING / DONE sections. `none` for
   // pinned, messaging groups, and the project overview, where the order isn't
   // strictly by recency so a bucket would be misleading.
   grouping?: 'date' | 'none' | 'status'
@@ -253,6 +256,16 @@ export function SidebarSessionsSection({
   const dotStates = useStore($sessionDotStateById)
   const nodeOpen = useStore($sidebarWorkspaceNodeOpen)
   const isListGroupOpen = useCallback((key: string) => nodeOpen[listGroupNodeId(key)] ?? true, [nodeOpen])
+  // Sections the user expanded past the row cap via their "More" row. Session-
+  // lived on purpose: a long section folds back to its first rows next launch.
+  const [expandedSections, setExpandedSections] = useState<ReadonlySet<string>>(() => new Set())
+  const isSectionExpanded = useCallback((key: string) => expandedSections.has(key), [expandedSections])
+
+  const expandSection = useCallback(
+    (key: string) => setExpandedSections(current => new Set(current).add(key)),
+    []
+  )
+
   const sectionOpen = collapsible ? open : true
   const hasGroupedSessions = Boolean(groups?.some(group => group.sessions.length > 0 || group.mode === 'profile'))
   // A defined project list is itself content (even an empty project should
@@ -358,11 +371,23 @@ export function SidebarSessionsSection({
     [isListGroupOpen, t]
   )
 
-  // A single flat/virtual/lane list row — either a divider or a session.
+  // A single flat/virtual/lane list row — a divider, a session, or the "More"
+  // row closing a capped section. `section` renders dividers as top-level
+  // section headers (the flat list); lanes keep the compact captioned rule.
   const renderListRow = useCallback(
-    (row: SidebarListRow, draggable: boolean, action?: React.ReactNode) => {
+    (row: SidebarDisplayRow, draggable: boolean, action?: React.ReactNode, section?: { first: boolean }) => {
       if (row.kind === 'session') {
         return renderRow(row.entry.session, draggable, row.entry.branchStem)
+      }
+
+      if (row.kind === 'more') {
+        return (
+          <SidebarShowMoreRow
+            key={row.key}
+            loading={false}
+            onShowMore={() => expandSection(row.groupKey)}
+          />
+        )
       }
 
       const label = 'label' in row ? row.label : sessionBucketLabel(row.bucket, dividerLabels)
@@ -371,6 +396,7 @@ export function SidebarSessionsSection({
       return (
         <SidebarDateDivider
           action={action}
+          first={section?.first}
           key={row.key}
           label={label}
           toggle={{
@@ -378,10 +404,11 @@ export function SidebarSessionsSection({
             onToggle: () => dividerToggle.onToggle(row.key),
             open
           }}
+          variant={section ? 'section' : 'inline'}
         />
       )
     },
-    [dividerLabels, dividerToggle, renderRow]
+    [dividerLabels, dividerToggle, expandSection, renderRow]
   )
 
   // Sessions inside repos/worktrees are date-ordered and static.
@@ -397,7 +424,6 @@ export function SidebarSessionsSection({
     (items: SessionInfo[], projectId: string) => {
       const rows = groupEntriesByRecency(
         flattenSessionsWithBranches(items),
-        undefined,
         undefined,
         showAllSessions ? Infinity : 2
       ).map(row => (row.kind === 'divider' ? { ...row, key: `project:${projectId}:${row.key}` } : row))
@@ -445,7 +471,11 @@ export function SidebarSessionsSection({
   // Closed date/status buckets keep their divider and drop the sessions under
   // it. Same array when nothing is collapsed so the virtualizer's rows ref
   // stays stable across parent re-renders.
-  const visibleRows = useMemo(() => hideCollapsedGroupRows(flatRows, isListGroupOpen), [flatRows, isListGroupOpen])
+  // Then each section caps at SECTION_ROW_CAP rows behind a "More" row.
+  const visibleRows: SidebarDisplayRow[] = useMemo(
+    () => capSectionRows(hideCollapsedGroupRows(flatRows, isListGroupOpen), isSectionExpanded),
+    [flatRows, isListGroupOpen, isSectionExpanded]
+  )
 
   // dnd-kit must see exactly the ids it renders, in render order: the sortable
   // set is derived from the rows, not from `sessions`. Feeding it the unrendered
@@ -488,6 +518,28 @@ export function SidebarSessionsSection({
   // background refresh keeps the prior tree, so this only fires when empty.
   const showProjectsSkeleton =
     projectsLoading && !hasProjectOverview && !hasProjectContent && !projectContent && !groups?.length
+
+  // The flat list is the path that renders `visibleRows` (plain or virtual).
+  const flatList =
+    !showProjectsSkeleton && !projectContent && !showEmptyState && !projectOverview?.length && !groups?.length
+
+  // Cursor layout: a sectioned flat list drops its own title row — the first
+  // section header (Today / Working …) carries the header's actions instead,
+  // and every section folds on its own.
+  // A capped last section already ends in its own "Show more"; the list footer
+  // would stack a second one right under it. It returns once that section opens.
+  const listFooter = flatList && visibleRows.at(-1)?.kind === 'more' ? null : footer
+
+  const sectionedFlat = flatList && !pinned && (grouping === 'date' || grouping === 'status')
+  const headerInFirstDivider = sectionedFlat && visibleRows[0]?.kind === 'divider'
+
+  const renderFlatRow = (row: SidebarDisplayRow, index: number, draggable: boolean) =>
+    renderListRow(
+      row,
+      draggable,
+      headerInFirstDivider && index === 0 ? headerAction : dividerAction,
+      sectionedFlat ? { first: index === 0 } : undefined
+    )
 
   let inner: React.ReactNode
 
@@ -592,17 +644,20 @@ export function SidebarSessionsSection({
         className={contentClassName}
         dividerAction={dividerAction}
         dividerToggle={dividerToggle}
+        firstDividerAction={headerInFirstDivider ? headerAction : undefined}
         onArchiveSession={onArchiveSession}
         onBranchSession={onBranchSession}
         onDeleteSession={onDeleteSession}
+        onExpandSection={expandSection}
         onResumeSession={onResumeSession}
         onTogglePin={onTogglePin}
         onToggleUnread={onToggleUnread}
         pinned={pinned}
         rows={visibleRows}
+        sectionDividers={sectionedFlat}
         showProfileTags={showProfileTags}
         sortable={sessionsDraggable}
-        trailing={footer}
+        trailing={listFooter}
       />
     )
 
@@ -616,11 +671,11 @@ export function SidebarSessionsSection({
   } else if (sessionsDraggable) {
     inner = (
       <ReorderableList ids={sortableRowIds} onReorder={persistSessionOrder} sensors={dndSensors}>
-        {visibleRows.map(row => renderListRow(row, true, dividerAction))}
+        {visibleRows.map((row, index) => renderFlatRow(row, index, true))}
       </ReorderableList>
     )
   } else {
-    inner = visibleRows.map(row => renderListRow(row, false, dividerAction))
+    inner = visibleRows.map((row, index) => renderFlatRow(row, index, false))
   }
 
   // The virtualizer owns its own scroller, so suppress the wrapper's overflow
@@ -628,23 +683,26 @@ export function SidebarSessionsSection({
   // to the inherited `overflow-x-hidden` computes to `auto` (CSS spec), which
   // kept a phantom 4px scrollbar gutter and cut every row short on the right.
   const resolvedContentClassName = cn(contentClassName, flatVirtualized && 'overflow-visible')
+  const bodyOpen = headerInFirstDivider || sectionOpen
 
   return (
     <SidebarGroup className={cn(rootClassName, DROP_TARGET_RING)} {...sessionDropTargetProps(pinned)}>
-      <SidebarSectionHeader
-        action={headerAction}
-        collapsible={collapsible}
-        icon={labelIcon}
-        label={label}
-        meta={labelMeta}
-        onToggle={onToggle}
-        open={sectionOpen}
-      />
-      {sectionOpen && (
+      {!headerInFirstDivider && (
+        <SidebarSectionHeader
+          action={headerAction}
+          collapsible={collapsible}
+          icon={labelIcon}
+          label={label}
+          meta={labelMeta}
+          onToggle={onToggle}
+          open={sectionOpen}
+        />
+      )}
+      {bodyOpen && (
         <SidebarGroupContent className={resolvedContentClassName}>
           {inner}
           {/* A virtualized list scrolls on its own: its footer rides at the end of that scroller. */}
-          {flatVirtualized ? null : footer}
+          {flatVirtualized ? null : listFooter}
         </SidebarGroupContent>
       )}
     </SidebarGroup>

@@ -245,7 +245,8 @@ _YIELDED_NOTE = (
     "The user sent a message while this command was running, so it was moved to the "
     "background WITHOUT being killed and is still running. You will be notified when it "
     "exits (notify_on_complete). Read the user's message and respond to it now; use "
-    "process(action='poll'|'wait'|'log', session_id=...) to check on this command."
+    "process_manage(action='poll'|'wait'|'log', session_id=...) to check on this command, or "
+    "process_manage(action='kill', session_id=...) if the user's message makes it moot."
 )
 
 

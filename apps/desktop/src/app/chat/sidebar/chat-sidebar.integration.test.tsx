@@ -157,7 +157,6 @@ describe('ChatSidebar navigation activity', () => {
     })
 
     for (const [pathname, currentView, label] of [
-      ['/capabilities', 'capabilities', 'Capabilities'],
       ['/artifacts', 'artifacts', 'Artifacts'],
       ['/cron', 'cron', 'Scheduled jobs']
     ] as const) {
@@ -380,7 +379,7 @@ describe('ChatSidebar section labels', () => {
     expect(screen.queryByText('Sessions')).toBeNull()
   })
 
-  it('keeps the "Sessions" label when grouping is on but no projects exist', () => {
+  it('falls back to the dated flat list (not "Projects") when grouping is on but no projects exist', () => {
     // The source-filter toggle with an empty tree: the section lists plain
     // chat sessions, so heading it "Projects" mislabeled them (#62537).
     setSidebarAgentsGrouped(true)
@@ -389,7 +388,9 @@ describe('ChatSidebar section labels', () => {
 
     renderSidebar('/', 'chat')
 
-    expect(screen.getByText('Sessions')).toBeTruthy()
+    // The flat list is sectioned by date (Cursor layout): its first section
+    // header stands in for the "Sessions" title row — never "Projects".
+    expect(document.querySelector('[data-slot="sidebar-section-divider"]')).toBeTruthy()
     expect(screen.queryByText('Projects')).toBeNull()
   })
 

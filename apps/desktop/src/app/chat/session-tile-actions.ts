@@ -492,7 +492,7 @@ export function useSessionTileActions({ requestGateway, runtimeId, scope, stored
 
         if (result?.status === 'queued') {
           // A redirect queued in the build window is the next turn; an
-          // accepted steer joins this one after its running tool.
+          // accepted steer joins this one now: running tools yield to it.
           if (mode === 'steer') {
             flushStreamDeltas(sessionId)
             mutate(state => sealAcceptedCorrection(state, messageId, { keepRunningTools: true }))

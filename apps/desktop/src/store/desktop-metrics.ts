@@ -44,6 +44,8 @@ import type { SharedMetricsRequester } from './shared-metrics'
 const SETTINGS_AREAS: Record<string, DesktopFeatureArea> = {
   about: 'settings_about',
   billing: 'settings_billing',
+  // Capabilities moved into Settings; keep its own area so usage stays comparable.
+  capabilities: 'capabilities',
   'config:advanced': 'settings_config_advanced',
   'config:appearance': 'settings_config_appearance',
   'config:browser': 'settings_config_browser',
@@ -76,7 +78,6 @@ export type DesktopFeatureArea =
   | 'extension_page'
   | 'file_pane'
   | 'find_in_page'
-  | 'kanban'
   | 'messaging'
   | 'model_picker'
   | 'other'
@@ -120,7 +121,6 @@ const ROUTE_AREAS: Record<string, DesktopFeatureArea> = {
   capabilities: 'capabilities',
   'command-center': 'command_center',
   cron: 'cron',
-  kanban: 'kanban',
   messaging: 'messaging',
   profiles: 'profiles',
   'session-import': 'session_import',

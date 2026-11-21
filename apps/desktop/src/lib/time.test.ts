@@ -9,6 +9,7 @@ import {
   HOUR,
   MINUTE,
   nominalDayStart,
+  recencySection,
   SECOND,
   sessionBucketLabel
 } from './time'
@@ -107,9 +108,26 @@ describe('calendarBucket', () => {
   })
 })
 
+describe('recencySection', () => {
+  it('buckets into Today / Last 7 Days / Last 30 Days / Older, honoring the 4 AM rollover', () => {
+    const key = (year: number, month: number, day: number, hour = 10) =>
+      recencySection(secondsAt(year, month, day, hour), THU_NOON).key
+
+    expect(key(2026, 5, 18, 6)).toBe('today')
+    expect(key(2026, 5, 18, 2)).toBe('last-7-days') // small hours belong to yesterday
+    expect(key(2026, 5, 11)).toBe('last-7-days')
+    expect(key(2026, 5, 10)).toBe('last-30-days')
+    expect(key(2026, 4, 19)).toBe('last-30-days')
+    expect(key(2026, 4, 18)).toBe('older')
+  })
+})
+
 describe('sessionBucketLabel', () => {
   const labels = {
+    last30Days: 'Last 30 Days',
+    last7Days: 'Last 7 Days',
     lastWeek: 'Last week',
+    older: 'Older',
     thisMonth: 'Earlier this month',
     thisWeek: 'Earlier this week',
     today: 'Earlier today',

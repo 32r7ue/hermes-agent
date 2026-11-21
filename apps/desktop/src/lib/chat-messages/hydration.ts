@@ -37,16 +37,29 @@ const CONTEXT_REF_RE = /@(file|folder|url|image|tool|terminal):(?:"[^"\n]+"|'[^'
 
 // Native ingress persists the image-routing hints followed by one placeholder
 // per flattened image part. Recognize that suffix only, not quoted caption prose.
+// Whatever follows the placeholders was appended after the image parts by the
+// agent (per-turn notes like the skills-changed note, memory context): the
+// user's caption always comes first, so that tail is model-only and dropped.
 function persistedImageRefs(text: string) {
-  const suffix = /\n\n((?:\[Image attached(?: at)?: [^\n]+\]\n)+)((?:\[screenshot\](?:\n|$))+)$/.exec(text)
+  const suffix =
+    /\n\n((?:\[Image attached(?: at)?: [^\n]+\]\n)+)((?:\[screenshot\](?:\n|$))+)(?:\[System:[\s\S]*|<memory-context>[\s\S]*)?$/.exec(
+      text
+    )
 
-  if (!suffix) { return extractImageRefs(text) }
+  if (!suffix) {
+    return extractImageRefs(text)
+  }
   const paths = [...suffix[1].matchAll(/^\[Image attached(?: at)?: (.+)\]$/gm)].map(match => match[1])
 
-  if (paths.length !== suffix[2].split('[screenshot]').length - 1) { return extractImageRefs(text) }
+  if (paths.length !== suffix[2].split('[screenshot]').length - 1) {
+    return extractImageRefs(text)
+  }
   const extracted = extractImageRefs(text.slice(0, suffix.index))
 
-  return { cleanedText: extracted.cleanedText, refs: [...extracted.refs, ...paths.map(path => `@image:${formatRefValue(path)}`)] }
+  return {
+    cleanedText: extracted.cleanedText,
+    refs: [...extracted.refs, ...paths.map(path => `@image:${formatRefValue(path)}`)]
+  }
 }
 
 // Gateway routing note for Discord turns (gateway/run_inbound.py::discord_triggering_note).
@@ -386,6 +399,9 @@ export function toChatMessages(messages: SessionMessage[]): ChatMessage[] {
   }
 
   /** Attribute `rows` backend rows to a folded message (absent field means one). */
+  // The failed-turn notice just painted, so an identical one right after it folds in.
+  let lastBoundary: null | { index: number; text: unknown } = null
+
   const absorbRows = (message: ChatMessage | undefined, rows: number) => {
     if (message && rows > 0) {
       message.serverRowSpan = (message.serverRowSpan ?? 1) + rows
@@ -515,7 +531,8 @@ export function toChatMessages(messages: SessionMessage[]): ChatMessage[] {
     // optimistic composer already uses) and render them via the dedicated
     // attachments row below the bubble instead. The leading `@file:` block
     // (attached files, large pastes) moves there too, for the same parity.
-    const imageRefExtraction = displayRole === 'user' && rawDisplayContent ? persistedImageRefs(rawDisplayContent) : null
+    const imageRefExtraction =
+      displayRole === 'user' && rawDisplayContent ? persistedImageRefs(rawDisplayContent) : null
     const fileRefExtraction = imageRefExtraction ? splitLeadingAttachmentRefs(imageRefExtraction.cleanedText) : null
     const displayContent = fileRefExtraction ? fileRefExtraction.text : rawDisplayContent
     const liftedRefs = [...(fileRefExtraction?.refs ?? []), ...(imageRefExtraction?.refs ?? [])]
@@ -643,16 +660,35 @@ export function toChatMessages(messages: SessionMessage[]): ChatMessage[] {
     const failure = message.display_kind === 'failed_turn' ? failedTurnError(message.display_metadata) : null
 
     if (failure) {
-      // Stands for no backend row of its own; the boundary row below counts itself.
+      // One ending renders once: the error card IS the boundary row (it counts that row), so the
+      // generic "not processed" / "did not complete" sentence under it is not painted again.
       result.push({
         id: `${message.timestamp || Date.now()}-${index}-failed-turn-error`,
         role: 'assistant',
         parts: [],
         pending: false,
-        serverRowSpan: 0,
+        ...(pendingAbsorbedRows > 0 ? { serverRowSpan: pendingAbsorbedRows + 1 } : {}),
+        ...(rowId !== undefined ? { rowId } : {}),
         ...failure,
         ...(message.timestamp ? { timestamp: message.timestamp } : {})
       })
+      activeAssistantIndex = null
+      lastBoundary = null
+
+      return
+    }
+
+    // Back-to-back failed turns with nothing visible between them (hidden prompts such as an
+    // inline command's result) would stack the same sentence twice: fold the repeat into the first.
+    if (
+      message.display_kind === 'failed_turn' &&
+      lastBoundary?.index === result.length - 1 &&
+      lastBoundary.text === displayContent
+    ) {
+      absorbRows(result[lastBoundary.index], pendingAbsorbedRows + 1)
+      activeAssistantIndex = null
+
+      return
     }
 
     const reactions = messageReactions(message.display_metadata)
@@ -677,6 +713,7 @@ export function toChatMessages(messages: SessionMessage[]): ChatMessage[] {
     })
 
     activeAssistantIndex = message.role === 'assistant' ? result.length - 1 : null
+    lastBoundary = message.display_kind === 'failed_turn' ? { index: result.length - 1, text: displayContent } : null
   })
   flushPendingTools(messages.length)
 

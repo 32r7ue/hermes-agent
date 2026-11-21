@@ -1212,6 +1212,12 @@ DEFAULT_CONFIG = {
             "instructions": "",
             # optional "api_key" / "base_url" keys override the OpenAI audio credentials for this mode only
         },
+        "gemini_live": {
+            "model": "gemini-3.8-live",
+            "voice": "Puck",  # Puck | Charon | Kore | Fenrir | Aoede | Zephyr | Leda | Orus
+            "instructions": "",
+            # optional "api_key" / "ws_url" keys override GOOGLE_API_KEY / GEMINI_API_KEY for this mode only
+        },
         "record_key": "ctrl+b",
         "submit_mode": "direct",  # TUI: direct submits immediately; draft = editable transcript
         "max_recording_seconds": 120,
@@ -2720,6 +2726,9 @@ DEFAULT_CONFIG = {
         # chat = no tools, few-line prompt; lite = files/terminal/web/browser/computer use, short prompt;
         # full = the normal Hermes prompt (tens of thousands of tokens to prefill).
         "prompt_mode": "chat",
+        # macOS app names to quit while any local model is loaded, reopened once none is
+        # (frees unified memory), e.g. ["Phonon", "Coast Local"].
+        "free_apps": [],
     },
     "_config_version": 52,  # Config schema version - bump this when adding new required fields
 }

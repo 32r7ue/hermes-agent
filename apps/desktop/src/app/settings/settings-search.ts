@@ -16,7 +16,9 @@ export interface SettingsSearchTarget {
   field?: string
   key?: string
   keysView?: CredentialSettingsView
-  providerView?: 'accounts' | 'custom-endpoints' | 'keys'
+  providerView?: 'accounts' | 'custom-endpoints' | 'keys' | 'local'
+  /** Page-owned row selectors (`server`, `plugin`, …) the target page reads. */
+  params?: Readonly<Record<string, string>>
   setting?: string
   view: SettingsView
 }
@@ -213,6 +215,10 @@ export function settingsSearchTargetQuery(target: SettingsSearchTarget): string 
 
   if (target.key) {
     params.set('key', target.key)
+  }
+
+  for (const [key, value] of Object.entries(target.params ?? {})) {
+    params.set(key, value)
   }
 
   return params.toString()

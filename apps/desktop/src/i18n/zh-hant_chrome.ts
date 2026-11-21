@@ -39,6 +39,7 @@ export const zhHantChrome = {
 
   sidebar: {
     profileRail: '設定檔列',
+    sectionMore: '更多',
     markAllRead: '全部標示為已讀',
     filter: {
       grouping: '分組',
@@ -69,7 +70,9 @@ export const zhHantChrome = {
       open: '開啟',
       merged: '已合併',
       closed: '已關閉',
-      noPR: '無 PR'
+      noPR: '無 PR',
+      date: '日期',
+      none: '無'
     },
     gatewayGroups: {
       grouping: '閘道與設定檔',
@@ -84,7 +87,6 @@ export const zhHantChrome = {
     },
     nav: {
       'new-session': '新工作階段',
-      capabilities: '技能與工具',
       messaging: '訊息平台',
       artifacts: '成品',
       cron: '排程工作'
@@ -232,11 +234,14 @@ export const zhHantChrome = {
       ageMin: '分'
     },
     dateDivider: {
-      today: '今天稍早',
+      today: '今天',
       yesterday: '昨天',
       thisWeek: '本週',
       lastWeek: '上週',
-      thisMonth: '本月'
+      thisMonth: '本月',
+      last7Days: '過去 7 天',
+      last30Days: '過去 30 天',
+      older: '更早'
     },
     statusDivider: {
       working: '進行中',

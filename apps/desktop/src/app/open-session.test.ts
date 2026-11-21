@@ -5,6 +5,7 @@ const frontMainIfSelected = vi.fn((storedSessionId: string) => false)
 const openSessionTile = vi.fn()
 const reuseBlankDraftTile = vi.fn()
 const setSessionTileWorkspaceScope = vi.fn()
+const watchSessionTile = vi.fn((_id: string): undefined | { watchParentSessionId?: string } => undefined)
 
 const focusedSessionWorkspaceScope = vi.fn<() => { workspaceMode: 'bots' | 'sessions'; workspaceOwnerKey?: string }>(
   () => ({ workspaceMode: 'sessions' })
@@ -22,7 +23,8 @@ vi.mock('@/store/session-states', () => ({
   frontMainIfSelected: (storedSessionId: string) => frontMainIfSelected(storedSessionId),
   openSessionTile: (...args: unknown[]) => openSessionTile(...args),
   reuseBlankDraftTile: (...args: unknown[]) => reuseBlankDraftTile(...args),
-  setSessionTileWorkspaceScope: (...args: unknown[]) => setSessionTileWorkspaceScope(...args)
+  setSessionTileWorkspaceScope: (...args: unknown[]) => setSessionTileWorkspaceScope(...args),
+  watchSessionTile: (id: string) => watchSessionTile(id)
 }))
 
 vi.mock('@/store/windows', () => ({
@@ -290,6 +292,12 @@ describe('openSession', () => {
     openSession('s1', navigate, 'window')
     expect(openSessionInNewWindow).toHaveBeenCalledWith('s1')
     expect(openSessionTile).not.toHaveBeenCalled()
+  })
+
+  it('pops a subagent spectator tile out as a watch window routed via its parent', () => {
+    watchSessionTile.mockReturnValueOnce({ watchParentSessionId: 'parent-1' })
+    openSession('child-1', navigate, 'window')
+    expect(openSessionInNewWindow).toHaveBeenCalledWith('child-1', { parentSessionId: 'parent-1', watch: true })
   })
 
   it('window falls back to a tab when pop-out is unavailable', () => {

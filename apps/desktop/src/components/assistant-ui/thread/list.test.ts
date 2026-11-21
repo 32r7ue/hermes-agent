@@ -15,6 +15,7 @@ import {
   shouldClampTranscriptBudget,
   shouldRePinOnTranscriptReload,
   shouldSnapOnRunStart,
+  stableTurnRowKeys,
   subscribeToThreadForeground,
   transcriptPaneBudget
 } from './list'
@@ -536,5 +537,26 @@ describe('first user message is never swallowed (Show-earlier paging)', () => {
     expect(hidden).toBe(0)
     // The first user message survives as a distinct visible group.
     expect(groups.some(g => g.id === 'u1')).toBe(true)
+  })
+})
+
+describe('stableTurnRowKeys', () => {
+  const structural = (ids: string[]) => ids.map((id, index) => `${index}:${id}:user`).join('\n')
+
+  it('keeps an optimistic message on its first key through the row bind and the persisted replacement', () => {
+    const optimistic = stableTurnRowKeys(['row:1', 'user-sub'].join('\n'), structural(['a', 'user-sub']))
+    expect(optimistic.keys).toEqual(['row:1', 'user-sub'])
+
+    const bound = stableTurnRowKeys(['row:1', 'row:9'].join('\n'), structural(['a', 'user-sub']), optimistic)
+    expect(bound.keys).toEqual(['row:1', 'user-sub'])
+
+    const persisted = stableTurnRowKeys(['row:1', 'row:9'].join('\n'), structural(['a', '17-4-user']), bound)
+    expect(persisted.keys).toEqual(['row:1', 'user-sub'])
+  })
+
+  it('still splits two renders of one durable row onto distinct keys', () => {
+    const first = stableTurnRowKeys(['row:3', 'row:3'].join('\n'), structural(['x', 'y']))
+    expect(first.keys).toEqual(['row:3', 'y'])
+    expect(stableTurnRowKeys(['row:3', 'row:3'].join('\n'), structural(['x2', 'y2']), first).keys).toEqual(['row:3', 'y2'])
   })
 })

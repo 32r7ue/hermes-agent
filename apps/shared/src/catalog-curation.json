@@ -6,7 +6,6 @@
       "autonomous-ai-agents/hermes-agent": "official-art-card-one.jpg"
     },
     "plugins": {
-      "desktop:kanban": "official-art.jpg",
       "desktop:hermes-bots": "official-art-card-two.jpg",
       "desktop:hermes-radio": "official-art-card-one.jpg"
     }

@@ -1830,6 +1830,10 @@ def run_conversation(
 
     # Steer / redirect / interrupt set this mid-turn; the result reports whether the turn ran untouched.
     agent._turn_user_intervened = False
+    # The previous turn's finalizer closed steer acceptance after its last drain; this turn drains again.
+    _open_steer_window = getattr(agent, "_open_steer_window", None)
+    if callable(_open_steer_window):
+        _open_steer_window()
     # Images attached natively to this user turn stay visible to vision_analyze for the turn, so
     # it does not embed the same pixels a second time into the same request (#76411).
     with native_turn_images(user_message):

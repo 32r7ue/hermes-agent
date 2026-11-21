@@ -59,5 +59,23 @@ export const deNotifications = {
   completionSoundTitle: 'Abschluss-Sound',
   completionSoundDesc:
     'Wird abgespielt, wenn ein Agent-Turn endet. Wählen Sie eine Vorlage aus und hören Sie sie hier an.',
-  completionSoundPreview: 'Vorschau'
+  completionSoundPreview: 'Vorschau',
+  chatCues: {
+    sent: {
+      label: 'Ton beim Senden',
+      description: 'Cursors Ton, wenn du eine Nachricht sendest oder nachsteuerst.'
+    },
+    thinking: {
+      label: 'Denk-Ton',
+      description: 'Cursors sanfter Puls, während der Agent arbeitet: nach 4 Sekunden, dann etwa alle 6 Sekunden, bis der Zug endet oder dich braucht.'
+    },
+    fileEdited: {
+      label: 'Ton bei Dateiänderung',
+      description: 'Cursors Ton, wenn der Agent eine Datei fertig bearbeitet hat.'
+    },
+    approval: {
+      label: 'Freigabe-Ton',
+      description: 'Cursors Behalten-/Verwerfen-Töne, wenn du eine Anfrage freigibst oder ablehnst.'
+    }
+  }
 }

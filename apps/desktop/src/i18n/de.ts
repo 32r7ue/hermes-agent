@@ -389,6 +389,8 @@ export const deOverrides = {
     retry: 'Erneut versuchen',
     run: 'Ausführen',
     send: 'Senden',
+    yes: 'Ja',
+    no: 'Nein',
     set: 'Setzen',
     skip: 'Überspringen',
     update: 'Aktualisieren',
@@ -784,13 +786,12 @@ export const deOverrides = {
       keybinds: 'Tastaturkürzel',
       keysTools: 'Tools',
       keysSettings: 'Einstellungen',
-      mcp: 'MCP',
-      archivedChats: 'Archivierte Chats',
       sessions: 'Sessions',
       about: 'Über',
       billing: 'Abrechnung',
       notifications: 'Benachrichtigungen',
-      vault: 'Passwörter & Logins'
+      vault: 'Passwörter & Logins',
+      capabilities: 'Fähigkeiten'
     },
     plugins: {
       title: 'Desktop-Plugins',
@@ -2515,10 +2516,6 @@ export const deOverrides = {
       emptyHint: 'Durchsuchen Sie unten den Katalog und installieren Sie ein geprüftes Plugin mit einem Klick.',
       loadFailed: 'Agent-Plugins konnten nicht geladen werden',
       toggleFailed: name => `${name} konnte nicht umgeschaltet werden`,
-      toolsetOn: (name: string, profile: string) => `${name}-Agent-Tools für ${profile} aktiviert`,
-      toolsetOff: (name: string, profile: string) => `${name}-Agent-Tools für ${profile} deaktiviert`,
-      toolsetToggleFailed: (name: string) =>
-        `Die ${name}-Agent-Tools konnten nicht umgeschaltet werden; das Desktop-Panel bleibt unverändert`,
       legacyBackend:
         'Dieses Backend ist älter als schlüsseladressierte Plugin-Schalter — aktualisieren Sie Hermes, um es hier zu verwalten.',
       portableBadge: 'tragbar',
@@ -2778,7 +2775,6 @@ export const deOverrides = {
       installs: count => `${count} Installationen`
     },
     settingsFields: 'Einstellungsfelder',
-    mcpServers: 'MCP-Server',
     archivedChats: 'Archivierte Chats',
     sections: {
       maintenance: 'Wartung',
@@ -2794,10 +2790,6 @@ export const deOverrides = {
       settings: {
         title: 'Einstellungen',
         detail: 'Hermes Desktop konfigurieren'
-      },
-      capabilities: {
-        title: 'Fähigkeiten',
-        detail: 'Skills, Tools, MCP-Server und Plugins'
       },
       messaging: {
         title: 'Messaging',
@@ -3648,7 +3640,9 @@ export const deOverrides = {
       open: 'Offen',
       merged: 'Gemergt',
       closed: 'Geschlossen',
-      noPR: 'Kein PR'
+      noPR: 'Kein PR',
+      date: 'Datum',
+      none: 'Keine'
     },
     gatewayGroups: {
       grouping: 'Gateway & Profil',
@@ -3664,7 +3658,6 @@ export const deOverrides = {
     profileRail: 'Profil-Leiste',
     nav: {
       'new-session': 'Neue Session',
-      capabilities: 'Fähigkeiten',
       messaging: 'Messaging',
       artifacts: 'Artefakte',
       cron: 'Geplante Jobs'
@@ -3755,16 +3748,20 @@ export const deOverrides = {
       ageMin: 'Min'
     },
     dateDivider: {
-      today: 'Heute früher',
+      today: 'Heute',
       yesterday: 'Gestern',
       thisWeek: 'Diese Woche früher',
       lastWeek: 'Letzte Woche',
-      thisMonth: 'Diesen Monat früher'
+      thisMonth: 'Diesen Monat früher',
+      last7Days: 'Letzte 7 Tage',
+      last30Days: 'Letzte 30 Tage',
+      older: 'Älter'
     },
     statusDivider: {
       working: 'In Arbeit',
       done: 'Erledigt'
     },
+    sectionMore: 'Mehr',
     markAllRead: 'Alle als gelesen markieren'
   },
   composer: {
@@ -5098,6 +5095,13 @@ export const deOverrides = {
       errorStartNewChatLink: 'Neuen Chat starten',
       errorChooseModelLink: 'Anderes Modell wählen',
       errorRetryAtResetShort: time => `Um ${time} erneut versuchen`,
+      errorUsageLimitTitle: 'Nutzungslimit erreicht',
+      errorUsageLimitBody: provider => `${provider} nimmt gerade keine weiteren Anfragen an.`,
+      errorUsageLimitResets: (time, wait) => `Wird um ${time} zurückgesetzt (in ${wait}).`,
+      errorTryAgain: 'Erneut versuchen',
+      errorAutoResume: 'Automatisch fortsetzen',
+      errorAutoResumeAt: time => `nächster Versuch um ${time}`,
+      errorAutoResumeRunning: 'wird fortgesetzt…',
       errorRateLimitResetBody: (provider, time) =>
         `Sie haben das Anfragelimit von ${provider} erreicht. Es wird um ${time} zurückgesetzt.`,
       errorGenericProvider: 'Der KI-Dienst',
@@ -5260,6 +5264,7 @@ export const deOverrides = {
       statusDone: 'Fertig',
       resultUnavailable: 'Ergebnis nicht verfügbar',
       resultInterrupted: 'Unterbrochen',
+      continuesInBackground: 'Läuft im Hintergrund weiter',
       memoryWriteNoted: 'Speicher-Schreiben notiert',
       actions: {
         read: 'Lesen',
@@ -5549,10 +5554,6 @@ export const deOverrides = {
       'new-session': {
         title: 'Frisch loslegen',
         text: 'Ein neuer Chat bekommt seinen eigenen Context, sein eigenes Terminal und Arbeitsverzeichnis.'
-      },
-      skills: {
-        title: 'Einmal beibringen',
-        text: 'Skills sind Ordner mit Anweisungen, die Hermes lädt, wenn die Arbeit danach verlangt.'
       },
       messaging: {
         title: 'Hermes abseits Ihres Schreibtischs',

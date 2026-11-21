@@ -4,7 +4,7 @@ import { type ReactNode, useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 
 import { useGatewayRequest } from '@/app/gateway/hooks/use-gateway-request'
-import { NEW_CHAT_ROUTE, SETTINGS_ROUTE } from '@/app/routes'
+import { capabilitiesHref, NEW_CHAT_ROUTE, SETTINGS_ROUTE } from '@/app/routes'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -45,12 +45,12 @@ import { usePluginProbe } from './use-plugin-probe'
 
 const CAPTION = 'text-[length:var(--conversation-caption-font-size)]'
 
-/** Close the dialog and land on the inventory (Capabilities → Plugins), unless the caller keeps the user in place. */
+/** Close the dialog and land on the inventory (Settings → Capabilities → Plugins), unless the caller keeps the user in place. */
 function finishInstall(request: PluginInstallRequest, navigate: (to: string) => void): void {
   closePluginInstallRequest()
 
   if (!request.stayAfterInstall) {
-    navigate('/capabilities?tab=plugins')
+    navigate(capabilitiesHref('plugins'))
   }
 }
 

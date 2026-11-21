@@ -576,8 +576,12 @@ CONTROL_FRAME_OPENERS = (
 
 
 def format_steer_marker(steer_text: str) -> str:
-    """Wrap a mid-turn steer in the self-describing marker (see note above)."""
-    return f"\n\n{STEER_MARKER_OPEN}\n{steer_text}\n{STEER_MARKER_CLOSE}"
+    """Wrap a mid-turn steer in the self-describing marker (see note above). Peer-agent notes
+    (agent.session_mailbox) ride the same drain but keep their own frame: they are NOT the user."""
+    from agent.session_mailbox import split_peer_blocks
+    user_text, peer_blocks = split_peer_blocks(steer_text)
+    parts = [f"{STEER_MARKER_OPEN}\n{user_text}\n{STEER_MARKER_CLOSE}"] if user_text else []
+    return "\n\n" + "\n\n".join(parts + peer_blocks)
 
 
 STEER_DISPLAY_KIND = "steer"
@@ -707,13 +711,18 @@ PLATFORM_HINTS = {
         "or it measures full-bleed. Widgets talk back: data-hermes-send=\"prompt\" on any clickable element (or "
         "window.hermes.send(\"prompt\")) sends that prompt as a hidden user turn — answer it by updating the widget's "
         "file, not with prose. "
+        "Commands for the user to run go in a fence tagged bash/sh/zsh/shell: only tagged fences get a Run button, "
+        "which runs the command and hands you its exit code and output. "
         "When your reply leaves the user exactly one concrete decision inside the task they gave you (approve a "
         "commit or push, apply the fix you just diagnosed, pick the obvious next step of their plan), end it with "
         "::ask{q=\"Commit both changes?\" action=\"Commit\"} alone on its own last line: one short yes/no question "
         "and a 1-3 word action label. The app shows it as a panel with one button (or ⌘↩); declining is just the "
         "user's next message, so never ask the same thing again in prose. Use it only when real work waits on "
         "their answer. Never to offer something they did not ask for (summaries, docs, extra polish, \"want me to "
-        "also…\"), and not by habit: most replies need none. "
+        "also…\"), and not by habit: most replies need none. When that one decision IS running a specific command "
+        "(restart, commit, push), add cmd: ::ask{q=\"Restart the gateway?\" action=\"Restart\" "
+        "cmd=\"hermes gateway restart\"}. The button runs it on their click and only then hands you its exit code "
+        "and output, so never mention or spell out the command in prose. No cmd for anything else. "
         "App settings are yours to change without clicking: set_theme (theme preset, mode, accent, layout, glass, "
         "text size), and for any other desktop preference `hermes config ui [KEY [VALUE]]`, applied live."
     ),

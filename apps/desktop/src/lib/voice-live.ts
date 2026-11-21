@@ -19,7 +19,7 @@ import { hermesApi } from '@/hermes'
  * https://developers.openai.com/api/docs/guides/live-delegation
  */
 
-export type VoiceChatMode = 'chained' | 'gpt-live'
+export type VoiceChatMode = 'chained' | 'gemini-live' | 'gpt-live'
 
 export interface VoiceLiveStatus {
   mode: VoiceChatMode
@@ -27,6 +27,10 @@ export interface VoiceLiveStatus {
   reason: null | string
   model: string
   voice: string
+  geminiAvailable?: boolean
+  geminiReason?: null | string
+  geminiModel?: string
+  geminiVoice?: string
 }
 
 export interface LiveHistoryMessage {
@@ -80,7 +84,15 @@ const CONTEXT_MAX_FRAGMENTS = 80
 
 export async function fetchVoiceLiveStatus(): Promise<null | VoiceLiveStatus> {
   try {
-    const response = await hermesApi<{ ok: boolean } & VoiceLiveStatus>({
+    const response = await hermesApi<
+      {
+        ok: boolean
+        gemini_available?: boolean
+        gemini_reason?: null | string
+        gemini_model?: string
+        gemini_voice?: string
+      } & VoiceLiveStatus
+    >({
       ...profileScoped(),
       path: '/api/audio/voice-live/status'
     })
@@ -89,9 +101,20 @@ export async function fetchVoiceLiveStatus(): Promise<null | VoiceLiveStatus> {
       return null
     }
 
+    const mode: VoiceChatMode =
+      response.mode === 'gemini-live'
+        ? 'gemini-live'
+        : response.mode === 'gpt-live'
+          ? 'gpt-live'
+          : 'chained'
+
     return {
       available: Boolean(response.available),
-      mode: response.mode === 'gpt-live' ? 'gpt-live' : 'chained',
+      geminiAvailable: Boolean(response.gemini_available),
+      geminiModel: response.gemini_model,
+      geminiReason: response.gemini_reason ?? null,
+      geminiVoice: response.gemini_voice,
+      mode,
       model: response.model,
       reason: response.reason ?? null,
       voice: response.voice

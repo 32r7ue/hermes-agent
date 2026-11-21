@@ -937,7 +937,7 @@ export function usePromptActions({
 
           if (result?.status === 'queued') {
             // A redirect queued in the build window is the next turn; an
-            // accepted steer joins this one after its running tool.
+            // accepted steer joins this one now: running tools yield to it.
             if (mode === 'steer') {
               flushStreamDeltas(id)
               updateSessionState(id, state => sealAcceptedCorrection(state, messageId, { keepRunningTools: true }))

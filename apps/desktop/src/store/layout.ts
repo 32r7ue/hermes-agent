@@ -318,7 +318,7 @@ export const $sidebarAgentsGrouped: ReadableAtom<boolean> = computed(
 /** How the recents list is divided. `date` is the sidebar's long-standing
  *  default (Today / Yesterday / Last week dividers). `profile` only means
  *  anything while the sidebar is showing every profile at once. */
-export const SIDEBAR_GROUPING_ORDER = ['date', 'project', 'status', 'profile'] as const
+export const SIDEBAR_GROUPING_ORDER = ['date', 'status', 'project', 'profile', 'none'] as const
 /** Derived from the order so a new grouping cannot exist without a slot in the
  *  filter menu and the `view.cycleSidebarGrouping` keybind, which both walk it. */
 export type SidebarGrouping = (typeof SIDEBAR_GROUPING_ORDER)[number]
@@ -356,7 +356,7 @@ export const SIDEBAR_SORT_KEYS: readonly SidebarSortKey[] = ['updated', 'created
 const $sidebarFlatGrouping = persistentAtom<SidebarGrouping>(
   SIDEBAR_GROUPING_STORAGE_KEY,
   'date',
-  oneOf(['date', 'status'], 'date')
+  oneOf(['date', 'status', 'none'], 'date')
 )
 
 // All-profiles keeps its own grouping: `profile` only means anything there, and
@@ -366,7 +366,7 @@ const $sidebarFlatGrouping = persistentAtom<SidebarGrouping>(
 const $sidebarAllProfilesGrouping = persistentAtom<SidebarGrouping>(
   SIDEBAR_ALL_PROFILES_GROUPING_STORAGE_KEY,
   'date',
-  oneOf(['date', 'profile', 'status'], 'date')
+  oneOf(['date', 'profile', 'status', 'none'], 'date')
 )
 
 // The sidebar as it ships. Declared once so the atoms below, "Reset to

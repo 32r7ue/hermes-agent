@@ -62,6 +62,8 @@ export const arCommon = {
     retry: 'إعادة المحاولة',
     run: 'تشغيل',
     send: 'إرسال',
+    yes: 'نعم',
+    no: 'لا',
     set: 'ضبط',
     skip: 'تخطي',
     update: 'تحديث',

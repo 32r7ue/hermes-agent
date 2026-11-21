@@ -19,7 +19,7 @@ import { codiconIcon } from '@/components/ui/codicon'
 import { Command, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { HighlightMatches } from '@/components/ui/highlight-matches'
 import { KbdCombo } from '@/components/ui/kbd'
-import { getHermesConfigRecord, listAllProfileSessions } from '@/hermes'
+import { listAllProfileSessions } from '@/hermes'
 import { useMediaQuery } from '@/hooks/use-media-query'
 import { useI18n } from '@/i18n'
 import { sessionTitle } from '@/lib/chat-runtime'
@@ -36,11 +36,7 @@ import {
   Download,
   Egg,
   GitBranch,
-  Globe,
   type IconComponent,
-  Info,
-  KeyRound,
-  Layers3,
   MessageCircle,
   MessageSquareText,
   Monitor,
@@ -52,15 +48,11 @@ import {
   Plus,
   RefreshCw,
   Settings,
-  Settings2,
-  SlidersHorizontal,
   Starmap,
   Sun,
   Users,
-  Wrench,
   Zap
 } from '@/lib/icons'
-import { getServers } from '@/lib/mcp-servers'
 import { normalize } from '@/lib/text'
 import { cn } from '@/lib/utils'
 import { $repoWorktrees } from '@/store/coding-status'
@@ -82,9 +74,7 @@ import { $cronSessions, $messagingSessions, $sessions } from '@/store/session'
 import { $unconfirmedPinWrites } from '@/store/session-pin-sync'
 import { $removedSessionIds } from '@/store/session-removal'
 import { runGatewayRestart } from '@/store/system-actions'
-import {
-  requestActiveUpdate
-} from '@/store/updates'
+import { requestActiveUpdate } from '@/store/updates'
 import { canOpenNewWindow, openNewWindow } from '@/store/windows'
 import { luminance } from '@/themes/color'
 import { type ThemeMode, useTheme } from '@/themes/context'
@@ -96,7 +86,6 @@ import { openSessionFromPicker, openSessionIntentFromModifiers } from '../open-s
 import {
   AGENTS_ROUTE,
   ARTIFACTS_ROUTE,
-  CAPABILITIES_ROUTE,
   COMMAND_CENTER_ROUTE,
   CRON_ROUTE,
   MESSAGING_ROUTE,
@@ -106,7 +95,6 @@ import {
   SETTINGS_ROUTE,
   STARMAP_ROUTE
 } from '../routes'
-import { SECTIONS } from '../settings/constants'
 import { type SettingsSearchEntry, settingsSearchTargetQuery } from '../settings/settings-search'
 import { useSettingsSearchCatalog } from '../settings/use-settings-search'
 
@@ -115,6 +103,7 @@ import { usePaletteContributions } from './contrib'
 import { HighlightWatcher } from './highlight-watcher'
 import { MarketplaceThemePage } from './marketplace-theme-page'
 import { PetInlineToggle, PetPalettePage } from './pet-palette-page'
+import { rankGroups, scoreItem } from './rank'
 import { useUpdateRowLabel } from './use-update-row-label'
 
 interface PaletteItem {
@@ -154,6 +143,8 @@ interface PaletteItem {
   /** Fixed rank for rows the server already matched (message content), which
    *  the label/keyword matcher can't see. */
   score?: number
+  /** Grade bonus on a match (Settings pages over the fields on them). */
+  boost?: number
   /** Open a nested palette page (VS Code-style "choose X → options"). */
   to?: string
 }
@@ -183,93 +174,17 @@ interface SessionEntry {
   title: string
 }
 
-// Ranking happens in React, not cmdk. We score, sort, and prune the groups
-// ourselves and hand cmdk an already-ordered list with `shouldFilter={false}`,
-// leaving it as pure keyboard/selection machinery. (cmdk's own group
-// re-sorting silently no-ops: its sort() queries groups by an internal id that
-// never matches the heading text it writes into `data-value`, so groups always
-// keep source order — which put a generic keyword match like "Capabilities" on
-// top and the auto-highlight on it while an exact "Tools" row sat below.)
-//
-// cmdk still auto-selects the first DOM item whenever the search changes, so
-// rendering best-match-first is what puts the highlight on the best match.
-//
-// AND semantics: every typed word must appear in the label or keywords. The
-// grade rewards matches on the visible label — exact > prefix > whole word >
-// word prefix > substring > scattered terms > keyword-only — so typing "tools"
-// selects the row that says Tools, not a row that hides it in keywords.
-const scoreItem = (item: PaletteItem, needle: string): number => {
-  if (item.score !== undefined) {
-    return item.score
-  }
-
-  const label = item.label.toLowerCase()
-  const keys = (item.keywords ?? []).join(' ').toLowerCase()
-  const terms = needle.split(/\s+/).filter(Boolean)
-
-  if (terms.some(term => !label.includes(term) && !keys.includes(term))) {
-    return 0
-  }
-
-  if (label === needle) {
-    return 1
-  }
-
-  if (label.startsWith(needle)) {
-    return 0.9
-  }
-
-  const words = label.split(/[^\p{L}\p{N}]+/u).filter(Boolean)
-
-  if (words.includes(needle)) {
-    return 0.85
-  }
-
-  if (words.some(word => word.startsWith(needle))) {
-    return 0.8
-  }
-
-  if (label.includes(needle)) {
-    return 0.7
-  }
-
-  if (terms.every(term => label.includes(term))) {
-    return 0.6
-  }
-
-  // Matched only via keywords — the weakest, generic-row signal.
-  return 0.4
-}
-
-// Order items within each group by score, order groups by their best item, and
-// drop everything that doesn't match. Ties keep their original order (stable
-// sort), so curated group/item ordering still breaks even scores.
-const rankGroups = (groups: PaletteGroup[], search: string): PaletteGroup[] => {
-  const needle = normalize(search)
-
-  if (!needle) {
-    return groups
-  }
-
-  return groups
-    .map(group => {
-      const scored = group.items
-        .map(item => ({ item, score: scoreItem(item, needle) }))
-        .filter(entry => entry.score > 0)
-        .sort((a, b) => b.score - a.score)
-
-      return { group: { ...group, items: scored.map(entry => entry.item) }, max: scored[0]?.score ?? 0 }
-    })
-    .filter(entry => entry.max > 0)
-    .sort((a, b) => b.max - a.max)
-    .map(entry => entry.group)
-}
-
 // cmdk selection values must be unique; labels alone can repeat (a settings
 // field and a session can share a title). The id suffix disambiguates.
 const paletteValue = (item: PaletteItem): string => `${item.label}\u0001${item.id}`
 
 const EMPTY_GROUPS: PaletteGroup[] = []
+
+// Grade bonuses (see rank.ts): a Settings page beats an equally good field
+// match, a sub-page sits between the two. Small enough that a better label
+// match on another row still wins.
+const PAGE_BOOST = 0.06
+const SUBPAGE_BOOST = 0.03
 
 // Backstop only. The palette normally retires on the content's real
 // `animationend`, so the CSS owns the close duration; this just guarantees the
@@ -413,75 +328,6 @@ const toSessionEntry = (session: SessionRow): SessionEntry => ({
 const sessionKeywords = (session: SessionEntry, ...tags: string[]): string[] =>
   [...tags, 'chat', 'session', session.preview, session.git_branch].filter((word): word is string => !!word)
 
-type NonConfigSettingsLabel =
-  | 'about'
-  | 'archivedChats'
-  | 'gateway'
-  | 'keysSettings'
-  | 'keysTools'
-  | 'mcp'
-  | 'plugins'
-  | 'providerAccounts'
-  | 'providerApiKeys'
-
-const NON_CONFIG_SETTINGS: ReadonlyArray<{
-  icon: IconComponent
-  keywords?: string[]
-  labelKey: NonConfigSettingsLabel
-  tab: string
-}> = [
-  {
-    icon: Zap,
-    keywords: ['accounts', 'sign in', 'oauth', 'login', 'subscription', 'models', 'anthropic', 'openai'],
-    labelKey: 'providerAccounts',
-    tab: 'providers&pview=accounts'
-  },
-  {
-    icon: KeyRound,
-    keywords: ['providers', 'api key', 'keys', 'secrets', 'tokens', 'egress', 'iron proxy', 'sandbox proxy'],
-    labelKey: 'providerApiKeys',
-    tab: 'providers&pview=keys'
-  },
-  {
-    icon: Globe,
-    // The Connections registry merged into the unified Gateways page.
-    keywords: [
-      'connection',
-      'connections',
-      'messaging',
-      'remote',
-      'multi',
-      'instances',
-      'ssh',
-      'cloud',
-      'add gateway',
-      'registry'
-    ],
-    labelKey: 'gateway',
-    tab: 'gateway'
-  },
-  {
-    icon: KeyRound,
-    keywords: ['api', 'secrets', 'tokens', 'credentials', 'browser', 'search'],
-    labelKey: 'keysTools',
-    tab: 'keys&kview=tools'
-  },
-  {
-    icon: Settings2,
-    keywords: ['gateway', 'proxy', 'server', 'webhook', 'env', 'egress proxy', 'iron proxy'],
-    labelKey: 'keysSettings',
-    tab: 'keys&kview=settings'
-  },
-  { icon: Archive, keywords: ['history', 'archived'], labelKey: 'archivedChats', tab: 'sessions' },
-  {
-    icon: codiconIcon('extensions'),
-    keywords: ['plugins', 'plugin settings', 'plugin options', 'addons', 'add-ons', 'extensions'],
-    labelKey: 'plugins',
-    tab: 'plugins'
-  },
-  { icon: Info, keywords: ['version', 'about'], labelKey: 'about', tab: 'about' }
-]
-
 const THEME_MODES: ReadonlyArray<{ icon: IconComponent; mode: ThemeMode }> = [
   { icon: Sun, mode: 'light' },
   { icon: Moon, mode: 'dark' },
@@ -595,6 +441,11 @@ function CommandPaletteBody({ onExited }: { onExited: () => void }) {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  // True once the user moves the highlight (arrows) after their last keystroke. Until then the
+  // top result stays highlighted and the list stays scrolled to the top while results reorder
+  // or arrive late (cmdk otherwise keeps the old highlight and scrolls down after it).
+  const navigatedRef = useRef(false)
+  const listRef = useRef<HTMLDivElement>(null)
 
   const updateVersionLabel = useUpdateRowLabel()
 
@@ -639,11 +490,6 @@ function CommandPaletteBody({ onExited }: { onExited: () => void }) {
   // exists while the palette is open, so the queries are inherently lazy — no
   // `enabled` gate needed. react-query handles caching/dedup/staleness, so a
   // reopen paints from cache and revalidates in the background.
-  const configQuery = useQuery({
-    queryKey: ['command-palette', 'config'],
-    queryFn: () => getHermesConfigRecord()
-  })
-
   // staleTime 0 (not the 60s client default): renames, pins, and archives
   // happen in the sidebar while this component is unmounted, so nothing can
   // invalidate these keys — every open must revalidate. The cached page
@@ -676,10 +522,6 @@ function CommandPaletteBody({ onExited }: { onExited: () => void }) {
   const pinnedSessionIds = useStore($pinnedSessionIds)
   const unconfirmedPinWrites = useStore($unconfirmedPinWrites)
   const removedSessionIds = useStore($removedSessionIds)
-
-  // getServers is the shared choke point that also drops malformed (null/
-  // scalar) entries, so the palette never lists a server the MCP tab dropped.
-  const mcpServers = useMemo(() => Object.keys(getServers(configQuery.data ?? null)).sort(), [configQuery.data])
 
   // The sidebar's stores are where a rename / pin / archive lands first (the
   // server page confirms later). Overlay them on the fetched 200-row page so
@@ -764,11 +606,6 @@ function CommandPaletteBody({ onExited }: { onExited: () => void }) {
     setPage(prev => (prev ? (PAGE_PARENTS[prev] ?? null) : null))
   }, [])
 
-  const settingsSectionLabel = useCallback(
-    (section: (typeof SECTIONS)[number]) => t.settings.sections[section.id] ?? section.label,
-    [t.settings.sections]
-  )
-
   // Running a keepOpen row (a toggle) changes state the rows themselves report,
   // so the groups have to rebuild without the palette closing. A counter keeps
   // that generic — the palette never learns which stores its contributions read.
@@ -803,8 +640,66 @@ function CommandPaletteBody({ onExited }: { onExited: () => void }) {
     [t, worktrees]
   )
 
+  // Settings results are the catalog the Settings page itself is built from
+  // (its nav pages and sub-pages, schema-driven config fields, hand-built rows,
+  // stored credentials, and Settings ▸ Capabilities' skills / tools / MCP
+  // servers / plugins), not a hardcoded key list: ⌘K is the de-facto settings
+  // search everywhere, so root and the settings page must agree. The body
+  // mounts per open, so the catalog queries fire on open and stay warm.
+  const settingsCatalog = useSettingsSearchCatalog(true)
+
+  const settingsEntryItem = useCallback(
+    (entry: SettingsSearchEntry, boost?: number): PaletteItem => ({
+      // A page's own keybind (⌘K row hint) — Capabilities keeps `nav.capabilities`.
+      action: entry.id === 'settings-view:capabilities' ? 'nav.capabilities' : undefined,
+      boost,
+      detail: entry.context,
+      icon: entry.icon,
+      id: `sp-${entry.id}`,
+      keywords: [entry.context, entry.description ?? '', ...entry.keywords],
+      label: entry.label,
+      run: go(`${SETTINGS_ROUTE}?${settingsSearchTargetQuery(entry.target)}`)
+    }),
+    [go]
+  )
+
+  // Destinations outrank the rows on them: typing "provider" lands on the
+  // Providers page before any field that is also called Provider, and a
+  // sub-page ("Sounds") before a single sound toggle.
+  const settingsPageItems = useMemo(
+    () => settingsCatalog.pageEntries.map(entry => settingsEntryItem(entry, PAGE_BOOST)),
+    [settingsCatalog.pageEntries, settingsEntryItem]
+  )
+
+  const settingsFieldItems = useMemo(
+    () => [
+      ...settingsCatalog.subpageEntries.map(entry => settingsEntryItem(entry, SUBPAGE_BOOST)),
+      ...settingsCatalog.settingEntries.map(entry => settingsEntryItem(entry)),
+      ...settingsCatalog.configEntries.map(entry => settingsEntryItem(entry))
+    ],
+    [settingsCatalog.configEntries, settingsCatalog.settingEntries, settingsCatalog.subpageEntries, settingsEntryItem]
+  )
+
+  // The long, granular lists (installed capabilities, plugins, API keys) only
+  // surface once the user types — they'd bury navigation on an empty palette.
+  const settingsDetailGroups = useMemo<PaletteGroup[]>(() => {
+    const groups: PaletteGroup[] = [
+      { heading: t.commandCenter.settingsFields, items: settingsFieldItems },
+      {
+        heading: t.settings.nav.capabilities,
+        items: settingsCatalog.capabilityEntries.map(entry => settingsEntryItem(entry))
+      },
+      { heading: t.skills.tabPlugins, items: settingsCatalog.pluginEntries.map(entry => settingsEntryItem(entry)) },
+      {
+        heading: t.settings.nav.apiKeys,
+        items: settingsCatalog.credentialEntries.map(entry => settingsEntryItem(entry))
+      }
+    ]
+
+    return groups.filter(group => group.items.length > 0)
+  }, [settingsCatalog, settingsEntryItem, settingsFieldItems, t])
+
   const baseGroups = useMemo<PaletteGroup[]>(() => {
-    const settingsTab = (tab: string) => `${SETTINGS_ROUTE}?tab=${tab}`
     const cc = t.commandCenter
 
     // Projects are the primary way the desktop scopes work, so they're jumpable
@@ -871,14 +766,6 @@ function CommandPaletteBody({ onExited }: { onExited: () => void }) {
             id: 'nav-settings',
             label: cc.nav.settings.title,
             run: go(SETTINGS_ROUTE)
-          },
-          {
-            action: 'nav.capabilities',
-            icon: Wrench,
-            id: 'nav-skills',
-            keywords: ['skills', 'tools', 'toolsets', 'mcp', 'capabilities'],
-            label: cc.nav.capabilities.title,
-            run: go(CAPABILITIES_ROUTE)
           },
           {
             action: 'nav.messaging',
@@ -1040,63 +927,15 @@ function CommandPaletteBody({ onExited }: { onExited: () => void }) {
           }
         ]
       },
-      {
-        heading: cc.settings,
-        items: [
-          ...SECTIONS.map(section => ({
-            icon: section.icon,
-            id: `set-config-${section.id}`,
-            keywords: ['settings', section.label, settingsSectionLabel(section)],
-            label: settingsSectionLabel(section),
-            run: go(settingsTab(`config:${section.id}`))
-          })),
-          ...NON_CONFIG_SETTINGS.map(entry => ({
-            icon: entry.icon,
-            id: `set-${entry.tab}`,
-            keywords: ['settings', ...(entry.keywords ?? [])],
-            label: t.settings.nav[entry.labelKey],
-            run: go(settingsTab(entry.tab))
-          }))
-        ]
-      }
+      // Every Settings page, Capabilities included — listed on an empty
+      // palette, ranked like any row once the user types.
+      { heading: cc.settings, items: settingsPageItems }
     ]
     // `selectTick` is a deliberate re-read trigger, not a value: rows report
     // live state through `detail()`, so the groups must rebuild after a select
     // that kept the palette open — eslint only sees an unused dep.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    contributedItems,
-    dismissedAutoProjects,
-    go,
-    projectTree,
-    selectTick,
-    settingsSectionLabel,
-    t,
-    updateVersionLabel
-  ])
-
-  // The long, granular lists (settings fields, API keys, MCP servers, archived
-  // chats) only surface once the user types — otherwise they'd bury the
-  // navigation entries on an empty palette.
-  //
-  // Settings results are the DEEP catalog (schema-driven config fields,
-  // appearance controls, stored credentials — the same entries the Settings
-  // page serves), not a hardcoded key list: ⌘K is the de-facto settings
-  // search everywhere, so root and the settings page must agree. The body
-  // mounts per open, so the catalog queries fire on open and stay warm.
-  const settingsCatalog = useSettingsSearchCatalog(true)
-
-  const settingsEntryItem = useCallback(
-    (entry: SettingsSearchEntry): PaletteItem => ({
-      detail: entry.context,
-      icon: entry.icon,
-      id: `sp-${entry.id}`,
-      keywords: [entry.context, entry.description ?? '', ...entry.keywords],
-      label: entry.label,
-      run: go(`${SETTINGS_ROUTE}?${settingsSearchTargetQuery(entry.target)}`)
-    }),
-    [go]
-  )
+  }, [contributedItems, dismissedAutoProjects, go, projectTree, selectTick, settingsPageItems, t, updateVersionLabel])
 
   const searchGroups = useMemo<PaletteGroup[]>(() => {
     if (!search.trim()) {
@@ -1139,45 +978,6 @@ function CommandPaletteBody({ onExited }: { onExited: () => void }) {
         ]
       })
     }
-
-    // Deep-link straight to a Capabilities sub-tab. The root "Go to" entry only
-    // lands on the top-level Skills view; typing "mcp"/"tools"/"skills" should
-    // jump to the exact tab (matches the "not just the top lvl" ask).
-    const capLabel = t.commandCenter.nav.capabilities.title
-
-    result.push({
-      heading: capLabel,
-      items: [
-        {
-          icon: Wrench,
-          id: 'cap-skills',
-          keywords: ['skills', 'capabilities'],
-          label: `${capLabel}: ${t.skills.tabSkills}`,
-          run: go(`${CAPABILITIES_ROUTE}?tab=skills`)
-        },
-        {
-          icon: SlidersHorizontal,
-          id: 'cap-toolsets',
-          keywords: ['tools', 'toolsets', 'capabilities'],
-          label: `${capLabel}: ${t.skills.tabToolsets}`,
-          run: go(`${CAPABILITIES_ROUTE}?tab=toolsets`)
-        },
-        {
-          icon: Layers3,
-          id: 'cap-connectors',
-          keywords: ['connectors', 'apps', 'mcp', 'servers', 'tools', 'capabilities', 'model context protocol'],
-          label: `${capLabel}: ${t.connectorsPage.title}`,
-          run: go(`${CAPABILITIES_ROUTE}?tab=connectors`)
-        },
-        {
-          icon: Package,
-          id: 'cap-plugins',
-          keywords: ['plugins', 'extensions', 'desktop plugins', 'agent plugins', 'catalog', 'addon', 'add-on'],
-          label: `${capLabel}: ${t.skills.tabPlugins}`,
-          run: go(`${CAPABILITIES_ROUTE}?tab=plugins`)
-        }
-      ]
-    })
 
     // Apply a theme directly from the root search (e.g. "nous" → Nous). Live
     // preview via keepOpen, mirroring the nested theme picker. If the theme
@@ -1260,7 +1060,7 @@ function CommandPaletteBody({ onExited }: { onExited: () => void }) {
     // title already matches is listed under Sessions; don't repeat it here.
     const titleHits = new Set(
       [...pinnedSessions, ...sessions]
-        .filter(session => scoreItem({ icon: MessageCircle, id: '', label: session.title }, normalize(search)) > 0)
+        .filter(session => scoreItem({ label: session.title }, normalize(search)) > 0)
         .map(session => session.id)
     )
 
@@ -1279,49 +1079,7 @@ function CommandPaletteBody({ onExited }: { onExited: () => void }) {
       result.push({ heading: t.commandCenter.inMessages, items: contentItems })
     }
 
-    const fieldItems = [
-      ...settingsCatalog.subpageEntries,
-      ...settingsCatalog.settingEntries,
-      ...settingsCatalog.configEntries
-    ].map(settingsEntryItem)
-
-    if (fieldItems.length > 0) {
-      result.push({ heading: t.commandCenter.settingsFields, items: fieldItems })
-    }
-
-    if (settingsCatalog.pluginEntries.length > 0) {
-      result.push({
-        heading: t.skills.tabPlugins,
-        items: settingsCatalog.pluginEntries.map(entry => ({
-          detail: entry.context,
-          icon: entry.icon,
-          id: `sp-${entry.id}`,
-          keywords: [entry.context, entry.description ?? '', ...entry.keywords],
-          label: entry.label,
-          run: go(`${CAPABILITIES_ROUTE}?tab=plugins&plugin=${encodeURIComponent(entry.plugin)}`)
-        }))
-      })
-    }
-
-    if (settingsCatalog.credentialEntries.length > 0) {
-      result.push({
-        heading: t.settings.nav.apiKeys,
-        items: settingsCatalog.credentialEntries.map(settingsEntryItem)
-      })
-    }
-
-    if (mcpServers.length > 0) {
-      result.push({
-        heading: t.commandCenter.mcpServers,
-        items: mcpServers.map(name => ({
-          icon: Wrench,
-          id: `mcp-${name}`,
-          keywords: ['mcp', 'server', 'tool'],
-          label: name,
-          run: go(`${CAPABILITIES_ROUTE}?tab=connectors&server=${encodeURIComponent(name)}`)
-        }))
-      })
-    }
+    result.push(...settingsDetailGroups)
 
     if (archivedSessions.length > 0) {
       result.push({
@@ -1343,7 +1101,6 @@ function CommandPaletteBody({ onExited }: { onExited: () => void }) {
     contentHits,
     go,
     goSession,
-    mcpServers,
     mode,
     pinnedSessions,
     previewTheme,
@@ -1353,8 +1110,7 @@ function CommandPaletteBody({ onExited }: { onExited: () => void }) {
     sessions,
     setMode,
     setTheme,
-    settingsCatalog,
-    settingsEntryItem,
+    settingsDetailGroups,
     t,
     themeName
   ])
@@ -1372,52 +1128,13 @@ function CommandPaletteBody({ onExited }: { onExited: () => void }) {
   // the same catalog as root, minus everything that isn't settings. Pages
   // always list; the granular entries surface on type, same contract as the
   // root.
-  const settingsPageGroups = useMemo<PaletteGroup[]>(() => {
-    const settingsTab = (tab: string) => `${SETTINGS_ROUTE}?tab=${tab}`
-    const cc = t.commandCenter
-
-    const result: PaletteGroup[] = [
-      {
-        heading: cc.settings,
-        items: [
-          ...SECTIONS.map(section => ({
-            icon: section.icon,
-            id: `sp-config-${section.id}`,
-            keywords: ['settings', section.label, settingsSectionLabel(section)],
-            label: settingsSectionLabel(section),
-            run: go(settingsTab(`config:${section.id}`))
-          })),
-          ...NON_CONFIG_SETTINGS.map(entry => ({
-            icon: entry.icon,
-            id: `sp-${entry.tab}`,
-            keywords: ['settings', ...(entry.keywords ?? [])],
-            label: t.settings.nav[entry.labelKey],
-            run: go(settingsTab(entry.tab))
-          }))
-        ]
-      }
-    ]
-
-    if (search.trim()) {
-      result.push({
-        heading: cc.settingsFields,
-        items: [
-          ...settingsCatalog.subpageEntries,
-          ...settingsCatalog.settingEntries,
-          ...settingsCatalog.configEntries
-        ].map(settingsEntryItem)
-      })
-
-      if (settingsCatalog.credentialEntries.length > 0) {
-        result.push({
-          heading: t.settings.nav.apiKeys,
-          items: settingsCatalog.credentialEntries.map(settingsEntryItem)
-        })
-      }
-    }
-
-    return result
-  }, [go, search, settingsCatalog, settingsEntryItem, settingsSectionLabel, t])
+  const settingsPageGroups = useMemo<PaletteGroup[]>(
+    () => [
+      { heading: t.commandCenter.settings, items: settingsPageItems },
+      ...(search.trim() ? settingsDetailGroups : [])
+    ],
+    [search, settingsDetailGroups, settingsPageItems, t]
+  )
 
   // Nested palette pages (VS Code-style submenus). Reusable: add an entry here
   // and point a root item at it via `to`.
@@ -1545,6 +1262,31 @@ function CommandPaletteBody({ onExited }: { onExited: () => void }) {
   const visibleGroups = useMemo(() => rankGroups(unrankedGroups, search), [unrankedGroups, search])
   const placeholder = activePage ? activePage.placeholder : t.commandCenter.searchPlaceholder
 
+  const resultSignature = useMemo(
+    () => visibleGroups.map(group => group.items.map(paletteValue).join('\u0002')).join('\u0003'),
+    [visibleGroups]
+  )
+
+  useEffect(() => {
+    if (navigatedRef.current) {
+      return
+    }
+
+    const frame = requestAnimationFrame(() => {
+      const list = listRef.current
+
+      if (!list) {
+        return
+      }
+
+      // cmdk's own Home handler selects the first enabled row.
+      list.closest('[cmdk-root]')?.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Home' }))
+      list.scrollTop = 0
+    })
+
+    return () => cancelAnimationFrame(frame)
+  }, [resultSignature, search])
+
   // The HighlightWatcher inside <Command> reports the highlighted row (arrows
   // or hover) from the cmdk store. Resolve it back to its PaletteItem so
   // preview-capable rows (the theme pickers) can paint live. Any other
@@ -1670,6 +1412,13 @@ function CommandPaletteBody({ onExited }: { onExited: () => void }) {
               // swipes the inviting MouseEvent and hands us nothing).
               noteSelectMods(event)
 
+              if (
+                ['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'End'].includes(event.key) ||
+                (event.ctrlKey && ['j', 'k', 'n', 'p'].includes(event.key))
+              ) {
+                navigatedRef.current = true
+              }
+
               if (!activePage) {
                 return
               }
@@ -1684,13 +1433,16 @@ function CommandPaletteBody({ onExited }: { onExited: () => void }) {
                 return
               }
             }}
-            onValueChange={setSearch}
+            onValueChange={next => {
+              navigatedRef.current = false
+              setSearch(next)
+            }}
             placeholder={placeholder}
             ref={inputRef}
             right={page === 'pets' ? <PetInlineToggle /> : undefined}
             value={search}
           />
-          <CommandList className="dt-portal-scrollbar max-h-[min(20rem,56vh)]">
+          <CommandList className="dt-portal-scrollbar max-h-[min(20rem,56vh)]" ref={listRef}>
             {/* Server-driven pages render their own list; the rest show groups. */}
             {page === 'pets' ? (
               <PetPalettePage

@@ -24,6 +24,34 @@ logger = logging.getLogger("agent.conversation_loop")
 
 _INLINE_THINK_RE = re.compile(r'<think>|<thinking>|<reasoning>', re.IGNORECASE)
 
+# Wire text for the hidden row closing a reaction-only turn. A structural label, not prose,
+# so the model has no conversational reason to echo it (see agent_runtime_helpers_placeholders).
+_REACTION_ONLY_PLACEHOLDER = "[reaction only: no text reply this turn]"
+_REACTION_TOOLS = frozenset({"react_to_message"})
+# Healthy (``text_response`` prefix: no abnormal-exit explainer); the gateway keeps it silent.
+REACTION_ONLY_EXIT_REASON = "text_response(reaction_only)"
+
+
+def reaction_was_the_reply(messages: List[Dict[str, Any]]) -> bool:
+    """True when the transcript tail is one tool round made only of successful reactions."""
+    i = len(messages)
+    results = []
+    while i and isinstance(messages[i - 1], dict) and messages[i - 1].get("role") == "tool":
+        i -= 1
+        results.append(messages[i])
+    if not results or not i:
+        return False
+    calls = messages[i - 1].get("tool_calls") if messages[i - 1].get("role") == "assistant" else None
+    if not calls:
+        return False
+    names = {
+        (c.get("function") or {}).get("name") if isinstance(c, dict) else getattr(getattr(c, "function", None), "name", None)
+        for c in calls
+    }
+    if not names or not names <= _REACTION_TOOLS:
+        return False
+    return all('"success": true' in str(r.get("content") or "") for r in results)
+
 
 @dataclass
 class EmptyResponseVerdict:
@@ -213,6 +241,20 @@ def recover_empty_response(
         agent._emit_diagnostic_status("↻ Empty response after tool calls — using earlier content as final answer")
         agent._empty_content_retries = 0
         final_response = final
+        return _verdict("break")
+
+    # A reaction can BE the reply: a model that tapbacks and then writes nothing is done.
+    # Close the tool tail with a hidden row (providers reject tool→user) and end silently.
+    if not _INLINE_THINK_RE.search(final_response or "") and reaction_was_the_reply(messages):
+        _turn_exit_reason = REACTION_ONLY_EXIT_REASON
+        logger.info("Empty follow-up after a reaction-only round — the reaction is the reply")
+        agent._empty_content_retries = 0
+        agent._clear_status_buffer()
+        append_message(messages, {
+            "role": "assistant", "content": "", "display_kind": "hidden",
+            "api_content": _REACTION_ONLY_PLACEHOLDER,
+        })
+        final_response = ""
         return _verdict("break")
 
     # Post-tool-call empty (no prior content, or only mid-task narration): nudge once.

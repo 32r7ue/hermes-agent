@@ -124,6 +124,8 @@ export const zhOverrides = {
     retry: '重试',
     run: '运行',
     send: '发送',
+    yes: '是',
+    no: '否',
     set: '设置',
     skip: '跳过',
     update: '更新',
@@ -553,14 +555,13 @@ export const zhOverrides = {
       keybinds: '键盘快捷键',
       keysTools: '工具',
       keysSettings: '设置',
-      mcp: 'MCP',
-      archivedChats: '已归档对话',
       sessions: '会话',
       about: '关于',
       billing: '账单',
       notifications: '通知',
       vault: '密码与登录',
-      plugins: '插件'
+      plugins: '插件',
+      capabilities: '技能与工具'
     },
     vault: {
       title: '密码与登录',
@@ -2341,13 +2342,11 @@ export const zhOverrides = {
       installs: count => `${count} 次安装`
     },
     settingsFields: '设置字段',
-    mcpServers: 'MCP 服务器',
     archivedChats: '已归档对话',
     sections: { maintenance: '维护', sessions: '会话', system: '系统', usage: '用量' },
     nav: {
       newChat: { title: '新建会话', detail: '开始一个新会话' },
       settings: { title: '设置', detail: '配置 Hermes 桌面端' },
-      capabilities: { title: '技能与工具', detail: '启用技能、工具集与提供方' },
       messaging: { title: '消息平台', detail: '配置 Telegram、Slack、Discord 等' },
       artifacts: { title: '产物', detail: '浏览生成的输出' }
     },
@@ -3110,7 +3109,9 @@ export const zhOverrides = {
       open: '打开',
       merged: '已合并',
       closed: '已关闭',
-      noPR: '无PR'
+      noPR: '无PR',
+      date: '日期',
+      none: '无'
     },
     profileRail: '配置档案栏',
     gatewayGroups: {
@@ -3126,7 +3127,6 @@ export const zhOverrides = {
     },
     nav: {
       'new-session': '新建会话',
-      capabilities: '技能与工具',
       messaging: '消息平台',
       artifacts: '产物',
       cron: '定时任务'
@@ -3210,16 +3210,20 @@ export const zhOverrides = {
       ageMin: '分'
     },
     dateDivider: {
-      today: '今天早些时候',
+      today: '今天',
       yesterday: '昨天',
       thisWeek: '本周',
       lastWeek: '上周',
-      thisMonth: '本月'
+      thisMonth: '本月',
+      last7Days: '过去 7 天',
+      last30Days: '过去 30 天',
+      older: '更早'
     },
     statusDivider: {
       working: '进行中',
       done: '已完成'
     },
+    sectionMore: '更多',
     markAllRead: '全部标记为已读'
   },
 
@@ -4407,6 +4411,13 @@ export const zhOverrides = {
       errorStartNewChatLink: '新建聊天',
       errorChooseModelLink: '选择其他模型',
       errorRetryAtResetShort: time => `于 ${time} 重试`,
+      errorUsageLimitTitle: '已达使用上限',
+      errorUsageLimitBody: provider => `${provider} 目前不接受更多请求。`,
+      errorUsageLimitResets: (time, wait) => `将于 ${time} 重置（${wait} 后）。`,
+      errorTryAgain: '再试一次',
+      errorAutoResume: '自动继续',
+      errorAutoResumeAt: time => `下次尝试 ${time}`,
+      errorAutoResumeRunning: '正在继续…',
       errorRateLimitResetBody: (provider, time) => `你已达到 ${provider} 的速率限制，将于 ${time} 重置。`,
       errorRetry: '重试',
       errorSwitchToModel: (model, note) => (note ? `切换到 ${model}（${note}）` : `切换到 ${model}`),
@@ -4546,6 +4557,7 @@ export const zhOverrides = {
       statusDone: '完成',
       resultUnavailable: '结果不可用',
       resultInterrupted: '已中断',
+      continuesInBackground: '在后台继续运行',
       memoryWriteNoted: '已记下记忆写入',
       actions: {
         read: '已读取',
@@ -4742,10 +4754,6 @@ export const zhOverrides = {
       'new-session': {
         title: '从头开始',
         text: '新对话拥有独立的上下文、终端和工作目录。'
-      },
-      skills: {
-        title: '教一次就够',
-        text: '技能是一组说明文件，Hermes 会在需要时自行加载。'
       },
       messaging: {
         title: '离开电脑也能用',

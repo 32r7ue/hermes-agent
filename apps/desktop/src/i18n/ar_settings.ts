@@ -119,14 +119,13 @@ export const arSettings = {
       apiKeys: 'الأدوات والمفاتيح',
       keysTools: 'الأدوات',
       keysSettings: 'الإعدادات',
-      mcp: 'MCP',
-      archivedChats: 'المحادثات المؤرشفة',
       sessions: 'الجلسات',
       about: 'حول',
       notifications: 'الإشعارات',
       keybinds: 'اختصارات لوحة المفاتيح',
       vault: 'كلمات المرور وتسجيلات الدخول',
-      plugins: 'الإضافات'
+      plugins: 'الإضافات',
+      capabilities: 'المهارات والأدوات'
     },
     vault: {
       title: 'كلمات المرور وتسجيلات الدخول',
@@ -289,7 +288,25 @@ export const arSettings = {
         'يكتم تنبيهات الاكتمال وكلمة التنبيه والتفكير التلقائية والاستجابة اللمسية وأصوات إشعارات النظام. تظل معاينات الصوت والردود المنطوقة مسموعة.',
       completionSoundTitle: 'صوت الاكتمال',
       completionSoundDesc: 'يُشغّل عند انتهاء دور الوكيل. اختر إعدادا مسبقا وعاينه هنا.',
-      completionSoundPreview: 'معاينة'
+      completionSoundPreview: 'معاينة',
+      chatCues: {
+        sent: {
+          label: 'صوت الإرسال',
+          description: 'صوت Cursor عند إرسال رسالة أو توجيهها.'
+        },
+        thinking: {
+          label: 'صوت التفكير',
+          description: 'نبضة Cursor الهادئة أثناء عمل الوكيل: بعد 4 ثوانٍ، ثم كل 6 ثوانٍ تقريبًا حتى ينتهي الدور أو يحتاجك.'
+        },
+        fileEdited: {
+          label: 'صوت تعديل ملف',
+          description: 'صوت Cursor عندما ينتهي الوكيل من تعديل ملف.'
+        },
+        approval: {
+          label: 'صوت الموافقة',
+          description: 'أصوات Cursor عند الموافقة على طلب أو رفضه.'
+        }
+      }
     },
     sections: {
       model: 'النموذج',

@@ -13,9 +13,7 @@ import { $activeSessionId, setSessionOwnerHint, setSessions } from '@/store/sess
 import { $sessionTiles, sessionTileDelegate } from '@/store/session-states'
 import type { SessionInfo } from '@/types/hermes'
 
-import {
-  clearSingleFlightSessionResumeState
-} from '../../session/hooks/use-prompt-actions/single-flight-resume'
+import { clearSingleFlightSessionResumeState } from '../../session/hooks/use-prompt-actions/single-flight-resume'
 
 import { useSessionTileDelegate } from './use-session-tile-delegate'
 
@@ -1020,5 +1018,59 @@ describe('useSessionTileDelegate read-only cron run (#88443)', () => {
 
     expect(promptSubmitted('still running, send it')).toBe(true)
     expect($notifications.get().some(note => note.kind === 'info')).toBe(false)
+  })
+})
+
+describe('useSessionTileDelegate spectator (watch) tiles', () => {
+  beforeEach(() => {
+    clearSingleFlightSessionResumeState()
+    setSessions([])
+    vi.mocked(getLatestSessionMessages).mockReset()
+    vi.mocked(getLatestSessionMessages).mockImplementation(async () => ({ messages: [], session_id: '' }))
+  })
+
+  afterEach(() => {
+    clearSingleFlightSessionResumeState()
+    $sessionTiles.set([])
+    setSessions([])
+  })
+
+  it('resumes a subagent child lazily on its parent profile, like a watch window', async () => {
+    // The child is unlisted and runs inside its parent's agent: a non-lazy
+    // resume would pre-warm a second agent on it and stop the live mirror.
+    $sessionTiles.set([{ ownerProfile: 'work', storedSessionId: 'child-1', watch: true }] as never)
+
+    const routed = vi.mocked(requestGatewayForProfile)
+    routed.mockReset()
+    routed.mockResolvedValueOnce({ messages: [], running: true, session_id: 'runtime-child' } as never)
+
+    const updateSessionState = vi.fn()
+    renderTile(vi.fn(), { updateSessionState })
+
+    expect(await sessionTileDelegate()!.resumeTile('child-1')).toBe('runtime-child')
+    expect(routed).toHaveBeenCalledWith(
+      'work',
+      'session.resume',
+      { cols: 96, defer_history: false, lazy: true, profile: 'work', session_id: 'child-1' },
+      undefined,
+      undefined
+    )
+  })
+
+  it('never submits a prompt into a watched child', async () => {
+    $sessionTiles.set([
+      { ownerProfile: 'work', runtimeId: 'runtime-child', storedSessionId: 'child-1', watch: true }
+    ] as never)
+
+    const routed = vi.mocked(requestGatewayForProfile)
+    routed.mockReset()
+
+    const runtimeIdByStoredSessionIdRef = { current: new Map([['child-1', 'runtime-child']]) }
+    renderTile(vi.fn(), { runtimeIdByStoredSessionIdRef })
+
+    const accepted = await sessionTileDelegate()!.submitToSession('runtime-child', 'take over')
+
+    expect(accepted).toEqual({ runtimeSessionId: 'runtime-child', storedSessionId: null })
+    expect(routed).not.toHaveBeenCalled()
   })
 })

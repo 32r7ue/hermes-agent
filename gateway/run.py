@@ -3088,6 +3088,10 @@ def _normalize_empty_agent_response(
     is_overflow = is_context_overflow_failure_result(agent_result, history_len)
     if response and not (is_overflow and _looks_like_gateway_provider_error(response)):
         return response
+    # A reaction was the whole reply: the silence is the answer, not a lost response.
+    from agent.turn_empty_response import REACTION_ONLY_EXIT_REASON
+    if agent_result.get("turn_exit_reason") == REACTION_ONLY_EXIT_REASON:
+        return ""
     if agent_result.get("failed"):
         # ``error`` can be an EXPLICIT None (bypasses dict.get default) -> would render "failed: None".
         error_detail = agent_result.get("error") or t("gateway.shared.unknown_error")

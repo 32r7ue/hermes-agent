@@ -222,8 +222,9 @@ function composerSendLabel(
   return busy ? { interrupt: c.redirect, queue: c.queueMessage, steer: c.steer, stop: c.stop }[busyAction] : c.send
 }
 
-// The mid-turn delivery Send doesn't do: when Send steers (waits for the tool
-// batch), this sends now — redirecting the live request (⌥↩); otherwise it steers.
+// The mid-turn delivery Send doesn't do: when Send steers (reaches the agent at
+// once; running commands keep going in the background), this sends now —
+// redirecting the live model request (⌥↩); otherwise it steers.
 function renderSteerButton(
   busy: boolean,
   busyAction: 'interrupt' | 'steer' | 'queue' | 'stop',

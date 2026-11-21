@@ -93,6 +93,8 @@ export const jaOverrides = {
     retry: '再試行',
     run: '実行',
     send: '送信',
+    yes: 'はい',
+    no: 'いいえ',
     set: '設定',
     skip: 'スキップ',
     update: '更新',
@@ -398,14 +400,13 @@ export const jaOverrides = {
       keybinds: 'キーボードショートカット',
       keysTools: 'ツール',
       keysSettings: '設定',
-      mcp: 'MCP',
-      archivedChats: 'アーカイブ済みチャット',
       sessions: 'セッション',
       about: '情報',
       billing: '請求',
       notifications: '通知',
       vault: 'パスワードとログイン',
-      plugins: 'プラグイン'
+      plugins: 'プラグイン',
+      capabilities: 'スキルとツール'
     },
     vault: {
       title: 'パスワードとログイン',
@@ -1540,13 +1541,11 @@ export const jaOverrides = {
       installs: count => `${count} 回インストール`
     },
     settingsFields: '設定フィールド',
-    mcpServers: 'MCP サーバー',
     archivedChats: 'アーカイブ済みチャット',
     sections: { sessions: 'セッション', system: 'システム', usage: '使用状況' },
     nav: {
       newChat: { title: '新しいセッション', detail: '新しいセッションを開始' },
       settings: { title: '設定', detail: 'Hermes デスクトップを設定' },
-      capabilities: { title: 'スキルとツール', detail: 'スキル、ツールセット、プロバイダーを有効化' },
       messaging: { title: 'メッセージング', detail: 'Telegram、Slack、Discord などを設定' },
       artifacts: { title: 'アーティファクト', detail: '生成された出力を閲覧' }
     },
@@ -2165,6 +2164,7 @@ export const jaOverrides = {
 
   sidebar: {
     profileRail: 'プロファイルバー',
+    sectionMore: 'さらに表示',
     markAllRead: 'すべて既読にする',
     filter: {
       grouping: 'グループ化',
@@ -2195,7 +2195,9 @@ export const jaOverrides = {
       open: 'オープン',
       merged: 'マージ済み',
       closed: 'クローズ済み',
-      noPR: 'PRなし'
+      noPR: 'PRなし',
+      date: '日付',
+      none: 'なし'
     },
     gatewayGroups: {
       grouping: 'ゲートウェイとプロファイル',
@@ -2210,7 +2212,6 @@ export const jaOverrides = {
     },
     nav: {
       'new-session': '新しいセッション',
-      capabilities: 'スキルとツール',
       messaging: 'メッセージング',
       artifacts: 'アーティファクト',
       cron: 'スケジュール済みジョブ'
@@ -2289,11 +2290,14 @@ export const jaOverrides = {
       ageMin: '分'
     },
     dateDivider: {
-      today: '今日の早い時間',
+      today: '今日',
       yesterday: '昨日',
       thisWeek: '今週',
       lastWeek: '先週',
-      thisMonth: '今月'
+      thisMonth: '今月',
+      last7Days: '過去 7 日間',
+      last30Days: '過去 30 日間',
+      older: 'それ以前'
     },
     statusDivider: {
       working: '実行中',
@@ -3433,6 +3437,13 @@ export const jaOverrides = {
       errorStartNewChatLink: '新しいチャットを開始',
       errorChooseModelLink: '別のモデルを選ぶ',
       errorRetryAtResetShort: time => `${time} に再試行`,
+      errorUsageLimitTitle: '使用量の上限に達しました',
+      errorUsageLimitBody: provider => `${provider} は現在これ以上のリクエストを受け付けていません。`,
+      errorUsageLimitResets: (time, wait) => `${time} にリセットされます（あと ${wait}）。`,
+      errorTryAgain: 'もう一度試す',
+      errorAutoResume: '自動で再開',
+      errorAutoResumeAt: time => `次回 ${time}`,
+      errorAutoResumeRunning: '再開中…',
       errorRateLimitResetBody: (provider, time) => `${provider} のレート制限に達しました。${time} にリセットされます。`,
       errorRetry: '再試行',
       errorSwitchToModel: (model, note) => (note ? `${model} に切り替え（${note}）` : `${model} に切り替え`),
@@ -3527,6 +3538,7 @@ export const jaOverrides = {
       statusDone: '完了',
       resultUnavailable: '結果を取得できません',
       resultInterrupted: '中断されました',
+      continuesInBackground: 'バックグラウンドで継続中',
       memoryWriteNoted: 'メモリへの書き込みを記録',
       actions: {
         read: '読み取り完了',
@@ -3762,10 +3774,6 @@ export const jaOverrides = {
       'new-session': {
         title: '新しく始める',
         text: '新しいチャットは、専用のコンテキスト・ターミナル・作業ディレクトリを持ちます。'
-      },
-      skills: {
-        title: '一度教えれば覚えます',
-        text: 'スキルは手順書のフォルダで、必要な場面で Hermes が自分で読み込みます。'
       },
       messaging: {
         title: 'デスクを離れても Hermes',

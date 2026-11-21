@@ -1184,11 +1184,22 @@ export interface SessionTile {
   ownerRoute?: SessionOwnerRoute
   /** Stable title for hidden relationship chats absent from the Sessions list. */
   workspaceTabTitle?: string
+  /** Spectator tile for a delegated subagent child: the child runs inside its
+   *  PARENT's agent, so the tile resumes lazily (the gateway's live mirror
+   *  streams the run into it), shows no composer, and never submits into the
+   *  child — the same contract as a `watch` session window. */
+  watch?: boolean
+  /** Spectator tiles only: the parent chat's stored id, so a pop-out to a
+   *  watch window routes to the backend the child runs on. */
+  watchParentSessionId?: string
 }
 
 export interface SessionTileWorkspaceScope {
   ownerProfile?: string
   ownerRoute?: SessionOwnerRoute
+  /** Open as a spectator (see `SessionTile.watch`). Sticky once set. */
+  watch?: boolean
+  watchParentSessionId?: string
   workspaceMode: WorkspaceMode
   workspaceOwnerKey?: string
   workspaceTabTitle?: string
@@ -1212,6 +1223,8 @@ type StoredTile = Pick<
   | 'ownerProfile'
   | 'ownerRoute'
   | 'storedSessionId'
+  | 'watch'
+  | 'watchParentSessionId'
   | 'workspaceMode'
   | 'workspaceOwnerKey'
   | 'workspaceTabTitle'
@@ -1224,6 +1237,8 @@ const toStored = (t: SessionTile): StoredTile => ({
   ...(t.ownerProfile ? { ownerProfile: t.ownerProfile } : {}),
   ...(t.ownerRoute ? { ownerRoute: t.ownerRoute } : {}),
   storedSessionId: t.storedSessionId,
+  ...(t.watch ? { watch: true } : {}),
+  ...(t.watch && t.watchParentSessionId ? { watchParentSessionId: t.watchParentSessionId } : {}),
   ...(t.workspaceMode ? { workspaceMode: t.workspaceMode } : {}),
   ...(t.workspaceOwnerKey ? { workspaceOwnerKey: t.workspaceOwnerKey } : {}),
   ...(t.workspaceTabTitle ? { workspaceTabTitle: t.workspaceTabTitle } : {})
@@ -1264,6 +1279,10 @@ function parseTileList(value: unknown): StoredTile[] {
                   }
                 : undefined,
             storedSessionId: raw.storedSessionId,
+            ...(raw.watch === true ? { watch: true } : {}),
+            ...(raw.watch === true && typeof raw.watchParentSessionId === 'string'
+              ? { watchParentSessionId: raw.watchParentSessionId }
+              : {}),
             workspaceMode: raw.workspaceMode === 'bots' ? 'bots' : 'sessions',
             workspaceOwnerKey:
               raw.workspaceMode === 'bots' && typeof raw.workspaceOwnerKey === 'string'
@@ -1692,6 +1711,21 @@ export function sessionTileOwnerRoute(storedSessionId: string): SessionOwnerRout
   return $sessionTiles.get().find(tile => tile.storedSessionId === storedSessionId)?.ownerRoute
 }
 
+/** The open spectator tile for this stored id, if any (`SessionTile.watch`). */
+export function watchSessionTile(storedSessionId: null | string | undefined): SessionTile | undefined {
+  return storedSessionId
+    ? $sessionTiles.get().find(tile => tile.watch && tile.storedSessionId === storedSessionId)
+    : undefined
+}
+
+/** Owner a spectator tile was opened under — its parent's route or profile,
+ *  because a delegated child runs on the backend/profile that spawned it. */
+export function watchSessionTileOwner(storedSessionId: string): SessionOwnerScope {
+  const tile = watchSessionTile(storedSessionId)
+
+  return tile?.ownerRoute ?? tile?.ownerProfile
+}
+
 function sessionTileOwner(storedSessionId: string): SessionOwnerScope {
   const tile = $sessionTiles.get().find(candidate => candidate.storedSessionId === storedSessionId)
 
@@ -2004,7 +2038,15 @@ export function setSessionTileWorkspaceScope(storedSessionId: string, scope: Ses
   // both ways: they always name their route explicitly.
   const ownerRoute = scope.workspaceMode === 'bots' ? scope.ownerRoute : (scope.ownerRoute ?? tile?.ownerRoute)
   const ownerProfile = scope.workspaceMode === 'bots' ? undefined : (scope.ownerProfile ?? tile?.ownerProfile)
-  const workspaceTabTitle = scope.workspaceMode === 'bots' ? scope.workspaceTabTitle : undefined
+
+  // A spectator tile's title names a hidden subagent child that no Sessions
+  // row will ever supply, so a plain re-open keeps it.
+  const workspaceTabTitle =
+    scope.workspaceMode === 'bots'
+      ? scope.workspaceTabTitle
+      : tile?.watch || scope.watch
+        ? (scope.workspaceTabTitle ?? tile?.workspaceTabTitle)
+        : undefined
 
   if (
     !tile ||
@@ -2328,9 +2370,14 @@ export function openSessionTile(
         ownerProfile: workspaceScope.ownerProfile,
         ownerRoute: workspaceScope.ownerRoute,
         storedSessionId,
+        ...(workspaceScope.watch ? { watch: true } : {}),
+        ...(workspaceScope.watch && workspaceScope.watchParentSessionId
+          ? { watchParentSessionId: workspaceScope.watchParentSessionId }
+          : {}),
         workspaceMode: workspaceScope.workspaceMode,
         workspaceOwnerKey,
-        workspaceTabTitle: workspaceScope.workspaceMode === 'bots' ? workspaceScope.workspaceTabTitle : undefined
+        workspaceTabTitle:
+          workspaceScope.workspaceMode === 'bots' || workspaceScope.watch ? workspaceScope.workspaceTabTitle : undefined
       }
     ])
     // Adoption is async via the registry — order sync runs after the move path

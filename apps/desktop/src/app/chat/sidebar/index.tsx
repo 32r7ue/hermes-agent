@@ -140,7 +140,6 @@ import { $sidebarSessionRankIds } from '@/store/sidebar-sort'
 import {
   type AppView,
   ARTIFACTS_ROUTE,
-  CAPABILITIES_ROUTE,
   CRON_ROUTE,
   MEMORY_WIKI_PATH,
   SIDEBAR_NAV_AREA,
@@ -217,15 +216,8 @@ const SIDEBAR_NAV: SidebarNavItem[] = [
     action: 'new-session',
     keybindActionId: 'session.new'
   },
-  {
-    id: 'capabilities',
-    label: '',
-    icon: props => <Codicon name="symbol-misc" {...props} />,
-    route: CAPABILITIES_ROUTE,
-    keybindActionId: 'nav.capabilities'
-  },
   // Artifacts and Scheduled jobs are outputs of running Hermes the developer
-  // way; Capabilities and Messaging are how anyone sets it up.
+  // way; Messaging is how anyone sets it up. (Capabilities lives in Settings.)
   {
     id: 'artifacts',
     label: '',
@@ -1361,7 +1353,11 @@ export function ChatSidebar({
   // The flat list rests at one screenful; "Show more" at its end reveals the next step, fetching
   // from the backend once what's loaded runs out. Grouped views page themselves.
   const [recentsShown, setRecentsShown] = useState(SIDEBAR_RECENTS_STEP)
-  const capRecents = !agentsGrouped
+  // Date/status sections cap themselves (SECTION_ROW_CAP each); a list-wide cut on top would end
+  // the list inside the first long section and hide every older one.
+  const sectionedRecents =
+    !showArchived && ordering !== 'cost' && ordering !== 'tokens' && grouping !== 'none'
+  const capRecents = !agentsGrouped && !sectionedRecents
   const displayAgentSessions = capRecents ? agentSessions.slice(0, recentsShown) : agentSessions
 
   // Pagination is scope-aware. In "All profiles" mode it tracks the global
@@ -1573,7 +1569,6 @@ export function ChatSidebar({
                 const isInteractive = Boolean(item.action) || Boolean(item.route)
 
                 const active =
-                  (item.id === 'capabilities' && currentView === 'capabilities') ||
                   (item.id === 'messaging' && currentView === 'messaging') ||
                   (item.id === 'artifacts' && currentView === 'artifacts') ||
                   (item.id === 'cron' && currentView === 'cron') ||
@@ -1816,7 +1811,7 @@ export function ChatSidebar({
                   // Hidden only when workspace-grouped — those groups page
                   // themselves. Profile groups don't: this one footer fetches the
                   // next page, which grows every profile at once.
-                  !agentsGrouped && !showSessionSkeletons && (hasMoreSessions || agentSessions.length > recentsShown) ? (
+                  !agentsGrouped && !showSessionSkeletons && (hasMoreSessions || (capRecents && agentSessions.length > recentsShown)) ? (
                     <SidebarShowMoreRow loading={recentsLoadMorePending} onShowMore={showMoreRecents} />
                   ) : null
                 }
@@ -1825,7 +1820,9 @@ export function ChatSidebar({
                 // Otherwise project lanes stay chronological whatever the flat
                 // list does — only the flat list can swap its dividers for
                 // WORKING / DONE.
-                grouping={showArchived || rankedGlobally || grouping !== 'status' ? 'none' : 'status'}
+                grouping={
+                  showArchived || rankedGlobally || grouping === 'none' ? 'none' : grouping === 'status' ? 'status' : 'date'
+                }
                 groups={displayAgentGroups}
                 headerAction={
                   // One cluster, not a fragment: the header is justify-between,

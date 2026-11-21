@@ -90,6 +90,10 @@ class PromptModeBody(BaseModel):
     mode: str
 
 
+class WebSearchBody(BaseModel):
+    enabled: bool
+
+
 class ModelActivateBody(BaseModel):
     model_id: str               # exact variant id (a staged .gguf stem)
 
@@ -568,12 +572,18 @@ def local_models_status():
         "models": [_staged_row(gguf) for gguf in bootstrap.staged_models()] if mdir.exists() else [],
         "models_dir": str(mdir),
         "prompt_mode": _prompt_mode(section),
+        "web_search": _web_search_enabled_flag(),
     }
 
 
 def _prompt_mode(section: dict) -> str:
     from agent.local_mode import _configured_mode
     return _configured_mode()
+
+
+def _web_search_enabled_flag() -> bool:
+    from agent.local_mode import _web_search_enabled
+    return _web_search_enabled()
 
 
 @router.post("/api/local-models/prompt-mode")
@@ -589,6 +599,17 @@ def local_models_prompt_mode(body: PromptModeBody):
         config.setdefault("local_runtime", {})["prompt_mode"] = mode
         config_mod.save_config(config)
     return {"ok": True, "prompt_mode": mode}
+
+
+@router.post("/api/local-models/web-search")
+def local_models_web_search(body: WebSearchBody):
+    """Enable or disable web_search/web_extract tools for local-model sessions; new chats pick it up."""
+    enabled = bool(body.enabled)
+    with _CONFIG_MUTATION_LOCK:
+        config = config_mod.load_config()
+        config.setdefault("local_runtime", {})["web_search"] = enabled
+        config_mod.save_config(config)
+    return {"ok": True, "web_search": enabled}
 
 
 # ── hardware: what this machine can do ───────────────────────

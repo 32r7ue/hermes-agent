@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { type ReactNode, useEffect, useId } from 'react'
 
 import { useGatewayRequest } from '@/app/gateway/hooks/use-gateway-request'
-import { CAPABILITIES_ROUTE } from '@/app/routes'
+import { capabilitiesHref } from '@/app/routes'
 import type { ModelSelection } from '@/app/shell/model-menu-panel'
 import { Button } from '@/components/ui/button'
 import {
@@ -382,13 +382,7 @@ export function connectorsTarget(handoff: AppHandoffStatus | null): null | strin
     return null
   }
 
-  const params = new URLSearchParams({ tab: 'connectors' })
-
-  if (dropped.length === 1) {
-    params.set('connector', dropped[0])
-  }
-
-  return `${CAPABILITIES_ROUTE}?${params.toString()}`
+  return capabilitiesHref('connectors', dropped.length === 1 ? { connector: dropped[0] } : undefined)
 }
 
 function openConnectors(handoff: AppHandoffStatus | null) {

@@ -24,4 +24,5 @@ export interface NotificationSettingsTranslations {
   completionSoundTitle: string
   completionSoundDesc: string
   completionSoundPreview: string
+  chatCues: Record<'sent' | 'thinking' | 'fileEdited' | 'approval', { label: string; description: string }>
 }

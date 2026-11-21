@@ -1,6 +1,6 @@
-import { cleanup, render } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { atom } from 'nanostores'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { type SessionView, SessionViewProvider } from '@/app/chat/session-view'
 import { I18nProvider } from '@/i18n/context'
@@ -9,6 +9,10 @@ import { $activeSessionId } from '@/store/session'
 import { $subagentsBySession, clearSessionSubagents, upsertSubagent } from '@/store/subagents'
 
 import { DelegateTool } from './delegate'
+
+const { openSubagentPane } = vi.hoisted(() => ({ openSubagentPane: vi.fn(async () => undefined) }))
+
+vi.mock('@/app/chat/open-subagent', () => ({ openSubagentPane }))
 
 const SESSION = 'sess-delegate-test'
 
@@ -96,5 +100,31 @@ describe('delegate card fade', () => {
     // The card wrapper itself carries no mark — the fade is per surface, never
     // on a container (styles.css invariant).
     expect(container.querySelector('[data-delegate-card]')?.hasAttribute('data-conversation-scaffold')).toBe(false)
+  })
+})
+
+describe('delegate card open', () => {
+  it('opens a child that reported its session in the right-side spectator pane, not a window', () => {
+    $activeSessionId.set(SESSION)
+    upsertSubagent(
+      SESSION,
+      {
+        child_session_id: 'child-session-1',
+        goal: 'Inspect the delegate card',
+        status: 'running',
+        subagent_id: 'delegate-tool:call-1:0',
+        task_index: 0
+      },
+      true,
+      'subagent.start'
+    )
+
+    renderCard()
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect the delegate card' }))
+
+    expect(openSubagentPane).toHaveBeenCalledWith('child-session-1', {
+      parentSessionId: null,
+      title: 'Inspect the delegate card'
+    })
   })
 })

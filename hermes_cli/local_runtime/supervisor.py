@@ -312,6 +312,10 @@ class LlamaServerSupervisor:
             if self._log_handle:
                 self._log_handle.close()
                 self._log_handle = None
+        from hermes_cli.local_runtime import room
+
+        with suppress(Exception):
+            room.release()  # models are gone: reopen what local_runtime.free_apps quit
 
     @staticmethod
     def _terminate_tree(proc: subprocess.Popen, *, verified_root: bool = False) -> None:

@@ -40,12 +40,14 @@ export function SidebarLoadMoreRow({ step, onClick, loading = false }: SidebarLo
 }
 
 interface SidebarShowMoreRowProps {
+  /** Overrides the default "Show more" copy (a capped section reads "More"). */
+  label?: string
   loading: boolean
   onShowMore: () => void
 }
 
 /** The end of a capped list: a quiet text row, the same height and inset as the sessions above it. */
-export function SidebarShowMoreRow({ loading, onShowMore }: SidebarShowMoreRowProps) {
+export function SidebarShowMoreRow({ label, loading, onShowMore }: SidebarShowMoreRowProps) {
   const { t } = useI18n()
 
   return (
@@ -56,7 +58,7 @@ export function SidebarShowMoreRow({ loading, onShowMore }: SidebarShowMoreRowPr
         disabled={loading}
         onClick={onShowMore}
       >
-        <SidebarRowLabel className="text-(--ui-text-tertiary) [mask-image:none] group-hover/more:text-(--ui-text-primary)">{loading ? t.sidebar.loading : t.sidebar.showMore}</SidebarRowLabel>
+        <SidebarRowLabel className="text-(--ui-text-tertiary) [mask-image:none] group-hover/more:text-(--ui-text-primary)">{loading ? t.sidebar.loading : (label ?? t.sidebar.showMore)}</SidebarRowLabel>
       </SidebarRowBody>
     </SidebarRowShell>
   )

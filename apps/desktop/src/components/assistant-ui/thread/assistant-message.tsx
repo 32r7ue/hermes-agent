@@ -56,12 +56,11 @@ import {
   errorCardSeverity,
   errorCardShowsDiagnostics,
   type ErrorSurface,
-  formatCountdown,
   formatErrorDiagnostics,
   formatResetClock,
   isOAuthReauthSurface,
+  isUsageLimitSurface,
   providerSettingsUrl,
-  scheduledRetryDelayMs,
   type UsageLimitSuggestion
 } from '@/lib/error-surface'
 import { errorCardText, errorProviderName } from '@/lib/error-surface-copy'
@@ -84,6 +83,7 @@ import { useEnterAnimation } from '@/lib/use-enter-animation'
 import { cn } from '@/lib/utils'
 import { playSpeechText, stopVoicePlayback } from '@/lib/voice-playback'
 import { $billingBlock, requestBillingSettings, runBillingRecovery } from '@/store/billing-block'
+import { $limitAutoResume, armAutoResume, cancelAutoResume, registerAutoResumeReload } from '@/store/limit-auto-resume'
 import { DESKTOP_BUTTON_ACTIONS, recordAction } from '@/store/desktop-metrics'
 import { openFreeTierSignIn } from '@/store/free-tier-sign-in'
 import { notifyError } from '@/store/notifications'
@@ -851,83 +851,81 @@ const UseCreditsAction: FC<{ className: string }> = ({ className }) => {
   )
 }
 
-// One client-side retry of THIS turn at the provider's own reset moment (#98852,
-// option B): arm → visible countdown + Cancel → fires `message().reload()` — the
-// exact call behind the Retry button — exactly once. Nothing persists: closing
-// the app, switching sessions or unmounting the card drops the timer, and a
-// retry that 429s again just shows the card (and this button) again.
-const ScheduledRetryAction: FC<{ className: string; resetsAt: number }> = ({ className, resetsAt }) => {
+// Usage limit (rate limit / quota / plan window): a nested box under the card's text with
+// "Try again" — the same reload the Retry button runs — and an "Auto-resume" box that re-runs
+// the turn by itself once the limit lifts (store/limit-auto-resume.ts: at resets_at when known,
+// else on a widening backoff). The armed state lives in an app-run store keyed by session, so it
+// survives switching sessions; it stands down on success, a new message, or unticking.
+const UsageLimitControls: FC<{ surface: ErrorSurface }> = ({ surface }) => {
   const { t } = useI18n()
   const copy = t.assistant.thread
   const aui = useAui()
-
-  // Armed once the user clicks; `fireAt` is the wall-clock ms the timer targets.
-  const [fireAt, setFireAt] = useState<null | number>(null)
-  const [now, setNow] = useState(() => Date.now())
-
-  // A manual Retry, a new message, or a later turn all make firing wrong: the
-  // reload would regenerate a message that is no longer the tail. Same gate
-  // `useActionBarReload` applies to the Retry button itself.
-  const stale = useAuiState(s => s.thread.isRunning || s.thread.isDisabled || !s.message.isLast)
+  const view = useSessionView()
+  const sessionId = useStore(view.$runtimeId)
+  const messageId = useAuiState(s => s.message.id)
+  // Only the tail turn's card can re-run it; an older one is history.
+  const isLast = useAuiState(s => s.message.isLast)
+  const running = useAuiState(s => s.thread.isRunning || s.thread.isDisabled)
+  const entry = useStore($limitAutoResume)[sessionId ?? '']
+  const checked = Boolean(entry) && isLast
+  const autoResumeId = useId()
 
   useEffect(() => {
-    if (fireAt === null || stale) {
+    if (!sessionId || !isLast) {
       return
     }
 
-    const timer = window.setTimeout(
-      () => {
-        setFireAt(null)
-        aui.message().reload()
-      },
-      Math.max(0, fireAt - Date.now())
-    )
+    return registerAutoResumeReload(sessionId, () => aui.message().reload())
+  }, [aui, isLast, sessionId])
 
-    const tick = window.setInterval(() => setNow(Date.now()), 1000)
-
-    return () => {
-      window.clearTimeout(timer)
-      window.clearInterval(tick)
+  const toggle = (next: boolean) => {
+    if (!sessionId) {
+      return
     }
-  }, [aui, fireAt, stale])
 
-  useEffect(() => {
-    if (stale) {
-      setFireAt(null)
+    triggerHaptic('selection')
+
+    if (next) {
+      armAutoResume(sessionId, { messageId, resetsAt: surface.resetsAt })
+    } else {
+      cancelAutoResume(sessionId)
     }
-  }, [stale])
-
-  const delay = scheduledRetryDelayMs(resetsAt, now)
-
-  if (fireAt !== null) {
-    return (
-      <span className="inline-flex items-center gap-1.5" data-testid="error-retry-scheduled">
-        <span className="px-1 text-xs text-muted-foreground">
-          {copy.errorRetryScheduled(formatResetClock(resetsAt), formatCountdown(fireAt - now))}
-        </span>
-        <button className="aui-error-btn aui-error-btn-ghost" onClick={() => setFireAt(null)} type="button">
-          {copy.errorRetryScheduledCancel}
-        </button>
-      </span>
-    )
-  }
-
-  if (delay === null || stale) {
-    return null
   }
 
   return (
-    <button
-      className={className}
-      onClick={() => {
-        triggerHaptic('submit')
-        setNow(Date.now())
-        setFireAt(resetsAt * 1000)
-      }}
-      type="button"
-    >
-      {copy.errorRetryAtResetShort(formatResetClock(resetsAt))}
-    </button>
+    <div className="aui-error-limit" data-slot="aui_error-limit">
+      <ActionBarPrimitive.Reload asChild>
+        <button
+          className="aui-error-btn aui-error-btn-secondary"
+          onClick={() => {
+            triggerHaptic('submit')
+            recordAction(DESKTOP_BUTTON_ACTIONS.messageRetry, 'click')
+          }}
+          type="button"
+        >
+          {copy.errorTryAgain}
+        </button>
+      </ActionBarPrimitive.Reload>
+      {isLast && (
+        <label className="aui-error-limit-auto" htmlFor={autoResumeId}>
+          <input
+            checked={checked}
+            disabled={!sessionId || (running && !checked)}
+            id={autoResumeId}
+            onChange={event => toggle(event.currentTarget.checked)}
+            type="checkbox"
+          />
+          <span>{copy.errorAutoResume}</span>
+          {checked && entry && (
+            <span className="aui-error-limit-when" data-testid="error-auto-resume-when">
+              {entry.phase === 'resuming'
+                ? copy.errorAutoResumeRunning
+                : copy.errorAutoResumeAt(formatResetClock(entry.fireAt / 1000))}
+            </span>
+          )}
+        </label>
+      )}
+    </div>
   )
 }
 
@@ -1000,6 +998,8 @@ const ErrorCard: FC<{ onDismiss?: () => void }> = ({ onDismiss }) => {
   const severity = errorCardSeverity(surface)
   // A plan limit is not a fault: no diagnostics to bury the actions that fix it.
   const diagnostics = errorCardShowsDiagnostics(surface)
+  // A usage limit gets its own Try again / Auto-resume box: the row keeps only the other ways on.
+  const limit = isUsageLimitSurface(surface)
 
   return (
     <ErrorPrimitive.Root className="aui-error-card" data-severity={severity} data-slot="aui_error-card" role="alert">
@@ -1008,10 +1008,11 @@ const ErrorCard: FC<{ onDismiss?: () => void }> = ({ onDismiss }) => {
         <div className="aui-error-card-text">
           <div className="aui-error-card-title">{title}</div>
           <div className="aui-error-card-body">{body}</div>
+          {limit && surface && <UsageLimitControls surface={surface} />}
         </div>
       </div>
       <div className="aui-error-card-row">
-        <ErrorCardActionRow surface={surface} />
+        <ErrorCardActionRow omitRetry={limit} surface={surface} />
         {diagnostics && (
           <button
             aria-controls={detailsId}
@@ -1098,9 +1099,12 @@ const ErrorDetailsBlock: FC<{ errorText: string; hidden: boolean; id: string; su
   )
 }
 
-const ErrorCardActionRow: FC<{ surface?: ErrorSurface }> = ({ surface }) => {
+const ErrorCardActionRow: FC<{ omitRetry?: boolean; surface?: ErrorSurface }> = ({ omitRetry, surface }) => {
   const inRouter = useInRouterContext()
-  const { primary, secondary } = errorCardActions(surface)
+  const actions = errorCardActions(surface)
+  const keep = (action: ErrorActionId | null | undefined) => (omitRetry && action === 'retry' ? null : action)
+  const primary = keep(actions.primary)
+  const secondary = keep(actions.secondary)
 
   return (
     <div className="aui-error-card-actions">
@@ -1192,8 +1196,6 @@ const ERROR_ACTION_RENDERERS: Record<ErrorActionId, (ctx: ErrorActionContext) =>
       </button>
     </ActionBarPrimitive.Reload>
   ),
-  retry_at_reset: ({ className, surface }) =>
-    surface?.resetsAt !== undefined ? <ScheduledRetryAction className={className} resetsAt={surface.resetsAt} /> : null,
   update_api_key: ({ className, copy, inRouter, surface }) =>
     inRouter ? (
       <SettingsLinkAction className={className} label={copy.errorUpdateApiKey} to={updateApiKeyRoute(surface)} />

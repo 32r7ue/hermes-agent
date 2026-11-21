@@ -1,8 +1,10 @@
-import { randomUuid, SLASH_COMMAND_RE } from '@hermes/shared'
+import { SLASH_COMMAND_RE } from '@hermes/shared'
 import { type RefObject, useLayoutEffect, useRef } from 'react'
 
+import { mintSubmissionId } from '@/app/session/hooks/use-prompt-actions/prepared-submissions'
 import { usePaneVisible } from '@/components/pane-shell/pane-visibility'
 import { translateNow, useI18n } from '@/i18n'
+import { playSendSound } from '@/lib/chat-cue-sounds'
 import { isSlashCommandText } from '@/lib/chat-runtime'
 import { isSideTaskSlashCommand } from '@/lib/desktop-slash-commands'
 import { triggerHaptic } from '@/lib/haptics'
@@ -162,7 +164,7 @@ export function useComposerSubmit({
     // The composer owns this send's identity: the caller's (a queue entry), the restored draft's
     // (the explicit retry), else a new one. Equal text never inherits an identity, so a new
     // message that repeats an uncertain send, in this pane or another, is its own turn.
-    const submissionId = target?.submission_id ?? randomUuid()
+    const submissionId = target?.submission_id ?? mintSubmissionId()
 
     // Journaled before the send chain's first await: closing or reloading the window inside that
     // chain must not take the words with it (see composer-outbox).
@@ -354,6 +356,7 @@ export function useComposerSubmit({
 
       const retry = takeDraftRetry?.(text, [])
       triggerHaptic('submit')
+      playSendSound()
       clearDraft()
       dispatchSubmit(text, undefined, undefined, retry && { submission_id: retry.id })
 
@@ -429,6 +432,7 @@ export function useComposerSubmit({
 
     if (routable && !attachments.length && !slashCommand && answerParkedCard(sessionId ?? '', text.trim(), restore)) {
       triggerHaptic('submit')
+      playSendSound()
       resetBrowseState(sessionId)
       clearDraft()
 
@@ -538,6 +542,7 @@ export function useComposerSubmit({
       const submittedAttachments = cloneAttachments(attachments)
       const retry = takeDraftRetry?.(text, submittedAttachments)
       triggerHaptic('submit')
+      playSendSound()
       resetBrowseState(sessionId)
       clearDraft()
       // Keep blob: previews alive for the optimistic bubble; revoke when that
@@ -584,6 +589,7 @@ export function useComposerSubmit({
     }
 
     triggerHaptic('submit')
+    playSendSound()
     clearDraft()
 
     const submittedScope = activeQueueSessionKeyRef.current

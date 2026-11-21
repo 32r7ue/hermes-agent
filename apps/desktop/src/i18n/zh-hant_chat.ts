@@ -512,10 +512,6 @@ export const zhHantChat = {
         title: '從頭開始',
         text: '新對話擁有獨立的上下文、終端機與工作目錄。'
       },
-      skills: {
-        title: '教一次就夠',
-        text: '技能是一組說明檔，Hermes 會在需要時自行載入。'
-      },
       messaging: {
         title: '離開電腦也能用',
         text: '接上 Telegram、Discord、Slack 等 — 同一個代理，同一份記憶。'

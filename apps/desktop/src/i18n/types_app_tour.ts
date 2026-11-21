@@ -11,7 +11,6 @@ export interface AppTourTranslations {
   model: TourStopCopy
   /** Appended to the model stop when this computer can run a local model. */
   modelLocal: string
-  capabilities: TourStopCopy
   messaging: TourStopCopy
   rightPane: TourStopCopy
 }

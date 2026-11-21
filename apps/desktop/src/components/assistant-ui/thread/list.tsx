@@ -48,6 +48,7 @@ import { MessageRenderBoundary } from '../message-render-boundary'
 import { PendingApprovalStack } from '../tool/approval'
 
 import { responseMessageRole, ResponseMessages } from './response-group'
+import { glideFreeScrollMax, glideOverflow, jumpAndGlide } from './send-glide'
 import { holdSessionSwitching } from './session-switching'
 import { resolveShowEarlierAction, shouldAutoShowEarlier, useTranscriptWindow } from './transcript-window'
 import { useMessagesBelow } from './use-messages-below'
@@ -193,15 +194,21 @@ export function hasTranscriptTextSelection(scrollElement?: Element | null): bool
   return Boolean((anchorNode && scrollElement.contains(anchorNode)) || (focusNode && scrollElement.contains(focusNode)))
 }
 
-export const resolveThreadScrollTarget: GetTargetScrollTop = (targetScrollTop, { scrollElement }) => {
+export const resolveThreadScrollTarget: GetTargetScrollTop = (targetScrollTop, { scrollElement, contentElement }) => {
   if (hasTranscriptTextSelection(scrollElement)) {
     return scrollElement.scrollTop
   }
 
   const currentScrollTop = scrollElement.scrollTop
+
+  // A send's glide inflates scrollHeight with its transform; aim at the laid-out bottom.
+  const bottom = glideOverflow(contentElement)
+    ? Math.min(targetScrollTop, glideFreeScrollMax(scrollElement, contentElement))
+    : targetScrollTop
+
   // A reply that just landed whole holds the view at its top (lib/reply-anchor).
   const cap = replyAnchorCap(scrollElement)
-  const target = cap !== null && cap < targetScrollTop ? cap : targetScrollTop
+  const target = cap !== null && cap < bottom ? cap : bottom
   const remaining = target - currentScrollTop
 
   return remaining >= 0 && remaining <= SCROLL_TARGET_EPSILON_PX ? currentScrollTop : target
@@ -437,15 +444,60 @@ export function transcriptRowKey(message: { id: string; metadata?: { custom?: Re
  * parts); the later copy keeps its own renderer id as its key.
  */
 export function turnRowKeys(rowKeySignature: string, structuralSignature: string): string[] {
+  return stableTurnRowKeys(rowKeySignature, structuralSignature).keys
+}
+
+/** Keys a transcript already handed out, carried from one message list to the next. */
+export interface StableTurnRowKeys {
+  /** Renderer message id → key. */
+  byId: ReadonlyMap<string, string>
+  /** Durable `row:N` → key. */
+  byRow: ReadonlyMap<string, string>
+  keys: string[]
+  signature: string
+}
+
+/**
+ * turnRowKeys, but a message keeps the key it first rendered under. An
+ * optimistic bubble is keyed by its renderer id until the admission receipt
+ * binds its durable row; switching to `row:N` there remounted the whole live
+ * turn (the user bubble and the reply under it) mid-send. The renderer id holds
+ * the key across that bind, and the row id holds it when the persisted copy
+ * later replaces the optimistic one under a new renderer id.
+ */
+export function stableTurnRowKeys(
+  rowKeySignature: string,
+  structuralSignature: string,
+  previous?: StableTurnRowKeys
+): StableTurnRowKeys {
   const seen = new Set<string>()
   const ids = structuralSignature.split('\n').map(row => row.split(':')[1])
+  const byId = new Map<string, string>()
+  const byRow = new Map<string, string>()
 
-  return rowKeySignature.split('\n').map((key, index) => {
-    const unique = seen.has(key) ? (ids[index] ?? key) : key
+  const keys = rowKeySignature.split('\n').map((rowKey, index) => {
+    const id = ids[index]
+    const isRow = rowKey.startsWith('row:')
+
+    const carried =
+      (id !== undefined ? previous?.byId.get(id) : undefined) ?? (isRow ? previous?.byRow.get(rowKey) : undefined)
+
+    const key = carried ?? rowKey
+    const unique = seen.has(key) ? (id ?? key) : key
     seen.add(unique)
+
+    if (id !== undefined) {
+      byId.set(id, unique)
+    }
+
+    if (isRow && !byRow.has(rowKey)) {
+      byRow.set(rowKey, unique)
+    }
 
     return unique
   })
+
+  return { byId, byRow, keys, signature: `${rowKeySignature}\n\n${structuralSignature}` }
 }
 
 interface TurnRowProps {
@@ -539,6 +591,19 @@ const ThreadMessageListInner: FC<ThreadMessageListProps> = ({
   // below on every tick). Weights are folded in separately for the budget.
   const groups = useMemo(() => buildGroups(structuralSignature), [structuralSignature])
   const rowKeySignature = useAuiState(s => s.thread.messages.map(transcriptRowKey).join('\n'))
+  // Keys carried from the previous list (see stableTurnRowKeys), derived in
+  // render so this pass already uses them; the state only remembers them.
+  const [rowKeyMemo, setRowKeyMemo] = useState(() => stableTurnRowKeys(rowKeySignature, structuralSignature))
+
+  const stableRowKeys =
+    rowKeyMemo.signature === `${rowKeySignature}\n\n${structuralSignature}`
+      ? rowKeyMemo
+      : stableTurnRowKeys(rowKeySignature, structuralSignature, rowKeyMemo)
+
+  if (stableRowKeys !== rowKeyMemo) {
+    setRowKeyMemo(stableRowKeys)
+  }
+
   const renderEmpty = groups.length === 0 && Boolean(emptyPlaceholder)
 
   // use-stick-to-bottom owns scrollTop (single writer): follow while locked,
@@ -927,13 +992,17 @@ const ThreadMessageListInner: FC<ThreadMessageListProps> = ({
   // message added to the thread on screen; a session switch re-keys and restores instead.
   // The newest user message wherever it sits: a send appends it together with the reply placeholder.
   // Only while nothing finished follows it: history arriving brings whole, completed turns.
-  const trailingUserId = useAuiState(s => {
+  // Tracked by its stable row key, not its renderer id: the persisted copy replacing the optimistic
+  // bubble mid-turn is the same message and must not count as a second send.
+  const trailingUserIndex = useAuiState(s => {
     const messages = s.thread.messages
     const index = messages.findLastIndex(message => message.role === 'user')
     const after = messages[index + 1]
 
-    return index >= 0 && (!after || after.status?.type !== 'complete') ? messages[index].id : null
+    return index >= 0 && (!after || after.status?.type !== 'complete') ? index : -1
   })
+
+  const trailingUserId = trailingUserIndex >= 0 ? (stableRowKeys.keys[trailingUserIndex] ?? null) : null
 
   const [seenSend, setSeenSend] = useState({ id: trailingUserId, session: scrollSessionId, glides: 0 })
 
@@ -960,8 +1029,19 @@ const ThreadMessageListInner: FC<ThreadMessageListProps> = ({
       glideTimerRef.current = null
       el.removeAttribute('data-gliding')
     }, SEND_GLIDE_MS)
-    void scrollToBottomUnlessSelecting('smooth')
-  }, [scrollRef, scrollToBottomUnlessSelecting, seenSend.glides])
+
+    // Jump in this commit, before paint, and let the compositor glide the
+    // content the distance (send-glide.ts). The old per-frame scrollTop spring
+    // sat a frame behind the commit, spent its first tick at zero delta, and
+    // stalled behind every React commit that lands around a send.
+    if (!hasTranscriptTextSelection(el)) {
+      const bottom = glideFreeScrollMax(el, contentRef.current)
+      jumpAndGlide(el, contentRef.current, Math.min(bottom, replyAnchorCap(el) ?? bottom))
+    }
+
+    // Re-arms the library's follow lock; already at the target, so it moves nothing.
+    void scrollToBottomUnlessSelecting('instant')
+  }, [contentRef, scrollRef, scrollToBottomUnlessSelecting, seenSend.glides])
 
   useEffect(() => () => window.clearTimeout(glideTimerRef.current ?? undefined), [])
 
@@ -1017,7 +1097,14 @@ const ThreadMessageListInner: FC<ThreadMessageListProps> = ({
     // the viewport paints at the stale scrollTop, visibly drifting up before
     // the re-pin (#118482). The RO leg closes that frame, synchronously before
     // paint.
-    const resizeMetrics = () => readThreadScrollResizeMetrics(el, clearanceRef.current)
+    // Glide-free: a send's glide transform inflates scrollHeight (send-glide.ts).
+    const resizeMetrics = () => {
+      const metrics = readThreadScrollResizeMetrics(el, clearanceRef.current)
+
+      return { ...metrics, scrollHeight: metrics.scrollHeight - glideOverflow(content) }
+    }
+
+    const liveState = () => threadScrollStateFromMetrics({ ...resizeMetrics(), scrollTop: el.scrollTop })
 
     // ponytail: previous-metrics precision is load-bearing — the predicate must
     // see the frame BEFORE the growth, so a scroll event (which also writes it)
@@ -1026,11 +1113,25 @@ const ThreadMessageListInner: FC<ThreadMessageListProps> = ({
 
     const update = () => {
       previousResizeMetrics = resizeMetrics()
-      liveScrollStateRef.current = threadScrollStateFromMetrics(el)
+      liveScrollStateRef.current = liveState()
     }
 
     const onResize = () => {
       const nextResizeMetrics = resizeMetrics()
+
+      // Rows landing while a send glides (the reply placeholder, the loader)
+      // extend the same compositor glide from where it renders, pinned before
+      // paint, instead of handing the move back to the scrollTop spring.
+      if (
+        el.hasAttribute('data-gliding') &&
+        !el.hasAttribute('data-editing') &&
+        shouldReapplyFrozenThreadScrollOffset(THREAD_SCROLL_BOTTOM, true, previousResizeMetrics, nextResizeMetrics) &&
+        threadScrollStateFromMetrics({ ...previousResizeMetrics, scrollTop: el.scrollTop }).kind === 'bottom' &&
+        !hasTranscriptTextSelection(el)
+      ) {
+        const bottom = glideFreeScrollMax(el, content)
+        jumpAndGlide(el, content, Math.min(bottom, replyAnchorCap(el) ?? bottom))
+      }
 
       // Same transcript-only metric as the restore loop: a composer-only resize
       // (every keystroke) grows the clearance spacer, not the rows, so it is
@@ -1053,7 +1154,7 @@ const ThreadMessageListInner: FC<ThreadMessageListProps> = ({
       }
 
       previousResizeMetrics = nextResizeMetrics
-      liveScrollStateRef.current = threadScrollStateFromMetrics(el)
+      liveScrollStateRef.current = liveState()
     }
 
     el.addEventListener('scroll', update, { passive: true })
@@ -1699,7 +1800,7 @@ const ThreadMessageListInner: FC<ThreadMessageListProps> = ({
   // "MessageRenderBoundary (children only)" by explain()). With it, React
   // bails out on element identity and a scroll flip re-renders nothing below.
   const rows = useMemo(() => {
-    const rowKeys = turnRowKeys(rowKeySignature, structuralSignature)
+    const rowKeys = stableRowKeys.keys
 
     return visibleGroups.map((group, indexInVisible) => (
       <TurnRow
@@ -1710,7 +1811,7 @@ const ThreadMessageListInner: FC<ThreadMessageListProps> = ({
         virtualized={indexInVisible < tailStart}
       />
     ))
-  }, [visibleGroups, components, rowKeySignature, structuralSignature, tailStart])
+  }, [visibleGroups, components, stableRowKeys, structuralSignature, tailStart])
 
   useMessagesBelow({ contentRef, scrollRef, isAtBottom, paneVisible, rows, sessionKey, sessionId: scrollSessionId })
 

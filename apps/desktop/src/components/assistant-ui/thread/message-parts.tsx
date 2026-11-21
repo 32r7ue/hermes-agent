@@ -8,7 +8,19 @@ import {
   useMessagePartText
 } from '@assistant-ui/react'
 import { useStore } from '@nanostores/react'
-import { type ComponentProps, type FC, Fragment, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  type ComponentProps,
+  createContext,
+  type FC,
+  Fragment,
+  type ReactNode,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 
 import { useSessionView } from '@/app/chat/session-view'
 import { CatalogInstallTool } from '@/components/assistant-ui/catalog-install-tool'
@@ -37,7 +49,7 @@ import { useI18n } from '@/i18n'
 import { mcpTargets, toolLabels } from '@/lib/connector-tools'
 import { generatedImageFromResult } from '@/lib/generated-images'
 import { separateGluedReasoningBlocks } from '@/lib/reasoning-blocks'
-import { reasoningHeadline, reasoningPreview } from '@/lib/reasoning-headline'
+import { reasoningAfterLead, reasoningHeadline, reasoningPreview } from '@/lib/reasoning-headline'
 import { runEndedRecently, setReplyAnchor } from '@/lib/reply-anchor'
 import { isTodoToolName } from '@/lib/todos'
 import { type CardToolName, isCardTool, isCardToolName } from '@/lib/tool-render-class'
@@ -280,9 +292,15 @@ const TimelineMarkdownText: FC<TimelineTextPartProps> = ({ completedAt, timestam
   )
 }
 
+// When a finished thought's header is its opening sentence, the body continues
+// after it: `firstPart` (the raw text of the group's first non-empty reasoning
+// part) drops `lead` instead of repeating the line just above it.
+const ReasoningLeadContext = createContext<null | { firstPart: string; lead: string }>(null)
+
 const ThinkingDisclosure: FC<{
   children: ReactNode
   completedAt?: number
+  firstReasoningPart?: string
   reasoningText?: string
   storedSeconds?: number
   messageRunning?: boolean
@@ -294,6 +312,7 @@ const ThinkingDisclosure: FC<{
 }> = ({
   children,
   completedAt,
+  firstReasoningPart = '',
   messageRunning = false,
   pending = false,
   reasoningText = '',
@@ -336,6 +355,15 @@ const ThinkingDisclosure: FC<{
   // A body that only repeats the line — summary titles alone, or a one-sentence
   // thought shown whole — has nothing more to open: no chevron, no body.
   const expandable = !titleOnly && !preview?.whole
+
+  const lead = useMemo(
+    () => (preview?.lead ? { firstPart: firstReasoningPart, lead: preview.lead } : null),
+    [firstReasoningPart, preview?.lead]
+  )
+
+  // Collapsed, the opening sentence truncates to one line; opened, it wraps so
+  // the whole sentence is read before the body picks up after it.
+  const wrapLabel = Boolean(preview) && expandable && open
 
   // Follow new tokens until the user scrolls up to read earlier reasoning.
   useEffect(() => {
@@ -393,7 +421,10 @@ const ThinkingDisclosure: FC<{
       ref={enterRef}
     >
       <ScaffoldRow
-        onToggle={expandable ? () => setUserOpen(!open) : undefined}
+        // Clicking the live preview (a short self-scrolling window) expands it to the full
+        // thought instead of collapsing it; collapse is the next click. Slow local models
+        // spend long in the preview, where "toggle" read as "won't open, just flickers".
+        onToggle={expandable ? () => setUserOpen(isPreview ? true : !open) : undefined}
         open={expandable && open}
         trailing={
           <span className="flex shrink-0 items-center gap-1.5">
@@ -401,7 +432,12 @@ const ThinkingDisclosure: FC<{
           </span>
         }
       >
-        <span className={cn(SCAFFOLD_LABEL_CLASS, 'truncate', pending && 'shimmer')}>{thoughtLabel}</span>
+        <span
+          className={cn(SCAFFOLD_LABEL_CLASS, wrapLabel ? 'wrap-anywhere' : 'truncate', pending && 'shimmer')}
+          data-slot="aui_thinking-label"
+        >
+          {thoughtLabel}
+        </span>
       </ScaffoldRow>
       {expandable && open && (
         <div
@@ -417,7 +453,9 @@ const ThinkingDisclosure: FC<{
           data-slot="aui_thinking-body"
           ref={scrollRef}
         >
-          <div ref={contentRef}>{children}</div>
+          <div ref={contentRef}>
+            <ReasoningLeadContext.Provider value={lead}>{children}</ReasoningLeadContext.Provider>
+          </div>
         </div>
       )}
     </div>
@@ -489,7 +527,16 @@ const ReasoningAccordionGroup: FC<{ children?: ReactNode; endIndex: number; star
       .slice(Math.max(0, startIndex), endIndex + 1)
       .map(part => (part.type === 'reasoning' ? part.text : ''))
       .filter(Boolean)
-      .join('\n')
+      // A paragraph break per part, so the opening sentence never spans two parts.
+      .join('\n\n')
+  )
+
+  const firstReasoningPart = useAuiState(
+    s =>
+      s.message.parts
+        .slice(Math.max(0, startIndex), endIndex + 1)
+        .map(part => (part.type === 'reasoning' ? part.text : ''))
+        .find(text => text.trim().length > 0) ?? ''
   )
 
   const storedSeconds = useAuiState(s =>
@@ -511,6 +558,7 @@ const ReasoningAccordionGroup: FC<{ children?: ReactNode; endIndex: number; star
     // report the running total as each block's duration.
     <ThinkingDisclosure
       completedAt={completedAt}
+      firstReasoningPart={firstReasoningPart}
       messageRunning={messageRunning}
       pending={pending}
       reasoningText={reasoningText}
@@ -535,8 +583,11 @@ const ReasoningTextPart: ReasoningMessagePartComponent = () => {
   // when a ChainOfThought component is registered).
   const showReasoning = useStore($showReasoning)
   const textDirection = useForcedTextDirection()
+  const lead = useContext(ReasoningLeadContext)
+  const body = lead && text === lead.firstPart ? reasoningAfterLead(text, lead.lead) : text.trimStart()
 
-  if (!showReasoning) {
+  // A part that was only the header's sentence has nothing left to render.
+  if (!showReasoning || (lead && !body.trim())) {
     return null
   }
 
@@ -546,7 +597,7 @@ const ReasoningTextPart: ReasoningMessagePartComponent = () => {
       containerProps={{ 'data-slot': 'aui_reasoning-text' } as ComponentProps<'div'>}
       isRunning={status.type === 'running' || messageRunning}
       scratchpad
-      text={separateGluedReasoningBlocks(text.trimStart())}
+      text={separateGluedReasoningBlocks(body)}
       textDirection={textDirection}
     />
   )
@@ -601,7 +652,19 @@ const ActivityGroup: FC = () => {
     return `${start}:${state.chainOfThought.parts.length}`
   })
 
-  const [startIndex, length] = range.split(':').map(Number)
+  const [foundStart, length] = range.split(':').map(Number)
+  // While a reply streams, assistant-ui refreshes this chain's parts one render after the
+  // message's, so for that render the first part's old object is not in message.parts and the
+  // lookup misses. Returning null there unmounted the group on every flush (~10×/s): the thinking
+  // header flickered and dropped each click on its caret. A group never moves mid-stream, so the
+  // last position found stands in until the next render agrees again.
+  const lastStart = useRef(-1)
+
+  if (foundStart >= 0) {
+    lastStart.current = foundStart
+  }
+
+  const startIndex = foundStart >= 0 ? foundStart : lastStart.current
   const endIndex = startIndex + length - 1
 
   // Joined string, not an array: the selector re-runs on every delta and is compared with Object.is.

@@ -118,7 +118,8 @@ export function SidebarFilterMenu({ className }: { className?: string }) {
   const f = t.sidebar.filter
 
   const GROUPING_OPTIONS: Record<SidebarGrouping, Omit<Option<SidebarGrouping>, 'id'>> = {
-    date: { icon: 'clock', label: f.updated },
+    date: { icon: 'calendar', label: f.date },
+    none: { icon: 'list-flat', label: f.none },
     profile: { icon: 'account', label: f.profile },
     project: { icon: 'root-folder', label: f.project },
     status: { icon: 'pulse', label: f.status }
@@ -218,6 +219,8 @@ export function SidebarFilterMenu({ className }: { className?: string }) {
     return option.id !== 'cost' || hasCost || ordering === 'cost'
   })
 
+  const orderingLabel = ORDERINGS.find(option => option.id === ordering)?.label
+
   const rowMetaOptions = ROW_META.filter(option => {
     if (option.id === 'cost') {
       return hasCost || rowMeta.includes('cost')
@@ -275,7 +278,13 @@ export function SidebarFilterMenu({ className }: { className?: string }) {
           </DropdownMenuSub>
 
           <DropdownMenuSub>
-            <DropdownMenuSubTrigger>{f.ordering}</DropdownMenuSubTrigger>
+            <DropdownMenuSubTrigger hideChevron>
+              {f.ordering}
+              <span className="ml-auto flex items-center gap-1 pl-4 text-(--ui-text-tertiary)">
+                {orderingLabel}
+                <Codicon name="chevron-right" size="1rem" />
+              </span>
+            </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
               <DropdownMenuRadioGroup
                 onValueChange={value => setSidebarOrdering(value as SidebarOrdering)}

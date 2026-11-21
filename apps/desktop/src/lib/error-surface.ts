@@ -220,6 +220,14 @@ export function formatResetClock(resetsAt: number): string {
   return `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`
 }
 
+/** A provider limit the turn can simply wait out: an account rate limit, an upstream one, or a
+ *  plan's usage window. Its card offers Try again plus Auto-resume (store/limit-auto-resume.ts). */
+const USAGE_LIMIT_CODES: ReadonlySet<string> = new Set(['rate_limit', 'upstream_rate_limit', 'usage_window'])
+
+export function isUsageLimitSurface(surface: ErrorSurface | null | undefined): boolean {
+  return Boolean(surface && USAGE_LIMIT_CODES.has(surface.code) && surface.retryable !== false)
+}
+
 /** Browsers clamp `setTimeout` delays to a signed 32-bit millisecond count and
  *  fire anything larger immediately — a reset that far out gets no schedule
  *  button at all rather than an instant (and pointless) retry. */
@@ -235,6 +243,15 @@ export function scheduledRetryDelayMs(resetsAt: number | undefined, now: number 
   const delay = resetsAt * 1000 - now
 
   return delay > 0 && delay <= MAX_TIMER_DELAY_MS ? delay : null
+}
+
+/** "3h 44m" / "12m" / "1m" — the coarse wait beside a reset clock (the card does not tick). */
+export function formatResetWait(remainingMs: number): string {
+  const totalMinutes = Math.max(1, Math.ceil(remainingMs / 60_000))
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+
+  return hours > 0 ? `${hours}h ${String(minutes).padStart(2, '0')}m` : `${minutes}m`
 }
 
 /** "12m 03s" / "1h 05m 03s" for the live countdown on a scheduled retry. */
@@ -342,7 +359,6 @@ export function formatErrorDiagnostics(input: {
 
 export type ErrorActionId =
   | 'retry'
-  | 'retry_at_reset'
   | 'update_api_key'
   | 'sign_in_again'
   | 'sign_in_free_tier'
@@ -429,14 +445,8 @@ function usageWindowActions(surface: ErrorSurface): ErrorCardActions {
     return { primary: credits }
   }
 
-  if (surface.resetsAt * 1000 <= Date.now()) {
-    return { primary: credits, secondary: 'retry' }
-  }
-
-  // Still ahead: Retry at the reset, unless it is too far off for a browser timer (a monthly window).
-  return scheduledRetryDelayMs(surface.resetsAt) === null
-    ? { primary: credits }
-    : { primary: credits, secondary: 'retry_at_reset' }
+  // Try again sits beside the credits; the card's Auto-resume waits out the reset itself.
+  return { primary: credits, secondary: 'retry' }
 }
 
 /** Actions for a model server the user runs (custom endpoint or the managed local runtime). */
@@ -497,13 +507,6 @@ export function errorCardActions(surface: ErrorSurface | null | undefined): Erro
     return surface.retryable ? { primary: 'sign_in_free_tier', secondary: 'retry' } : { primary: 'sign_in_free_tier' }
   }
 
-  if (
-    (surface.code === 'rate_limit' || surface.code === 'upstream_rate_limit') &&
-    scheduledRetryDelayMs(surface.resetsAt) !== null
-  ) {
-    return { primary: 'retry_at_reset', secondary: 'retry' }
-  }
-
   if (surface.retryable) {
     return { primary: 'retry' }
   }
@@ -528,14 +531,15 @@ export function errorCardOffers(surface: ErrorSurface | null | undefined, action
  */
 export type ErrorCardSeverity = 'blocking' | 'degraded'
 
-const DEGRADED_ACTIONS: ReadonlySet<ErrorActionId> = new Set(['retry', 'retry_at_reset', 'continue'])
+const DEGRADED_ACTIONS: ReadonlySet<ErrorActionId> = new Set(['retry', 'continue'])
 
 export function errorCardSeverity(surface: ErrorSurface | null | undefined): ErrorCardSeverity {
   if (surface?.code === 'free_tier_model_not_free') {
     return 'degraded'
   }
 
-  if (surface?.code === 'agent_init_failed') {
+  // A usage limit stops the chat until it lifts: the red card, not a dismissible notice.
+  if (surface?.code === 'agent_init_failed' || isUsageLimitSurface(surface)) {
     return 'blocking'
   }
 

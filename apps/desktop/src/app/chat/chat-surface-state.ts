@@ -1,8 +1,7 @@
 import { useRef } from 'react'
 
-import { isWatchWindow } from '@/store/windows'
-
 import type { DragKind } from './hooks/use-file-drop-zone'
+import { useIsSpectator } from './spectator'
 import { composerStaysMounted } from './thread-loading'
 
 interface ShowChatBarOptions {
@@ -13,8 +12,9 @@ interface ShowChatBarOptions {
 }
 
 // Hide the composer in the exhausted error state too: there's no live runtime
-// to send to until a retry rebinds one. Watch windows are pure spectators of a
-// subagent run driven elsewhere — no composer, transcript is read-only.
+// to send to until a retry rebinds one. Watch windows and spectator tiles are
+// pure spectators of a subagent run driven elsewhere — no composer, transcript
+// is read-only.
 //
 // Once this route has rendered with its composer, a later transient loader
 // (periodic list/status refresh, hydrate through an empty frame) must not
@@ -26,6 +26,7 @@ export function useShowChatBar({
   routedSessionView
 }: ShowChatBarOptions): boolean {
   const settledRoutedSessionRef = useRef<null | string>(null)
+  const spectator = useIsSpectator()
 
   if (!loadingSession && routedSessionView) {
     settledRoutedSessionRef.current = routedSessionId
@@ -34,7 +35,7 @@ export function useShowChatBar({
   }
 
   return composerStaysMounted({
-    hideComposer: resumeExhausted || isWatchWindow(),
+    hideComposer: resumeExhausted || spectator,
     loadingSession,
     routedSessionId,
     settledRoutedSessionId: settledRoutedSessionRef.current

@@ -16,6 +16,7 @@ import { useRefreshHotkey } from '../hooks/use-refresh-hotkey'
 import { useRouteEnumParam } from '../hooks/use-route-enum-param'
 import { PanelEmpty } from '../overlays/panel'
 import { PageSearchShell } from '../page-search-shell'
+import { CAPABILITY_PAGES, type CapabilityPage } from '../routes'
 import type { SetStatusbarItemGroup } from '../shell/statusbar-controls'
 
 import { syncCatalogArcs } from './catalog/catalog-arc'
@@ -31,9 +32,9 @@ import { ToolsetsTab } from './toolsets/toolsets-tab'
 
 // Skills Hub browsing lives inside the Skills tab. Legacy `?tab=hub`
 // links fall back to 'skills' via useRouteEnumParam.
-const CAPABILITY_MODES = ['skills', 'plugins', 'connectors', 'toolsets'] as const
+const CAPABILITY_MODES = CAPABILITY_PAGES
 
-type CapabilityMode = (typeof CAPABILITY_MODES)[number]
+export type CapabilityMode = CapabilityPage
 
 interface CapabilitiesViewProps extends React.ComponentProps<'section'> {
   setStatusbarItemGroup?: SetStatusbarItemGroup
@@ -51,6 +52,12 @@ interface CapabilitiesViewProps extends React.ComponentProps<'section'> {
    *  remote-target door — a bot living on another registered gateway gets the
    *  live surface pointed at ITS backend. Ignored without `fixedProfile`. */
   fixedConnection?: string
+  /** Controlled tab (Settings ▸ Capabilities drives it from its own nav and
+   *  `page` param). Without it the tab rides the route's `?tab=`. */
+  mode?: CapabilityMode
+  onModeChange?: (mode: CapabilityMode) => void
+  /** Hide the tab strip — the host's navigation already lists the tabs. */
+  hideTabs?: boolean
 }
 
 /** The Capabilities page SHELL: tab selection, the search header, the profile /
@@ -62,6 +69,9 @@ export function CapabilitiesView({
   embedded = false,
   fixedConnection,
   fixedProfile,
+  hideTabs = false,
+  mode: controlledMode,
+  onModeChange,
   setStatusbarItemGroup: _setStatusbarItemGroup,
   ...props
 }: CapabilitiesViewProps) {
@@ -70,7 +80,9 @@ export function CapabilitiesView({
   // one so tab clicks inside a dialog don't rewrite the page URL.
   const routeTab = useRouteEnumParam('tab', CAPABILITY_MODES, 'skills')
   const localTab = useState<CapabilityMode>('skills')
-  const [mode, setMode] = embedded ? localTab : routeTab
+  const [uncontrolledMode, setUncontrolledMode] = embedded ? localTab : routeTab
+  const mode = controlledMode ?? uncontrolledMode
+  const setMode = controlledMode ? (next: CapabilityMode) => onModeChange?.(next) : setUncontrolledMode
   const gateway = useStoreSelector($gateway, g => (mode === 'connectors' ? g : null))
 
   const [query, setQuery] = useState('')
@@ -173,7 +185,7 @@ export function CapabilitiesView({
       onTabChange={id => setMode(id as CapabilityMode)}
       // Every tab renders the shared CapabilitySearch beside its own results.
       searchHidden
-      tabs={[
+      tabs={hideTabs ? undefined : [
         { id: 'skills', label: t.skills.tabSkills, meta: skills?.length ?? null },
         { id: 'plugins', label: t.skills.tabPlugins },
         { id: 'connectors', label: t.connectorsPage.title },

@@ -55,5 +55,23 @@ export const zhNotifications = {
   muteSoundsDesc: '关闭自动完成、唤醒词和思考提示音、触感反馈以及系统通知声音。声音预览和语音回复仍会播放。',
   completionSoundTitle: '完成提示音',
   completionSoundDesc: '智能体回合结束时播放。可在此选择预设并预览。',
-  completionSoundPreview: '预览'
+  completionSoundPreview: '预览',
+  chatCues: {
+    sent: {
+      label: '发送音效',
+      description: '发送或调整消息时播放 Cursor 的提示音。'
+    },
+    thinking: {
+      label: '思考音效',
+      description: '代理工作时 Cursor 的轻柔脉冲：4 秒后开始，之后约每 6 秒一次，直到回合结束或需要你操作。'
+    },
+    fileEdited: {
+      label: '文件编辑音效',
+      description: '代理完成文件编辑时播放 Cursor 的提示音。'
+    },
+    approval: {
+      label: '审批音效',
+      description: '批准或拒绝请求时播放 Cursor 的提示音。'
+    }
+  }
 }

@@ -45,7 +45,7 @@ test('a selected non-local backend that is not ready warns once with Use Local /
   expect(toast?.detail).toBe('Docker daemon not reachable')
 
   toast?.action?.onClick()
-  expect($routeRequest.get()?.path).toBe('/capabilities?tab=toolsets')
+  expect($routeRequest.get()?.path).toBe('/settings?tab=capabilities&page=toolsets')
 
   toast?.secondaryAction?.onClick()
   expect(selectTerminalBackend).toHaveBeenCalledWith('local')

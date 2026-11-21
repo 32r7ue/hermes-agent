@@ -8,12 +8,14 @@ import { COMPLETION_SOUND_VARIANTS, previewCompletionSound } from '@/lib/complet
 import { triggerHaptic } from '@/lib/haptics'
 import { hostHas } from '@/lib/host-capabilities'
 import { Bell, Play } from '@/lib/icons'
+import { playSample, type SampleSoundId } from '@/lib/sample-sounds'
 import { cn } from '@/lib/utils'
 import {
   $browserNotificationPermission,
   askBrowserNotificationPermission,
   refreshBrowserNotificationPermission
 } from '@/store/browser-notification-permission'
+import { $chatCues, CHAT_CUES, type ChatCue, setChatCue } from '@/store/chat-cue-sounds'
 import { $completionSoundVariantId, setCompletionSoundVariantId } from '@/store/completion-sound'
 import { $hapticsMuted, setHapticsMuted } from '@/store/haptics'
 import {
@@ -66,6 +68,42 @@ function BrowserPermissionRow() {
     />
   )
 }
+
+const CUE_PREVIEW: Record<ChatCue, SampleSoundId> = {
+  approval: 'cursorEditsKept',
+  fileEdited: 'cursorFileEdited',
+  sent: 'cursorRequestSent',
+  thinking: 'cursorProgress'
+}
+
+function ChatCueRow({ cue }: { cue: ChatCue }) {
+  const { t } = useI18n()
+  const copy = t.settings.notifications.chatCues[cue]
+  const on = useStore($chatCues[cue])
+
+  return (
+    <ToggleRow
+      checked={on}
+      description={copy.description}
+      id={settingElementId(SETTING_IDS.notifications[CUE_SETTING[cue]])}
+      label={copy.label}
+      onChange={next => {
+        setChatCue(cue, next)
+
+        if (next) {
+          playSample(CUE_PREVIEW[cue])
+        }
+      }}
+    />
+  )
+}
+
+const CUE_SETTING = {
+  approval: 'chatCueApproval',
+  fileEdited: 'chatCueFileEdited',
+  sent: 'chatCueSent',
+  thinking: 'chatCueThinking'
+} as const satisfies Record<ChatCue, string>
 
 interface NotificationsSettingsProps {
   subpage?: string
@@ -178,6 +216,9 @@ export function NotificationsSettings({ subpage }: NotificationsSettingsProps = 
             id={settingElementId(SETTING_IDS.notifications.completionSound)}
             title={copy.completionSoundTitle}
           />
+          {CHAT_CUES.map(cue => (
+            <ChatCueRow cue={cue} key={cue} />
+          ))}
         </>
       )}
 

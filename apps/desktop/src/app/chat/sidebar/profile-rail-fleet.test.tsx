@@ -247,7 +247,8 @@ afterEach(() => {
   delete (window as { hermesDesktop?: unknown }).hermesDesktop
 })
 
-describe('ProfileRail overflow', () => {
+// Single-gateway rails no longer show named-profile squares, so there is no strip to overflow.
+describe.skip('ProfileRail overflow', () => {
   // jsdom drops valid gradient values containing calc(); observe the real DOM
   // style assignment instead. Actual layout, resize and painting run in Chromium.
   const observeMask = () => vi.spyOn(Object.getPrototypeOf(document.createElement('div').style), 'maskImage', 'set')

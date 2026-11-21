@@ -3,6 +3,7 @@ import { useStore } from '@nanostores/react'
 import { type FC, type ReactNode, useCallback, useEffect, useState } from 'react'
 
 import { useComposerScope } from '@/app/chat/composer/scope'
+import { useIsSpectator } from '@/app/chat/spectator'
 import { $sentNowSteerIds, requestSteerSendNow } from '@/app/chat/steer-send-now'
 import { DirectiveContent } from '@/components/assistant-ui/directive-text'
 import { isAttachmentRef } from '@/components/assistant-ui/reference-kinds'
@@ -30,7 +31,6 @@ import { $touchPointer, isTouchInteraction } from '@/lib/touch-interaction'
 import { cn } from '@/lib/utils'
 import { $gateway } from '@/store/gateway'
 import { notifyThreadEditOpen } from '@/store/thread-scroll'
-import { isWatchWindow } from '@/store/windows'
 
 /** True when the user has a live text highlight (drag-select / triple-click). */
 export function hasTextSelection(): boolean {
@@ -445,9 +445,10 @@ export const UserMessage: FC<{
     [react]
   )
 
-  // Watch windows spectate a subagent run driven elsewhere: prompts can't be
-  // edited, restored, or stopped from here. Prompts render in full (no clamp).
-  const readOnly = isWatchWindow()
+  // Watch windows and spectator tiles watch a subagent run driven elsewhere:
+  // prompts can't be edited, restored, or stopped from here. Prompts render in
+  // full (no clamp).
+  const readOnly = useIsSpectator()
 
   // Sent now: the words went out again as a prompt with its own bubble.
   if (sentNowSteerIds.has(messageId)) {
@@ -616,15 +617,11 @@ export const UserMessage: FC<{
                 touch={touch}
               />
               <MessageTimelineTimestamp />
+              {/* Tucked right under the bubble's corner, in the meta row, so it
+                  reads as attached to the message rather than floating a full
+                  row below it. Overlaying the corner read badly in practice. */}
+              <ReactionBadge className="gap-1.5 pr-0.5" onRetract={() => react(null)} reactions={shownReactions} />
             </div>
-            {/* Below the bubble, same register as the assistant action row:
-                same emoji size, same vertical padding, right-aligned to the
-                sent bubble. Overlaying the corner read badly in practice. */}
-            <ReactionBadge
-              className="justify-end gap-1.5 py-1.5 pr-1.5"
-              onRetract={() => react(null)}
-              reactions={shownReactions}
-            />
             {steerWaiting && !readOnly && (
               <div
                 className="flex items-center justify-end gap-1.5 pr-1.5 pt-1 text-[length:var(--conversation-tool-font-size)] text-(--ui-text-tertiary)"

@@ -375,6 +375,8 @@ export const en: Translations = {
     retry: 'Retry',
     run: 'Run',
     send: 'Send',
+    yes: 'Yes',
+    no: 'No',
     set: 'Set',
     skip: 'Skip',
     update: 'Update',
@@ -786,14 +788,13 @@ export const en: Translations = {
       keybinds: 'Keyboard Shortcuts',
       keysTools: 'Tools',
       keysSettings: 'Settings',
-      mcp: 'MCP',
-      archivedChats: 'Archived Chats',
       sessions: 'Sessions',
       about: 'About',
       billing: 'Billing',
       notifications: 'Notifications',
       vault: 'Passwords & Logins',
-      plugins: 'Plugins'
+      plugins: 'Plugins',
+      capabilities: 'Capabilities'
     },
     plugins: {
       title: 'Desktop plugins',
@@ -2163,10 +2164,6 @@ export const en: Translations = {
       emptyHint: 'Browse the catalog below and install a reviewed plugin with one click.',
       loadFailed: 'Could not load agent plugins',
       toggleFailed: (name: string) => `Could not toggle ${name}`,
-      toolsetOn: (name: string, profile: string) => `${name} agent tools enabled for ${profile}`,
-      toolsetOff: (name: string, profile: string) => `${name} agent tools disabled for ${profile}`,
-      toolsetToggleFailed: (name: string) =>
-        `Could not toggle the ${name} agent tools; the Desktop panel was left unchanged`,
       legacyBackend: 'This backend predates key-addressed plugin toggles — update Hermes to manage it here.',
       portableBadge: 'portable',
       serverStates: {
@@ -2429,13 +2426,11 @@ export const en: Translations = {
       installs: count => `${count} installs`
     },
     settingsFields: 'Settings fields',
-    mcpServers: 'MCP servers',
     archivedChats: 'Archived chats',
     sections: { maintenance: 'Maintenance', sessions: 'Sessions', system: 'System', usage: 'Usage' },
     nav: {
       newChat: { title: 'New session', detail: 'Start a fresh session' },
       settings: { title: 'Settings', detail: 'Configure Hermes desktop' },
-      capabilities: { title: 'Capabilities', detail: 'Skills, tools, MCP servers, and plugins' },
       messaging: { title: 'Messaging', detail: 'Set up Telegram, Slack, Discord, and more' },
       artifacts: { title: 'Artifacts', detail: 'Browse generated outputs' }
     },
@@ -3202,8 +3197,8 @@ export const en: Translations = {
   },
   sidebar: {
     filter: {
-      grouping: 'Grouping',
-      ordering: 'Ordering',
+      grouping: 'Group by',
+      ordering: 'Sort by',
       show: 'Show',
       filters: 'Filters',
       status: 'Status',
@@ -3230,7 +3225,9 @@ export const en: Translations = {
       open: 'Open',
       merged: 'Merged',
       closed: 'Closed',
-      noPR: 'No PR'
+      noPR: 'No PR',
+      date: 'Date',
+      none: 'None'
     },
     gatewayGroups: {
       grouping: 'Gateway & profile',
@@ -3246,7 +3243,6 @@ export const en: Translations = {
     profileRail: 'Profile rail',
     nav: {
       'new-session': 'New session',
-      capabilities: 'Capabilities',
       messaging: 'Messaging',
       artifacts: 'Artifacts',
       cron: 'Scheduled jobs'
@@ -3337,16 +3333,20 @@ export const en: Translations = {
       ageMin: 'm'
     },
     dateDivider: {
-      today: 'Earlier today',
+      today: 'Today',
       yesterday: 'Yesterday',
       thisWeek: 'Earlier this week',
       lastWeek: 'Last week',
-      thisMonth: 'Earlier this month'
+      thisMonth: 'Earlier this month',
+      last7Days: 'Last 7 Days',
+      last30Days: 'Last 30 Days',
+      older: 'Older'
     },
     statusDivider: {
       working: 'Working',
       done: 'Done'
     },
+    sectionMore: 'More',
     markAllRead: 'Mark all as read'
   },
 
@@ -4569,6 +4569,13 @@ export const en: Translations = {
       errorRetry: 'Retry',
       errorRetryScheduled: (time, wait) => `Retrying at ${time} — in ${wait}`,
       errorRetryScheduledCancel: 'Cancel',
+      errorUsageLimitTitle: 'Usage limit reached',
+      errorUsageLimitBody: provider => `${provider} isn't taking more requests right now.`,
+      errorUsageLimitResets: (time, wait) => `Resets at ${time} (in ${wait}).`,
+      errorTryAgain: 'Try again',
+      errorAutoResume: 'Auto-resume',
+      errorAutoResumeAt: time => `next try at ${time}`,
+      errorAutoResumeRunning: 'resuming…',
       errorStartNewSession: 'Start new session',
       errorSwitchProvider: 'Switch provider',
       errorChooseModel: 'Choose a model',
@@ -4696,6 +4703,7 @@ export const en: Translations = {
       statusDone: 'Done',
       resultUnavailable: 'Result unavailable',
       resultInterrupted: 'Interrupted',
+      continuesInBackground: 'Continues in background',
       memoryWriteNoted: 'Memory write noted',
       actions: {
         read: 'Read',
@@ -4914,10 +4922,6 @@ export const en: Translations = {
       'new-session': {
         title: 'Start fresh',
         text: 'A new chat gets its own context, terminal and working directory.'
-      },
-      skills: {
-        title: 'Teach it once',
-        text: 'Skills are folders of instructions Hermes loads when the work calls for them.'
       },
       messaging: {
         title: 'Hermes away from your desk',

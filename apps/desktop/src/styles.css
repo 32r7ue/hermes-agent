@@ -76,7 +76,6 @@
     .pet-egg-shadow,
     .pet-wobble,
     .progress-slide,
-    .kanban-arc,
     .glyph-spinner__strip,
     .decode-cursor-blink
   ),
@@ -4210,6 +4209,43 @@ html[data-hermes-desktop-host='browser'] [data-slot='sidebar-container'] {
 
 .aui-error-card-body {
   font-weight: 400;
+}
+
+/* Usage limit: the nested box under the text — Try again + the Auto-resume checkbox. */
+.aui-error-limit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin-top: 8px;
+  border: 1px solid color-mix(in srgb, var(--err-alert) 14%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--err-alert) 4%, transparent);
+  padding: 8px 10px;
+}
+
+.aui-error-limit-auto {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.aui-error-limit-auto input {
+  margin: 0;
+  accent-color: var(--err-alert);
+  cursor: inherit;
+}
+
+.aui-error-limit-auto:has(input:disabled) {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.aui-error-limit-when {
+  color: var(--err-ink-muted);
 }
 
 /* Wraps so a narrow split pane drops the details toggle under the actions instead of clipping it. */

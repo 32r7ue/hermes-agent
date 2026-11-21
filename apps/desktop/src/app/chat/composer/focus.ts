@@ -767,9 +767,16 @@ export const focusComposerInput = (el: HTMLElement | null) => {
   const retry = () => {
     // Newer native-control or tab navigation wins over queued retries. A fresh
     // explicit composer request still gets the synchronous focus call below.
+    // So does a dialog that opened since (`/model` submits, the composer queues
+    // its refocus, then the picker opens and focuses its search): pulling focus
+    // back behind the modal left the user typing into nothing.
     const active = document.activeElement
 
-    if (active instanceof HTMLMediaElement || active?.closest('[role="tab"]')) {
+    if (
+      active instanceof HTMLMediaElement ||
+      active?.closest('[role="tab"]') ||
+      active?.closest('[role="dialog"], [role="alertdialog"]')
+    ) {
       return
     }
 

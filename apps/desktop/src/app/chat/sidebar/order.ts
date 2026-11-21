@@ -1,4 +1,4 @@
-import type { SidebarListRow } from '@/lib/session-date-groups'
+import type { SidebarDisplayRow, SidebarListRow } from '@/lib/session-date-groups'
 
 /**
  * Fold ids absent from the persisted order back in, on the side they belong.
@@ -223,7 +223,7 @@ function clusterId(rows: SidebarListRow[]): string {
 }
 
 /** The reorderable ids of a rendered row list: root sessions, in render order. */
-export function reorderableRowIds(rows: SidebarListRow[]): string[] {
+export function reorderableRowIds(rows: readonly SidebarDisplayRow[]): string[] {
   return rows.flatMap(row => (row.kind === 'session' && !row.entry.branchStem ? [row.entry.session.id] : []))
 }
 

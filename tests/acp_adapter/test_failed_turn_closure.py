@@ -171,7 +171,11 @@ def test_acp_refusal_closes_the_turn_and_is_not_replayed_into_the_next_prompt(ac
     sent = [m for m in provider.requests[-1]["messages"] if m["role"] != "system"]
     assert [m["role"] for m in sent] == ["user", "assistant", "user"], sent
     assert [m["content"] for m in sent if m["role"] == "user"] == [_REFUSED, _NEW_REQUEST]
-    assert sent[1] == {"role": "assistant", "content": FAILED_TURN_NOTICE}  # the type never reaches the wire
+    # The type never reaches the wire, and the model reads a Hermes note, not the sentence as its own words.
+    from agent.turn_failure_copy import failed_turn_model_content
+    assert sent[1] == {"role": "assistant", "content": failed_turn_model_content(
+        {"role": "assistant", "content": FAILED_TURN_NOTICE, "display_kind": "failed_turn"})}
+    assert sent[1]["content"].startswith("[Hermes note, not written by you:")
 
     # Turn 3: cancelled mid-turn. The interrupt envelope carries ``final_response=None``
     # (no assistant text yet); ``_finish_turn`` must still report ``cancelled`` — never crash

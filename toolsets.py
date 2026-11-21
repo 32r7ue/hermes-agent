@@ -121,7 +121,7 @@ TOOLSETS = {
         "search (content + files)",
         ["read_file", "write_file", "patch", "search_files"],
     ),
-    "tts": _ts("Text-to-speech: convert text to audio with Edge TTS (free), ElevenLabs, OpenAI, or xAI", ["text_to_speech"]),
+    "tts": _ts("Text-to-speech and AI voice phone calls (Gemini Live / Twilio)", ["text_to_speech", "phone_call"]),
     "todo": _ts("Task planning and tracking for multi-step work", ["todo_list"]),
     "memory": _ts("Persistent memory across sessions (personal notes + user profile)", ["memory"]),
     "context_engine": _ts("Runtime tools exposed by the active context engine"),
@@ -135,10 +135,10 @@ TOOLSETS = {
     # process env var, which is blind to a desktop client on a remote backend.
     "desktop_ui": _ts(
         "Desktop GUI affordances — in-app terminal/browser panes, pane focus, "
-        "reactions, appearance (GUI sessions only)",
+        "reactions, appearance, coordination with parallel agent sessions (GUI sessions only)",
         ["read_terminal", "close_terminal", "desktop_preview", "drive_preview",
          "annotate_preview", "read_window_below", "focus_pane", "react_to_message",
-         "gui_tour", "show_tip", "set_theme"],
+         "gui_tour", "show_tip", "set_theme", "sessions"],
     ),
     "onboarding": _ts("First-run onboarding cards; folded in only for the onboarding chat (tui_gateway/methods_onboarding.py)",
                       ["setup_beat"], platforms=frozenset({"desktop"})),

@@ -12,6 +12,7 @@ import {
   type ErrorSurface,
   formatErrorDiagnostics,
   formatResetClock,
+  isUsageLimitSurface,
   parseErrorSurface,
   scheduledRetryDelayMs
 } from './error-surface'
@@ -133,7 +134,7 @@ describe('error copy never names a hidden Retry', () => {
     (_code, _layer, surface) => {
       const { primary, secondary } = errorCardActions(surface)
       const { body } = errorCardText(thread, surface)
-      const offersRetry = [primary, secondary].some(action => action === 'retry' || action === 'retry_at_reset')
+      const offersRetry = [primary, secondary].some(action => action === 'retry')
 
       if (!offersRetry) {
         expect(body).not.toMatch(RETRY_WORDS)
@@ -374,13 +375,11 @@ describe('error card actions: one main action, at most one second option', () =>
 
     expect(at(limit('add_credits', [suggestion]))).toEqual({ primary: 'switch_to_model', secondary: 'open_billing' })
     expect(at(limit('use_credits', [suggestion]))).toEqual({ primary: 'switch_to_model', secondary: 'use_credits' })
+    // Try again beside the credits; the card's Auto-resume waits out the reset itself.
     expect(at({ ...limit('add_credits', []), resets_at: later })).toEqual({
       primary: 'open_billing',
-      secondary: 'retry_at_reset'
+      secondary: 'retry'
     })
-    // Too far ahead for a browser timer (a monthly window): no Retry until it passes.
-    expect(at({ ...limit('add_credits', []), resets_at: later + 30 * 86_400 })).toEqual({ primary: 'open_billing' })
-    // The reset has passed: the allowance is back, so a plain Retry.
     expect(at({ ...limit('add_credits', []), resets_at: later - 1200 })).toEqual({
       primary: 'open_billing',
       secondary: 'retry'
@@ -399,11 +398,20 @@ describe('error card actions: one main action, at most one second option', () =>
     expect(at({ code: 'mystery', layer: 'gateway', retryable: true }).primary).toBe('retry')
   })
 
-  it('keeps an immediate Retry beside the scheduled one for a rate limit with a known reset', () => {
+  it('a rate limit retries; its card adds Auto-resume, which waits out the reset', () => {
     expect(at({ code: 'rate_limit', layer: 'provider', resets_at: later, retryable: true })).toEqual({
-      primary: 'retry_at_reset',
-      secondary: 'retry'
+      primary: 'retry'
     })
+    expect(isUsageLimitSurface(parseErrorSurface({ code: 'rate_limit', layer: 'provider', retryable: true }))).toBe(
+      true
+    )
+    expect(isUsageLimitSurface(parseErrorSurface({ code: 'billing', layer: 'billing', retryable: false }))).toBe(false)
+  })
+
+  it('a usage limit is the red (blocking) card, not a dismissible notice', () => {
+    expect(errorCardSeverity(parseErrorSurface({ code: 'rate_limit', layer: 'provider', retryable: true }))).toBe(
+      'blocking'
+    )
   })
 
   it('a stuck tool loop retries or starts over', () => {
@@ -428,7 +436,9 @@ describe('error card actions: one main action, at most one second option', () =>
   it('names the severity from what the user can still do', () => {
     const severity = (surface: Record<string, unknown>) => errorCardSeverity(parseErrorSurface(surface))
 
-    expect(severity({ code: 'rate_limit', layer: 'provider', retryable: true })).toBe('degraded')
+    // A usage limit stops the chat until it lifts: the red card.
+    expect(severity({ code: 'rate_limit', layer: 'provider', retryable: true })).toBe('blocking')
+    expect(severity({ code: 'overloaded', layer: 'provider', retryable: true })).toBe('degraded')
     expect(severity({ code: 'truncated', layer: 'provider', retryable: true })).toBe('degraded')
     expect(severity({ code: 'free_tier_model_not_free', layer: 'provider', retryable: false })).toBe('degraded')
     expect(severity({ auth_kind: 'api_key', code: 'auth', layer: 'auth', retryable: false })).toBe('blocking')

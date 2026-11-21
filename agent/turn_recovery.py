@@ -880,6 +880,37 @@ def _stamp_limit_reset(result: dict[str, Any], agent: Any, api_error: Exception,
         result["final_response"] = f"{result['final_response']}\n\n{line}"
 
 
+def limit_wait_stopped_result(
+    agent: Any, interrupted: dict[str, Any], api_error: Exception, classified: Any, provider: Any,
+) -> dict[str, Any]:
+    """A stop that lands while the loop waits out a provider LIMIT (429 / quota / usage window)
+    ends the turn as that limit's failure, not as a bare interrupt.
+
+    The provider refused the turn; the stop only cut the wait short. As an interrupt it closed with
+    the generic "Your request was not processed" boundary and no error card, so the user never
+    learned a limit (and its reset time) was why. Returned failed with ``failure_reason`` /
+    ``failure_resets_at`` stamped, every surface shows the limit card (Desktop: Try again +
+    Auto-resume). Any other interrupted wait is returned unchanged."""
+    if classified.reason not in _LIMIT_REASONS or not isinstance(interrupted, dict):
+        return interrupted
+    from agent.turn_failure_copy import provider_label_for
+
+    try:
+        summary = agent._summarize_api_error(api_error)
+    except Exception:
+        summary = str(api_error)
+    label = provider_label_for(provider) or "The provider"
+    noun = "usage limit" if classified.reason == FailoverReason.billing else "rate limit"
+    result = {
+        **interrupted,
+        "final_response": f"{label}'s {noun} was reached, so this turn stopped before a reply.",
+        "interrupted": False, "failed": True, "completed": False, "error": summary,
+        "failure_reason": classified.reason.value, "failure_retryable": True,
+    }
+    _stamp_limit_reset(result, agent, api_error, classified)
+    return result
+
+
 def _print_nonretryable_auth_guidance(
     agent: Any, classified: Any, *, status_code: Optional[int], provider: Any, base_url: Any, model: Any,
 ) -> None:
