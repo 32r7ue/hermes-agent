@@ -27,6 +27,7 @@ import { useI18n } from '@/i18n'
 import { comboTokens } from '@/lib/keybinds/combo'
 import { sessionMatchesSearch } from '@/lib/session-search'
 import { normalizeSessionSource, sessionSourceLabel } from '@/lib/session-source'
+import { recencySection } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { $connectionsRegistry } from '@/store/connection-registry-state'
 import { $activeConnectionId } from '@/store/connections'
@@ -1418,6 +1419,50 @@ export function ChatSidebar({
       setRecentsLoadMorePending(false)
     }
   }, [onLoadMoreSessions, recentsLoadMorePending])
+
+  // The date sections are fixed (Today / Last 7 Days / Last 30 Days / Older), but the backend
+  // hands out recents a page at a time. A busy week fills the first page before it reaches
+  // "Last 30 Days", and the list footer that fetches more hides behind the last section's own
+  // "Show more", so older sections never appeared. Keep paging until the loaded window reaches
+  // past the 30-day section, or the backend runs out. Bounded: each pass needs the window to grow.
+  const dateSectionedRecents = sectionedRecents && !agentsGrouped && grouping !== 'status'
+  // The loaded count the last auto-page started from, per scope (a profile switch starts over).
+  const recencyPagedAtRef = useRef({ count: -1, scope: '' })
+
+  // eslint-disable-next-line no-restricted-syntax -- a paging guard, not a mirrored atom value
+  useEffect(() => {
+    if (!dateSectionedRecents || !hasMoreSessions || recentsLoadMorePending || sessionsLoading) {
+      return
+    }
+
+    const pagedAt = recencyPagedAtRef.current
+
+    if (pagedAt.scope === profileScope && loadedSessionCount <= pagedAt.count) {
+      return // the last page added nothing: the backend window stopped growing
+    }
+
+    const pool = (showAllProfiles ? sessions : scopedSessions).filter(session => !isPinnedSession(session))
+    const oldest = pool.reduce((min, session) => Math.min(min, sessionTime(session) || Infinity), Infinity)
+
+    if (Number.isFinite(oldest) && recencySection(oldest).kind === 'older') {
+      return // the window already reaches the Older section: every dated section is complete
+    }
+
+    recencyPagedAtRef.current = { count: loadedSessionCount, scope: profileScope }
+    void onLoadMoreRecents()
+  }, [
+    dateSectionedRecents,
+    hasMoreSessions,
+    isPinnedSession,
+    loadedSessionCount,
+    onLoadMoreRecents,
+    profileScope,
+    recentsLoadMorePending,
+    scopedSessions,
+    sessions,
+    sessionsLoading,
+    showAllProfiles
+  ])
 
   const showMoreRecents = () => {
     const next = recentsShown + SIDEBAR_RECENTS_STEP

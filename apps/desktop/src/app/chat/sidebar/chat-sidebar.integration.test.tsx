@@ -28,7 +28,8 @@ import {
   $sessions,
   $sessionsLoadError,
   $sessionsLoading,
-  $workspaceCwdOwner
+  $workspaceCwdOwner,
+  setSessionProfilesTruncated
 } from '@/store/session'
 import { $removedSessionIds } from '@/store/session-removal'
 import { SIDEBAR_NAV_PREFS_AREA } from '@/store/sidebar-nav'
@@ -582,5 +583,84 @@ describe('ChatSidebar messaging owners', () => {
     expect(telegramGroups()).toHaveLength(0)
     expect(screen.queryByText('work-1')).toBeNull()
     expect(within(row('default-1')).queryByRole('img', { name: /^Profile:/ })).toBeNull()
+  })
+})
+
+// The first page of recents can end inside "Last 7 Days" (a busy week), and that
+// section's own "Show more" hides the list footer that fetches the next page, so
+// "Last 30 Days" and "Older" never appeared. The dated list pages on its own until
+// the loaded window reaches the Older section or the backend runs out.
+describe('ChatSidebar dated recents reach past the first page', () => {
+  const nowSeconds = Date.now() / 1000
+  const DAY = 86_400
+
+  const renderWithLoadMore = (onLoadMoreSessions: () => void) =>
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <SidebarProvider>
+          <ChatSidebar
+            currentView="chat"
+            onArchiveSession={noop}
+            onBranchSession={noop}
+            onDeleteSession={noop}
+            onLoadMoreSessions={onLoadMoreSessions}
+            onManageCronJob={noop}
+            onNavigate={noop}
+            onNewSessionInWorkspace={noop}
+            onNewSessionSplit={noop}
+            onResumeSession={noop}
+            onRetrySessions={noopAsync}
+            onTriggerCronJob={noopAsync}
+          />
+        </SidebarProvider>
+      </MemoryRouter>
+    )
+
+  const rows = (ages: number[]) =>
+    ages.map((age, index) =>
+      makeSessionInfo({
+        id: `recent-${index}`,
+        last_active: nowSeconds - age * DAY,
+        profile: 'default',
+        started_at: nowSeconds - age * DAY,
+        title: `Recent ${index}`
+      })
+    )
+
+  beforeEach(() => {
+    $activeGatewayProfile.set('default')
+    setShowAllProfiles(false)
+    $sessionsLoading.set(false)
+    setSidebarGrouping('date')
+    setSessionProfilesTruncated({ default: true })
+  })
+
+  afterEach(() => {
+    cleanup()
+    $sessions.set([])
+    setSessionProfilesTruncated({})
+  })
+
+  it('fetches the next page while every loaded session is newer than the Older section', () => {
+    const loadMore = vi.fn()
+    $sessions.set(rows([0, 1, 3, 6]))
+
+    renderWithLoadMore(loadMore)
+
+    expect(loadMore).toHaveBeenCalledTimes(1)
+  })
+
+  it('stops once the loaded window reaches Older, or the backend has no more', () => {
+    const loadMore = vi.fn()
+    $sessions.set(rows([0, 3, 12, 45]))
+
+    renderWithLoadMore(loadMore)
+    expect(loadMore).not.toHaveBeenCalled()
+
+    cleanup()
+    setSessionProfilesTruncated({})
+    $sessions.set(rows([0, 3]))
+    renderWithLoadMore(loadMore)
+    expect(loadMore).not.toHaveBeenCalled()
   })
 })
