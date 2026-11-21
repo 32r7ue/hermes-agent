@@ -14,8 +14,13 @@ interface NotificationHost {
 
 const flashingWindows = new WeakSet<BrowserWindow>()
 
-export function requestAttention(window: BrowserWindow | null | undefined): void {
-  if (!window || window.isDestroyed() || window.isFocused() || flashingWindows.has(window)) {
+/** Flash the taskbar entry until the window is focused. Not on macOS: there `flashFrame` bounces
+ *  the Dock icon, which the toast already covers and Benny does not want. */
+export function requestAttention(
+  window: BrowserWindow | null | undefined,
+  platform: NodeJS.Platform = process.platform
+): void {
+  if (platform === 'darwin' || !window || window.isDestroyed() || window.isFocused() || flashingWindows.has(window)) {
     return
   }
 
@@ -127,8 +132,8 @@ export function registerNativeNotifications({
     })
     notifications.retain(notification)
 
-    // The toast is transient; flash the taskbar/dock entry until the window is focused.
-    requestAttention(targetWindow())
+    // The toast is transient; flash the taskbar entry until the window is focused (never the Dock).
+    requestAttention(targetWindow(), platform)
 
     // Peers share the actual outcome, including pending/failed Linux delivery.
     const delivery = Promise.resolve(notification.show()).then(result => result !== false)

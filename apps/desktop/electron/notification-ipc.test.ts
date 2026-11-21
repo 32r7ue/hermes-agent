@@ -156,3 +156,23 @@ it('flashes an unfocused source window until it regains focus, and leaves a focu
   await notify(event, { kind: 'turnDone', sessionId: 'c', title: 'Hermes finished' })
   expect(source.flashFrame).toHaveBeenCalledTimes(2)
 })
+
+it('never bounces the macOS Dock icon for a notification', async () => {
+  const source = windowStub(false)
+  host.fromWebContents.mockReturnValue(source)
+  registerNativeNotifications({ getMainWindow: () => null, focusWindow: vi.fn(), platform: 'darwin' })
+
+  const notify = host.handle.mock.calls[0][1] as (
+    event: IpcMainInvokeEvent,
+    payload: HermesNotification
+  ) => Promise<boolean>
+
+  await notify({ sender: source.webContents } as unknown as IpcMainInvokeEvent, {
+    kind: 'turnDone',
+    sessionId: 'a',
+    title: 'Hermes finished'
+  })
+
+  expect(host.shown).toHaveLength(1)
+  expect(source.flashFrame).not.toHaveBeenCalled()
+})
