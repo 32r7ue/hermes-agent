@@ -3,12 +3,9 @@ import { useStore } from '@nanostores/react'
 import { type ComponentProps, type MouseEvent, type ReactNode, useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 
-import { hudTargetSessionId } from '@/app/hud/handoff'
 import { PANE_TOGGLE_REVEAL_EVENT } from '@/components/pane-shell'
-import { toggleLayoutEditMode } from '@/components/pane-shell/edit-mode'
 import { $narrowOverlayPaneIds } from '@/components/pane-shell/narrow-overlay-state'
-import { $narrowViewport, $paneVisible } from '@/components/pane-shell/tree/store'
-import { resetLayoutTree } from '@/components/pane-shell/tree/store'
+import { $narrowViewport } from '@/components/pane-shell/tree/store'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tip, TipKeybindLabel } from '@/components/ui/tooltip'
@@ -17,10 +14,8 @@ import { useContributions } from '@/contrib/react/use-contributions'
 import { useI18n } from '@/i18n'
 import { triggerHaptic } from '@/lib/haptics'
 import { hostHas } from '@/lib/host-capabilities'
-import { formatModifierToken } from '@/lib/keybinds/combo'
 import { cn } from '@/lib/utils'
 import { recordAction } from '@/store/desktop-metrics'
-import { canUseHud, toggleHud } from '@/store/hud'
 import { $interfaceMode, shownInMode, type Tiered } from '@/store/interface-mode'
 import {
   $fileBrowserOpen,
@@ -28,14 +23,13 @@ import {
   $panesFlipped,
   CHAT_SIDEBAR_PANE_ID,
   FILE_BROWSER_PANE_ID,
-  SESSION_PANEL_PANE_ID,
   toggleLeftSide,
   togglePanesFlipped,
-  toggleRightSide,
-  toggleSessionPanel
+  toggleRightSide
 } from '@/store/layout'
 import { REVIEW_PANE_ID } from '@/store/review'
 import { $unreadSessionCount } from '@/store/session-dot-state'
+import { $sidePanelOpen, toggleSidePanel } from '@/store/side-panel'
 import { $titlebarAppActionsSide, TITLEBAR_FIXED_TOOLS } from '@/store/titlebar-app-actions'
 
 import { appViewForPath, hidesFixedTitlebarClusters, isOverlayView } from '../routes'
@@ -160,7 +154,7 @@ interface SidebarEdge {
 function useSidebarEdges(): { left: SidebarEdge; right: SidebarEdge } {
   const fileBrowserOpen = useStore($fileBrowserOpen)
   const flipped = useStore($panesFlipped)
-  const panelVisible = useStore($paneVisible(SESSION_PANEL_PANE_ID))
+  const panelVisible = useStore($sidePanelOpen)
   const leftSideOpen = useStore($leftSideOpen)
   const narrow = useStore($narrowViewport)
   const overlayPanes = useStore($narrowOverlayPaneIds)
@@ -181,11 +175,10 @@ function useSidebarEdges(): { left: SidebarEdge; right: SidebarEdge } {
     }
   }
 
-  // Unflipped, the right edge is the session panel's column, shown and hidden whole.
   const right =
     narrow || flipped
       ? edge(rightOverlayId, fileBrowserOpen, toggleRightSide)
-      : { open: panelVisible, toggle: toggleSessionPanel }
+      : { open: panelVisible, toggle: toggleSidePanel }
 
   return { left: edge(CHAT_SIDEBAR_PANE_ID, leftSideOpen, toggleLeftSide), right }
 }
@@ -263,8 +256,8 @@ export function TitlebarControls({ leftTools = [], tools = [], onOpenSettings }:
     tour: 'right-pane-toggle'
   }
 
-  // Static system tools — always pinned to the screen's right edge so the
-  // left titlebar stays free for tabs (#107351).
+  // Static system tools — Settings pinned on the right. Layout, HUD, and Swap
+  // sides are intentionally omitted to keep the top menu bar uncluttered.
   const systemTools: TitlebarTool[] = [
     {
       ...TITLEBAR_FIXED_TOOLS.settings,
@@ -275,43 +268,6 @@ export function TitlebarControls({ leftTools = [], tools = [], onOpenSettings }:
       onSelect: () => {
         triggerHaptic('open')
         onOpenSettings()
-      }
-    },
-    {
-      ...TITLEBAR_FIXED_TOOLS.layout,
-      className: 'group/tool',
-      // Hover + held ⌘/Ctrl morphs the glyph into its reset form (see
-      // LayoutGlyph) — the mod-click telegraphs itself before it happens.
-      icon: <LayoutGlyph modHeld={modHeld} />,
-      id: 'layout',
-      label: t.titlebar.layoutEditor,
-      onSelect: event => {
-        if (event?.metaKey || event?.ctrlKey) {
-          triggerHaptic('warning')
-          resetLayoutTree()
-
-          return
-        }
-
-        triggerHaptic('open')
-        toggleLayoutEditMode()
-      },
-      title: t.titlebar.layoutEditorTitle(formatModifierToken('mod'))
-    },
-    {
-      ...TITLEBAR_FIXED_TOOLS.hud,
-      // No `title`: TitlebarToolButton passes `title` to TipKeybindLabel as a
-      // text OVERRIDE, so a long sentence there replaces the short label and
-      // crowds the ⌘⇧H hint off the tooltip. Label only — the hint is appended
-      // from the action registry, same as every other tool here.
-      actionId: 'view.toggleHud',
-      hidden: !canUseHud(),
-      icon: <TitlebarIcon name="comment-discussion" />,
-      id: 'hud',
-      label: t.titlebar.enterHud,
-      onSelect: () => {
-        triggerHaptic('open')
-        toggleHud(hudTargetSessionId())
       }
     }
   ]
@@ -369,7 +325,7 @@ export function TitlebarControls({ leftTools = [], tools = [], onOpenSettings }:
 
   const visibleSystemTools = appActionsSide === 'right' ? systemTools.filter(visibleTool) : []
   const visiblePaneTools = tools.filter(visibleTool)
-  const visibleRightFixedTools = [flipTool, rightSidebarTool].filter(visibleTool)
+  const visibleRightFixedTools = [rightSidebarTool].filter(visibleTool)
 
   return (
     <>

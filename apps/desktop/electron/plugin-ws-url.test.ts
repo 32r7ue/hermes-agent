@@ -20,6 +20,7 @@ test('a plugin dial carries the grant header once and never in its URL', () => {
   expect(dials.headers({ ...details, webContentsId: 8 })).toBeNull()
   // A different path carrying the same nonce gets nothing.
   expect(dials.headers({ ...details, url: url.replace('/kanban/events', '/other/events') })).toBeNull()
+
   // The same nonce and path aimed at another server, scheme or port gets nothing.
   for (const elsewhere of ['ws://evil.example:9', 'wss://127.0.0.1:9', 'ws://127.0.0.1:10', 'ws://localhost:9']) {
     expect(dials.headers({ ...details, url: url.replace('ws://127.0.0.1:9', elsewhere) })).toBeNull()

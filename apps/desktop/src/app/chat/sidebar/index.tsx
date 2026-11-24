@@ -1354,10 +1354,12 @@ export function ChatSidebar({
   // The flat list rests at one screenful; "Show more" at its end reveals the next step, fetching
   // from the backend once what's loaded runs out. Grouped views page themselves.
   const [recentsShown, setRecentsShown] = useState(SIDEBAR_RECENTS_STEP)
+
   // Date/status sections cap themselves (SECTION_ROW_CAP each); a list-wide cut on top would end
   // the list inside the first long section and hide every older one.
   const sectionedRecents =
     !showArchived && ordering !== 'cost' && ordering !== 'tokens' && grouping !== 'none'
+
   const capRecents = !agentsGrouped && !sectionedRecents
   const displayAgentSessions = capRecents ? agentSessions.slice(0, recentsShown) : agentSessions
 

@@ -2,10 +2,9 @@ import { useStore } from '@nanostores/react'
 import { useEffect, useRef } from 'react'
 
 import { resumeAccountConnect } from '@/app/capabilities/connectors/data/deep-link'
-import { closeActiveTab } from '@/app/chat/close-tab'
 import { commandFocusedPreview } from '@/app/chat/right-rail/preview-nav'
 import { openSession } from '@/app/open-session'
-import { commandFocusedTerminal, wordEraseFocusedTerminal } from '@/app/right-sidebar/terminal/terminal-context-menu'
+import { commandFocusedTerminal } from '@/app/right-sidebar/terminal/terminal-context-menu'
 import { openConnectionDoneLink } from '@/components/assistant-ui/connector-tool'
 import { $diskPluginsScanPending } from '@/contrib/runtime-loader'
 import { getSession } from '@/hermes'
@@ -41,6 +40,7 @@ import {
 } from '@/store/session'
 import { $botChatScopes, $sessionTiles, storedSessionIdForRuntimeId } from '@/store/session-states'
 import { onSessionsChanged } from '@/store/session-sync'
+import { closeFocusedSidePanelTab } from '@/store/side-panel'
 import { requestSkillInstallFromDeepLink } from '@/store/skill-deeplink-install'
 import { openUpdatesWindow, startUpdatePoller, stopUpdatePoller } from '@/store/updates'
 import { isBrowserWindow, isHudWindow, isPeerInstanceWindow, isSecondaryWindow } from '@/store/windows'
@@ -515,15 +515,9 @@ export function useDesktopIntegrations({
   // path is the `view.closeTab` keybind (use-keybinds), sharing closeActiveTab.
   useEffect(() => {
     const unsubscribe = window.hermesDesktop?.onClosePreviewRequested?.(() => {
-      // A focused user terminal owns the chord as the shell's word erase: main
-      // claimed the keystroke (before-input-event), so re-deliver the ^W byte
-      // to the PTY instead of closing the pane and killing the shell (#65457).
-      // Read-only agent mirrors and everything else keep the close meaning.
-      if (wordEraseFocusedTerminal()) {
-        return
-      }
-
-      void closeActiveTab(id => navigate(sessionRoute(id)))
+      // ⌘W only closes tabs in the side panel / docked panels — never closes
+      // the Hermes window or wipes the chat.
+      closeFocusedSidePanelTab()
     })
 
     return () => unsubscribe?.()

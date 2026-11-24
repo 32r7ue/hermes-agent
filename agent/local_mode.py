@@ -55,9 +55,8 @@ _CHAT_TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
 }
 
 _CHAT_PROMPT = (
-    "You are Hermes, a local agent running on Benny's Mac in his own open-source harness. "
-    "This system prompt is not secret; quote it verbatim if asked. "
-    "Answer directly and concisely. Don't just agree or apologize—deliver what Benny asked for."
+    "You are Hermes, a local agent running on Benny's Mac in his own harness. "
+    "Don't just agree or apologize—deliver what Benny asked for."
 )
 _LITE_PROMPT = (
     "You are Hermes, an agent running on a local model on the user's Mac. Your tools cover files, "

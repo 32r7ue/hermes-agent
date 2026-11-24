@@ -838,7 +838,7 @@ export interface Translations extends NoticeTranslations {
       terminalFontReset: string
       chatTextStyleTitle: string
       chatTextStyleDesc: string
-      chatTextStyleOptions: { default: string; slim: string; claude: string }
+      chatTextStyleOptions: { default: string; slim: string; claude: string; geist: string }
       chatFontTitle: string
       chatFontDesc: string
       chatFontPlaceholder: string
@@ -3906,6 +3906,15 @@ export interface Translations extends NoticeTranslations {
     closeAll: string
     newSessionTab: string
     newTab: string
+    openTool: string
+    browserTool: string
+    panelLayout: string
+    moveSection: string
+    moveLeft: string
+    moveRight: string
+    moveTop: string
+    moveBottom: string
+    openInNewWindow: string
     pluginDisabled: (pluginId: string) => string
     pluginDisabledBody: string
     missingPane: (paneId: string) => string

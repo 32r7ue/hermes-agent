@@ -464,7 +464,9 @@ def ensure_local_runtime(config: dict, force: bool = False) -> object | None:
             preset_path = _generate_presets(mdir, runtimes_root() / "presets.ini", models_max,
                                             engine_tag=engine.tag)
 
-            sup = LlamaServerSupervisor(engine.binary, mdir, preset_path=preset_path,
+            binary_override = section.get("binary")
+            exe_path = Path(binary_override).expanduser() if binary_override and Path(binary_override).expanduser().is_file() else engine.binary
+            sup = LlamaServerSupervisor(exe_path, mdir, preset_path=preset_path,
                                         models_max=models_max,
                                         port=int(section.get("port", 0)) or None)
             try:

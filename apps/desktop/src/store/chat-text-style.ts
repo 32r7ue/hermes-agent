@@ -9,9 +9,10 @@ const KEY = 'hermes.desktop.chat-text-style.v1'
  * (styles.css). `default` is the theme's face at the theme's weight; `slim`
  * is the same face lighter and at Claude's size; `claude` mirrors Claude
  * Code's transcript: Anthropic Sans (installed locally) at variable weight
- * 360, 15px, line-height 1.4.
+ * 360, 15px, line-height 1.4. `geist` is the same layout in Vercel's Geist:
+ * replies in Geist Serif, the rest in Geist Sans (both bundled, OFL).
  */
-export const CHAT_TEXT_STYLES = ['default', 'slim', 'claude'] as const
+export const CHAT_TEXT_STYLES = ['default', 'slim', 'claude', 'geist'] as const
 export type ChatTextStyle = (typeof CHAT_TEXT_STYLES)[number]
 
 function normalizeChatTextStyle(value: unknown): ChatTextStyle {

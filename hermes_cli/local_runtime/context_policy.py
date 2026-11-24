@@ -13,7 +13,7 @@ from hermes_cli.local_runtime.estimator import (
     HardwareBudget, LayerKind, ModelProfile, PhysicsRefusal, ctx_bytes, footprint_bytes,
     physics_check)
 
-FLOOR = 64 * 1024                     # = target; one internal constant
+FLOOR = 32 * 1024                     # = target; lowered from 64K for 18 GB Mac + Inkling 2 Mini
 _LADDER_GROWTH = 1.5
 _GROW_AT_OCCUPANCY = 0.85             # of the current window, at turn boundary
 SPEED_FLOOR_TOK_S = 6.0               # deepest measured spill bottomed near this

@@ -7,6 +7,7 @@ import { $layoutTree } from '@/components/pane-shell/tree/store'
 import { markRightPanePerf } from '@/debug/right-pane-events'
 import { createRendererLoopPauseController } from '@/lib/renderer-loop-pause'
 import { $paneStates } from '@/store/panes'
+import { $sidePanelMaximized, $sidePanelOpen, $sidePanelZones } from '@/store/side-panel'
 
 import { $terminalTakeover } from '../store'
 
@@ -242,6 +243,9 @@ export function PersistentTerminal({ onAddSelectionToChat }: PersistentTerminalP
     // and file-tree updates are unrelated and used to wake this tracker).
     const unsubscribeLayout = $layoutTree.listen(() => scheduleMeasure('layout-tree'))
     const unsubscribePanes = $paneStates.listen(() => scheduleMeasure('pane-state'))
+    const unsubscribeSideZones = $sidePanelZones.listen(() => scheduleMeasure('side-panel'))
+    const unsubscribeSideOpen = $sidePanelOpen.listen(() => scheduleMeasure('side-panel'))
+    const unsubscribeSideMax = $sidePanelMaximized.listen(() => scheduleMeasure('side-panel'))
 
     const handleResize = () => scheduleMeasure('window-resize')
 
@@ -254,6 +258,9 @@ export function PersistentTerminal({ onAddSelectionToChat }: PersistentTerminalP
       positionObserver?.disconnect()
       unsubscribeLayout()
       unsubscribePanes()
+      unsubscribeSideZones()
+      unsubscribeSideOpen()
+      unsubscribeSideMax()
       window.removeEventListener('resize', handleResize)
       scrollTargets.forEach(target => target.removeEventListener('scroll', handleScroll))
       pauseController?.dispose()

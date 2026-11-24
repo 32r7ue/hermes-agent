@@ -1,29 +1,21 @@
 import { useStore } from '@nanostores/react'
 import { type FC, type ReactNode, useEffect, useState } from 'react'
 
-import { toggleTerminalPane } from '@/app/right-sidebar/terminal/reveal-focus'
+import { SIDE_PANEL_TOOL_DEFS } from '@/app/side-panel/side-panel-host'
 import { Codicon } from '@/components/ui/codicon'
 import { useI18n } from '@/i18n'
+import { useKeybindHint } from '@/lib/keybinds/use-keybind-hint'
 import { cn } from '@/lib/utils'
 import { registerRepoStatusCwd, repoStatusForCwd } from '@/store/coding-status'
-import { dockBelowSessionPanel, setFileBrowserOpen } from '@/store/layout'
-import { openReview } from '@/store/review'
-import { $connection, $currentCwd, $currentUsage } from '@/store/session'
+import { $connection, $currentCwd, $currentUsage, $selectedStoredSessionId, $sessions } from '@/store/session'
+import { $focusedWorkspaceCwd } from '@/store/session-states'
+import { openSidePanelTool } from '@/store/side-panel'
+import { $subagentsBySession } from '@/store/subagents'
 
-// The panel's doors open their tool beneath it, in the same column.
-const openFiles = () => {
-  dockBelowSessionPanel('files')
-  setFileBrowserOpen(true)
-}
+const ToolKeyHint: FC<{ actionId?: string }> = ({ actionId }) => {
+  const hint = useKeybindHint(actionId ?? '')
 
-const openReviewBelow = () => {
-  dockBelowSessionPanel('review')
-  openReview()
-}
-
-const openTerminal = () => {
-  dockBelowSessionPanel('terminal')
-  toggleTerminalPane()
+  return hint ? <span className="shrink-0 text-xs text-(--ui-text-quaternary)">{hint}</span> : null
 }
 
 const baseName = (path: string) =>
@@ -86,16 +78,26 @@ function useRepoName(cwd: string): null | string {
 }
 
 /**
- * The session at a glance, for wide windows: where it runs (machine, folder, repo, branch), how full its
- * context is, what it has changed, and doors to the tools beside it. The right edge's own column: the
- * titlebar's right button and ⌘B show and hide it whole, and its doors stack their tool beneath it.
+ * The right-sidebar launcher (empty state when no tool tab is open): shows
+ * where the session runs (machine, folder, repo, branch), context usage, git
+ * changes, running subagents/background tasks, and buttons to open tools.
+ * Never a tab itself — disappears as soon as a tool opens and returns when the
+ * last tab closes.
  */
 export const SessionInfoPane: FC = () => {
   const { t } = useI18n()
   const s = t.sessionInfo
   const connection = useStore($connection)
-  const cwd = useStore($currentCwd)
+  const focusedWorkspaceCwd = useStore($focusedWorkspaceCwd)
+  const currentCwd = useStore($currentCwd)
+  const selectedSessionId = useStore($selectedStoredSessionId)
+  const sessions = useStore($sessions)
   const usage = useStore($currentUsage)
+  const subagentsBySession = useStore($subagentsBySession)
+
+  const activeSession = selectedSessionId ? sessions.find(item => item.id === selectedSessionId) : undefined
+  const cwd = focusedWorkspaceCwd?.trim() || currentCwd?.trim() || activeSession?.cwd?.trim() || ''
+
   const status = useStore(repoStatusForCwd(cwd))
   const repo = useRepoName(cwd)
 
@@ -107,12 +109,19 @@ export const SessionInfoPane: FC = () => {
   const percent = usage.context_max ? Math.round(usage.context_percent ?? 0) : null
   const branch = status ? (status.detached ? t.statusStack.coding.detached : status.branch) : null
 
+  const allSubagents = Object.values(subagentsBySession)
+    .flat()
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+
+  const activeSubagents = allSubagents.filter(item => item.status === 'running' || item.status === 'queued')
+  const finishedSubagents = allSubagents.filter(item => item.status !== 'running' && item.status !== 'queued')
+
   return (
     <div className="h-full overflow-y-auto" data-slot="session-info">
       <Section title={s.environment}>
         <Row icon={remote ? 'remote' : 'device-desktop'}>{machine}</Row>
         {folder && (
-          <Row icon="folder" onClick={openFiles} title={cwd}>
+          <Row icon="folder" onClick={() => openSidePanelTool('files')} title={cwd}>
             {folder}
           </Row>
         )}
@@ -143,7 +152,17 @@ export const SessionInfoPane: FC = () => {
 
       {status && (status.added > 0 || status.removed > 0 || status.changed > 0) && (
         <Section title={s.changes}>
-          <Row icon="diff" onClick={openReviewBelow}>
+          <Row
+            icon="diff"
+            onClick={() => openSidePanelTool('review')}
+            trailing={
+              status.changed > 0 ? (
+                <span className="shrink-0 text-xs text-(--ui-text-tertiary) tabular-nums">
+                  {status.changed} {status.changed === 1 ? 'file' : 'files'}
+                </span>
+              ) : undefined
+            }
+          >
             <span className="text-(--ui-green) tabular-nums">+{status.added.toLocaleString()}</span>{' '}
             <span className="text-(--ui-red) tabular-nums">−{status.removed.toLocaleString()}</span>
           </Row>
@@ -151,16 +170,80 @@ export const SessionInfoPane: FC = () => {
       )}
 
       <Section>
-        <Row icon="terminal" onClick={openTerminal}>
-          {t.sidebar.terminal}
-        </Row>
-        <Row icon="files" onClick={openFiles}>
-          {t.sidebar.files}
-        </Row>
-        <Row icon="git-compare" onClick={openReviewBelow}>
-          {t.sidebar.review}
-        </Row>
+        {SIDE_PANEL_TOOL_DEFS.filter(tool => tool.kind !== 'background-tasks' || allSubagents.length > 0).map(tool => (
+          <Row
+            icon={tool.icon}
+            key={tool.kind}
+            onClick={() => openSidePanelTool(tool.kind)}
+            trailing={
+              tool.kind === 'background-tasks' && activeSubagents.length > 0 ? (
+                <span className="rounded-full bg-(--ui-blue)/15 px-1.5 py-0.5 text-[0.65rem] font-medium text-(--ui-blue) tabular-nums">
+                  {activeSubagents.length}
+                </span>
+              ) : (
+                <ToolKeyHint actionId={tool.keybind} />
+              )
+            }
+          >
+            {tool.label}
+          </Row>
+        ))}
       </Section>
+
+      {activeSubagents.length > 0 && (
+        <Section>
+          <div className="flex items-center gap-2 px-2 pb-1 text-xs font-medium text-(--ui-text-secondary)">
+            <span>Subagents</span>
+            <span className="rounded-full bg-(--ui-bg-tertiary) px-1.5 py-0.5 text-[0.65rem] text-(--ui-text-tertiary) tabular-nums">
+              {activeSubagents.length}
+            </span>
+          </div>
+          {activeSubagents.slice(0, 4).map(item => (
+            <Row
+              icon="loading"
+              key={item.id}
+              onClick={() => openSidePanelTool('background-tasks')}
+              trailing={
+                <span className="flex items-center gap-1 text-[0.7rem] text-(--ui-blue) tabular-nums">
+                  <span className="size-1.5 animate-pulse rounded-full bg-(--ui-blue)" />
+                  running
+                </span>
+              }
+            >
+              {item.goal || 'Subagent'}
+            </Row>
+          ))}
+        </Section>
+      )}
+
+      {finishedSubagents.length > 0 && (
+        <Section>
+          <div className="flex items-center gap-2 px-2 pb-1 text-xs font-medium text-(--ui-text-secondary)">
+            <span>Background Tasks</span>
+            <span className="rounded-full bg-(--ui-bg-tertiary) px-1.5 py-0.5 text-[0.65rem] text-(--ui-text-tertiary) tabular-nums">
+              {finishedSubagents.length}
+            </span>
+          </div>
+          {finishedSubagents.slice(0, 4).map(item => (
+            <Row
+              icon={item.status === 'failed' || item.status === 'interrupted' ? 'error' : 'pass'}
+              key={item.id}
+              onClick={() => openSidePanelTool('background-tasks')}
+            >
+              {item.goal || 'Background task'}
+            </Row>
+          ))}
+          {finishedSubagents.length > 4 && (
+            <button
+              className="px-2 py-1 text-left text-xs text-(--ui-text-tertiary) hover:text-foreground"
+              onClick={() => openSidePanelTool('background-tasks')}
+              type="button"
+            >
+              See all
+            </button>
+          )}
+        </Section>
+      )}
     </div>
   )
 }

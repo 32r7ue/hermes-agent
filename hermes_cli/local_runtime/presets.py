@@ -306,6 +306,15 @@ def preset_for_model(gguf: Path, budget: HardwareBudget,
             keys["spec-type"] = "draft-dspark"
             # Unsloth's measured cliff: acceptance 83% at 2-3 drafts, collapses at 4.
             keys["spec-draft-n-max"] = "3"
+    if "inkling" in model_id.lower() and budget.uma and budget.total_device_bytes <= 20 * (1 << 30):
+        keys["ctx-size"] = "32768"
+        keys["n-gpu-layers"] = "99"
+        keys["parallel"] = "1"
+        keys["batch-size"] = "512"
+        keys["ubatch-size"] = "256"
+        keys["load-mode"] = "dio"
+        keys["lora"] = "/Users/benny/inkling-abliteration/Inkling-2-Mini-Uncensored-LoRA.gguf"
+        decision = replace(decision, window=32768)
     return PresetEntry(model_id=model_id, window=decision.window,
                        spilled=decision.spilled, keys=keys)
 

@@ -69,10 +69,17 @@ export function closeWorkspaceTab(loadSessionIntoWorkspace?: (storedSessionId: s
  * Steps 2-4 follow the same focused zone ⌘1…⌘9 indexes, so a second chat zone
  * with its own tab strip closes ITS tab instead of main's.
  */
+import { closeFocusedSidePanelTab } from '@/store/side-panel'
+
 export function closeActiveTab(loadSessionIntoWorkspace?: (storedSessionId: string) => void): boolean {
   // A remote bot screen borrows the terminal's keyboard ownership marker so bare keys reach it; ⌘W
   // there belongs to the remote desktop, never to a local terminal tab or the session tab behind it.
   if (isFocusWithin('[data-remote-screen]')) {
+    return true
+  }
+
+  // Side-panel and docked panels own ⌘W when focused: closes the active tab cleanly.
+  if (closeFocusedSidePanelTab()) {
     return true
   }
 

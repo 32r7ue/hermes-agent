@@ -293,12 +293,15 @@ function ModelResults({
     if (!q) {
       return { models: [...models], bestScore: 0 }
     }
+
     if (foldIncludes(provider.name, q) || foldIncludes(provider.slug, q)) {
       return { models: [...models], bestScore: Number.POSITIVE_INFINITY }
     }
+
     const ranked = fuzzyRank(models, q, modelSearchText)
     const unavailable = new Set(provider.unavailable_models ?? [])
     const bestSelectable = ranked.find(r => !unavailable.has(r.item))
+
     return {
       models: ranked.map(r => r.item),
       bestScore: bestSelectable?.score ?? ranked[0]?.score ?? Number.NEGATIVE_INFINITY
@@ -326,6 +329,7 @@ function ModelResults({
   const groups = configured
     .map(provider => {
       const ranked = rankModels(provider, provider.models ?? [])
+
       return {
         provider,
         // Empty query: the backend's curated order, verbatim (it already leads a
@@ -355,14 +359,18 @@ function ModelResults({
   // First selectable item in visual order: snap cmdk's keyboard selection here
   // whenever the query changes so pressing Enter always picks the top match.
   let firstSelectable = ''
+
   for (const { provider, models } of groups) {
     const unavailable = new Set(provider.unavailable_models ?? [])
     const first = models.find(m => !unavailable.has(m))
+
     if (first) {
       firstSelectable = `${provider.slug}:${first}`
+
       break
     }
   }
+
   if (!firstSelectable && customSlug && customProviders.length > 0) {
     firstSelectable = `custom:${customProviders[0].slug}:${customSlug}`
   }

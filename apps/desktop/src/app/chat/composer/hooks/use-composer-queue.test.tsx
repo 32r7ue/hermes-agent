@@ -635,8 +635,10 @@ describe('useComposerQueue scope', () => {
     ])
     clearNotifications()
     const replies = [deferred(), deferred(), deferred()]
+
     const replaceServerQueued = vi.fn((_admissionId: string, _text: string, _submissionId: string) =>
       replies[replaceServerQueued.mock.calls.length - 1]!.promise)
+
     const { draftRef, hook } = renderQueueHook({ busy: true, draft: 'my draft', replaceServerQueued })
 
     act(() => hook.result.current.beginQueuedEdit(getQueuedPrompts(SESSION_KEY)[0]!))
@@ -672,9 +674,11 @@ describe('useComposerQueue scope', () => {
     reconcilePendingSubmissions(SESSION_KEY, [
       { admission_id: 'adm-1', status: 'queued', user: 'old words', controls: ['steer', 'replace'] }
     ])
+
     const replaceServerQueued = vi.fn(async (_admissionId: string, _text: string, _submissionId: string) => {
       throw new Error('socket closed')
     })
+
     const { draftRef, hook } = renderQueueHook({ busy: true, replaceServerQueued })
 
     act(() => hook.result.current.beginQueuedEdit(getQueuedPrompts(SESSION_KEY)[0]!))

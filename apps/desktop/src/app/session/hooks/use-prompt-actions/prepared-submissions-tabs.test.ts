@@ -170,6 +170,7 @@ test('an entry read while another tab retires it is hidden even when its key alr
 test('an entry read while another tab retires it is hidden when its tombstone key appears after the key list', async () => {
   // This time the key held no tombstone at all when the read listed the keys.
   const stored = new Map([[ENTRY + 'a', JSON.stringify(entry('a', 'a'))]])
+
   const onGet = (key: string) => { if (key === ENTRY + 'a') { stored.set(SPENT + 'a', 'a') } }
 
   expect(await readWhile(stored, { onGet })).toBeUndefined()

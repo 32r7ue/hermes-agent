@@ -422,6 +422,7 @@ describe('a file edit among ordinary activity', () => {
     expect(summary.textContent).toContain('−1')
 
     fireEvent.click(summary.querySelector('button[aria-expanded]')!)
+
     const editRow = () =>
       [...container.querySelectorAll('[data-tool-row]')].find(row => row.textContent?.includes('wiring.tsx'))
 

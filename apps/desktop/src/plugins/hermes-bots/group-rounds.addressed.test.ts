@@ -163,6 +163,7 @@ describe('an addressed member that (pass)ed', () => {
   it('@everyone: a member that answered is not nudged or flagged for passing on a teammate reply later', async () => {
     // Each member answers its first turn, then passes on the other's reply.
     const turns = new Map<string, number>()
+
     const room = await loadRoom({
       turn: ({ profile }) => {
         const count = (turns.get(String(profile)) ?? 0) + 1

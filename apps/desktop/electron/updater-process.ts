@@ -189,6 +189,7 @@ export function launcherInstallRoot(launcher: string): Promise<string | undefine
   const cached = launcherInstallRoots.get(launcher)
 
   if (cached) {return cached}
+
   const flight = launcherInstallDirectoryAsync(launcher).then(root => {
     if (root === null) {
       launcherInstallRoots.delete(launcher)

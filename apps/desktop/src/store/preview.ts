@@ -1029,6 +1029,13 @@ export function toggleBrowserTab() {
   openBrowserTab()
 }
 
+/** The layout pane of the Browser tab ⌘⇧L would show, if one exists. */
+export function browserPaneId(): null | string {
+  const tab = browserTabFor($visiblePreviewTabs.get())
+
+  return tab ? `${PREVIEW_TILE_PREFIX}:${tab.id}` : null
+}
+
 /** Another Browser, always — the strip's "+". */
 export function newBrowserTab() {
   const id = mintBrowserTabId()

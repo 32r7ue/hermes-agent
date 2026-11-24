@@ -39,7 +39,7 @@ _MARGIN_FRACTION = 0.09
 _LAUNCH_HEADROOM = 1 << 30
 # UMA headroom: on unified-memory machines the model shares physical memory with the OS and every
 # app, so budget from RAM minus this fraction.
-_UMA_HEADROOM_FRACTION = 0.20
+_UMA_HEADROOM_FRACTION = 0.15  # tuned for iogpu.wired_limit_mb=15360 on 18 GB Mac
 # llama-server's prompt cache: its own default size, and the smallest worth keeping. The cache holds
 # conversations the server switched away from (a background job, an earlier chat); without it each
 # switch re-reads the whole conversation.

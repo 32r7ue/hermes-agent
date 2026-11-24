@@ -14,7 +14,7 @@ import { useChangeWorkspaceItem } from '@/app/shell/hooks/use-change-workspace'
 import { useCompactConversation } from '@/app/shell/hooks/use-compact-conversation'
 import { useContextBreakdown } from '@/app/shell/hooks/use-context-breakdown'
 import { useFocusedSessionRow } from '@/app/shell/hooks/use-focused-session-row'
-import { ProviderUsageIndicator } from '@/app/shell/provider-usage-indicator'
+import { isLocalProvider, ProviderUsageIndicator } from '@/app/shell/provider-usage-indicator'
 import { useSystemResourcesStatusbarItem } from '@/app/shell/system-resources-statusbar'
 import { $paneVisible } from '@/components/pane-shell/tree/store'
 import { Badge } from '@/components/ui/badge'
@@ -736,6 +736,7 @@ export function useStatusbarItems({
         variant: 'menu'
       },
       {
+        hidden: isLocalProvider(focusedProvider),
         id: 'provider-usage',
         render: () => <ProviderUsageIndicator provider={focusedProvider} request={requestGateway} sessionId={usageSessionId} />
       },
@@ -750,6 +751,7 @@ export function useStatusbarItems({
         variant: 'text'
       },
       {
+        hidden: !isLocalProvider(focusedProvider),
         icon: <Zap className="size-3" />,
         id: 'tokens-per-second',
         label: tokensPerSecond || '—',
@@ -788,7 +790,10 @@ export function useStatusbarItems({
         toggleLabel: planGauge ? copy.togglePlanUsage : undefined,
         variant: 'link'
       },
-      systemResourcesItem,
+      {
+        ...systemResourcesItem,
+        hidden: systemResourcesItem.hidden || !isLocalProvider(focusedProvider)
+      },
       {
         ...approvalModeItem,
         hidden: gatewayState !== 'open',

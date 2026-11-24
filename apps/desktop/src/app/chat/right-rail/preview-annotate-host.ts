@@ -62,6 +62,7 @@ export function createPreviewAnnotateGuest(webview: PreviewDriveGuest | null): n
         '({ width: window.innerWidth, height: window.innerHeight })',
         signal
       )) as { height: number; width: number }
+
       signal?.throwIfAborted()
       const dataUrl = await window.hermesDesktop.capturePreview?.({ rect, viewport, webContentsId })
 

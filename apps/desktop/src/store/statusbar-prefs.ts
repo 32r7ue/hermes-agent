@@ -6,8 +6,8 @@ import { modeBound } from '@/store/interface-mode'
 // hidden, so every existing store carries an `approval-mode` the user never
 // chose. v2 seeds from v1 minus that id: other customizations survive, the
 // pill appears once on update, and hiding it again persists here.
-const STATUSBAR_HIDDEN_STORAGE_KEY = 'hermes.desktop.statusbarHidden.v3'
-const LEGACY_HIDDEN_STORAGE_KEY = 'hermes.desktop.statusbarHidden'
+const STATUSBAR_HIDDEN_STORAGE_KEY = 'hermes.desktop.statusbarHidden.v4'
+const LEGACY_HIDDEN_STORAGE_KEY = 'hermes.desktop.statusbarHidden.v3'
 // v1 (`hermes.desktop.statusbarVisible`) shipped a stretch where the bar was
 // opt-in, so many stores hold a `false` the user never chose. v2 is read fresh
 // and the v1 key is deliberately NOT seeded from: every existing install comes
@@ -43,9 +43,7 @@ export const STATUSBAR_HIDDEN_BY_DEFAULT: readonly string[] = [
   'cron',
   'running-timer',
   'session-timer',
-  'system-resources',
   'terminal',
-  'tokens-per-second',
   'webhooks'
 ]
 
@@ -65,7 +63,9 @@ function legacyHiddenSeed(): string[] {
   }
 
   try {
-    return sanitizeHiddenIds(JSON.parse(raw)).filter(id => id !== 'approval-mode' && id !== 'context-usage')
+    return sanitizeHiddenIds(JSON.parse(raw)).filter(
+      id => id !== 'approval-mode' && id !== 'context-usage' && id !== 'system-resources' && id !== 'tokens-per-second'
+    )
   } catch {
     return [...STATUSBAR_HIDDEN_BY_DEFAULT]
   }

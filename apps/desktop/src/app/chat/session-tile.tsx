@@ -72,6 +72,7 @@ import {
   type SessionTile,
   sessionTileDelegate
 } from '@/store/session-states'
+import { canOpenSessionWindow, openSessionInNewWindow } from '@/store/windows'
 import type { SessionInfo } from '@/types/hermes'
 
 import type { SessionDragPayload } from './composer/inline-refs'
@@ -1015,6 +1016,8 @@ export const watchSessionTiles = paneMirror<SessionTile>({
       <SessionDraftTitle scope={storedSessionId} />
     ),
   render: storedSessionId => <SessionTilePane storedSessionId={storedSessionId} />,
+  popOut: storedSessionId =>
+    canOpenSessionWindow() ? () => void openSessionInNewWindow(storedSessionId) : undefined,
   tabWrap: (storedSessionId, tab) => <SessionTabMenu {...tileTabTarget(storedSessionId)}>{tab}</SessionTabMenu>,
   tabActions: storedSessionId => props => <SessionTabActionsMenu {...props} {...tileTabTarget(storedSessionId)} />,
   // A tile's tab drags like a sidebar row — stack / split / drop-to-link — with

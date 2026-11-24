@@ -82,6 +82,7 @@ export async function submitCommandResult({
       }
 
       resumed = true
+
       const { session_id } = await requestForOwnedSession<{ session_id: string }>(
         ownerSessionId,
         ambient(),

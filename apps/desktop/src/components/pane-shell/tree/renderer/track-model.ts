@@ -13,7 +13,7 @@ import type { MenuKit } from '@/components/ui/actions-menu'
 import type { Contribution } from '@/contrib/types'
 
 import type { GroupNode, LayoutNode } from '../model'
-import { allPaneIds } from '../model'
+import { allPaneIds, containsSidePanelGroup } from '../model'
 
 import type { FloatingAnchor } from './floating-rect'
 
@@ -123,6 +123,9 @@ interface PaneChrome extends PaneSizing {
    *  kind (a file peek) leaves it absent and the strip falls back to the chat
    *  "+" if the zone holds session tabs. */
   newTab?: () => void
+  /** Open this pane in its own OS window (Browser tab, session tile) — the
+   *  zone Move menu's "Open in new window". Absent = no window form exists. */
+  popOut?: () => void
   /** This pane's TAB LABEL, when it changes faster than the contribution
    *  should. A session pane whose draft is being typed renames on every
    *  debounce beat; re-registering `title` that often would re-render the
@@ -309,8 +312,21 @@ export function fixedTrackSize(node: LayoutNode, axis: 'row' | 'column', ctx: Tr
     return sizes.length === 1 ? sizes[0] : `calc(${sizes.join(' + ')})`
   }
 
-  // Across the axis a flex child just stretches; the fixed ones set the size.
+  // Across the axis a flex child just stretches; the fixed ones set the size —
+  // unless a child carries MAIN. The chat is flex-at-heart (same rule as a
+  // zone above): a row of [chat | tools] moved over a bottom panel must not
+  // shrink to the stacked terminal's 20vh.
+  if (visible.some((child, i) => sizes[i] === null && subtreeHostsMain(child, ctx))) {
+    return null
+  }
+
   return cssMax(sizes) ?? null
+}
+
+function subtreeHostsMain(node: LayoutNode, ctx: TrackContext): boolean {
+  return node.type === 'group'
+    ? node.panes.some(id => paneChrome(ctx.paneFor(id)).placement === 'main')
+    : node.children.some(child => subtreeHostsMain(child, ctx))
 }
 
 /**
@@ -327,6 +343,13 @@ export function fixedTrackSize(node: LayoutNode, axis: 'row' | 'column', ctx: Tr
  * collapse and still hand their space to their neighbors.
  */
 export function subtreeGone(node: LayoutNode, ctx: TrackContext): boolean {
+  // The side-panel zone stays mounted when all its tool tabs are closed so it
+  // renders the empty-state launcher instead of vanishing; ⌘B hides it via the
+  // side-collapse gate (`$collapsedTreeSides`).
+  if (containsSidePanelGroup(node)) {
+    return false
+  }
+
   const ids = allPaneIds(node)
 
   if (ids.length === 0 || !ids.every(ctx.paneGone)) {

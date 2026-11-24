@@ -60,6 +60,7 @@ import {
 import type { DropPosition, GroupNode } from '../model'
 import {
   $dropHint,
+  $emptyZoneLauncher,
   $hiddenTreePanes,
   $narrowViewport,
   $newSessionTabAction,
@@ -105,6 +106,7 @@ import { tabStripVisibleForZone } from './strip-visibility'
 import { useActiveTabVisible } from './tab-strip-scroll'
 import { paneChrome } from './track-model'
 import { useZoneHeaderLayout } from './zone-header-layout'
+import { ZoneAddMenu, ZoneMoveMenu, ZoneToolList } from './zone-tools'
 
 /** Right-click zone menu: the tab verbs (close this / others / to the right /
  *  all) plus the strip's own chrome toggles. Same items and icons as a session
@@ -462,13 +464,21 @@ export function TreeGroup({
 
   const active = paneFor(activeId)
   const isEmpty = shown.length === 0
+  const emptyZoneLauncher = useStore($emptyZoneLauncher)
   const sidebarGroup = !node.panes.some(id => id === 'workspace' || paneChrome(paneFor(id)).placement === 'main')
 
+  // A TOOL zone (side panel): no chat in it, no standing chrome (sessions /
+  // Bots). Browser and file tabs count as tools. Its "+" opens any tool here
+  // and its header moves the active tab to another edge.
+  const toolZone = !node.panes.some(isSessionStripPane) && !shown.some(id => paneChrome(paneFor(id)).hideOnly)
+
+  // Tool tabs take their own row under the window controls, like a sidebar's:
+  // squeezed into the titlebar band beside them only the active tab fit.
   const { compactTabs, tabStripHeight, tabsBelowControls, tabsInTitlebar, titlebarHeight } = useZoneHeaderLayout({
     measuredBelowControls,
     narrow,
     shown,
-    sidebarGroup,
+    sidebarGroup: sidebarGroup || toolZone,
     topEdge
   })
 
@@ -796,7 +806,16 @@ export function TreeGroup({
                 titlebar={tabsInTitlebar}
                 trailing={
                   <>
-                    {minimizable && (
+                    {/* Tool zones keep "+" and Move OUT of the scrolling tab list:
+                      a crowded strip (the titlebar band is narrow) scrolled
+                      the launcher out of reach. */}
+                    {toolZone && !node.minimized && (
+                      <>
+                        <ZoneAddMenu groupId={node.id} newTab={newTab} />
+                        <ZoneMoveMenu groupId={node.id} paneId={activeId} popOut={paneChrome(active).popOut} />
+                      </>
+                    )}
+                    {minimizable && !toolZone && (
                       <button
                         aria-label={node.minimized ? t.zones.restore : minimizeLabel}
                         className="mx-1 grid size-5 shrink-0 place-items-center self-center [-webkit-app-region:no-drag] rounded-md text-(--ui-text-tertiary) opacity-0 transition-opacity hover:bg-(--ui-control-hover-background) hover:text-foreground focus-visible:opacity-100 group-hover/pane-header:opacity-100"
@@ -927,7 +946,7 @@ export function TreeGroup({
                 app-registered action). The pointerdown focuses this zone
                 first, so the tab lands in THIS strip. Hidden when the active
                 pane is one of a kind and the zone holds no session tabs. */}
-                {newTab && !node.minimized && (
+                {!toolZone && newTab && !node.minimized && (
                   <span
                     className="flex shrink-0 items-center [-webkit-app-region:no-drag]"
                     // The action docks into the FOCUSED chat zone; clicking a
@@ -1004,10 +1023,19 @@ export function TreeGroup({
             />
           ))}
           {isEmpty ? (
-            <div className="grid h-full place-items-center">
-              {/* Same decode primitive as the CONNECTING boot overlay. */}
-              <DecodeText className="text-(--ui-text-quaternary)" cursor prefix={1} text="HERMES" />
-            </div>
+            toolZone && emptyZoneLauncher ? (
+              (emptyZoneLauncher(node.id) as ReactNode)
+            ) : (
+              <ZoneToolList
+                fallback={
+                  <div className="grid h-full place-items-center">
+                    {/* Same decode primitive as the CONNECTING boot overlay. */}
+                    <DecodeText className="text-(--ui-text-quaternary)" cursor prefix={1} text="HERMES" />
+                  </div>
+                }
+                groupId={node.id}
+              />
+            )
           ) : (
             inlinePanes.map(paneId => {
               const pane = paneFor(paneId)

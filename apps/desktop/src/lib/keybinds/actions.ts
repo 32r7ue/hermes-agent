@@ -174,7 +174,7 @@ export const KEYBIND_ACTIONS: readonly KeybindActionMeta[] = [
   // hijacked normal typing — pressing uppercase N outside an input (or via an
   // IME) created a new session unexpectedly.
   hostAction('session.new', 'session', ['mod+n'], { mac: 'mod+ctrl+n', other: 'alt+n' }),
-  hostAction('session.newTab', 'session', ['mod+t'], { mac: 'mod+ctrl+t', other: 'alt+t' }),
+  { id: 'session.newTab', category: 'session', defaults: [] },
   hostAction('session.newWindow', 'session', ['mod+shift+n'], { mac: 'mod+ctrl+shift+n', other: 'alt+shift+n' }),
   // ⌃Tab / ⌃⇧Tab — the universal tab-cycle chord. Literally Control, not Cmd
   // (macOS reserves Cmd+Tab for app switching); see `ctrl` in combo.ts.
@@ -234,7 +234,7 @@ export const KEYBIND_ACTIONS: readonly KeybindActionMeta[] = [
   { id: 'view.toggleSimpleMode', category: 'view', defaults: [] },
   // ⌘G — "g" for git; the review pane is the source-control view.
   { id: 'view.toggleReview', category: 'view', defaults: ['mod+g'] },
-  { id: 'view.showFiles', category: 'view', defaults: [] },
+  { id: 'view.showFiles', category: 'view', defaults: ['mod+shift+f'] },
   // ⌘⇧L — "L" for location, the address-bar chord every browser shares. Plain
   // ⌘L is the terminal's selection shortcut, hence the shift.
   { id: 'view.showBrowser', category: 'view', defaults: ['mod+shift+l'] },
@@ -280,7 +280,14 @@ export const KEYBIND_ACTIONS: readonly KeybindActionMeta[] = [
   { id: 'view.findNext', category: 'view', defaults: [] },
   { id: 'view.findPrevious', category: 'view', defaults: [] },
   { id: 'appearance.toggleMode', category: 'view', defaults: ['shift+x'] },
-  { id: 'keybinds.openPanel', category: 'view', defaults: ['mod+/'] }
+  { id: 'keybinds.openPanel', category: 'view', defaults: ['mod+/'] },
+  {
+    id: 'local.unload',
+    category: 'view',
+    defaults: ['mod+shift+u'],
+    editableTargetPolicy: 'modified',
+    label: 'Unload local model'
+  }
 ]
 
 export const KEYBIND_ACTION_IDS: readonly string[] = KEYBIND_ACTIONS.map(action => action.id)

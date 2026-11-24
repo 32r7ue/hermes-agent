@@ -71,7 +71,9 @@ describe('TreeGroup', () => {
   // handle OUTSIDE the scrolling tablist. When the tabs instead drop below the
   // window controls, the free band above them stays the (flexible) handle.
   describe('top-edge window drag handle', () => {
-    const paneIds = ['terminal', 'terminal-2', 'terminal-3', 'terminal-4', 'terminal-5']
+    // A CHAT strip: tool zones (no workspace/session tab) always put their
+    // tabs on their own row under the controls.
+    const paneIds = ['terminal', 'workspace', 'terminal-3', 'terminal-4', 'terminal-5']
 
     function mountCrowdedStrip(titlebarWidth: number, placement = 'main') {
       const disposers = paneIds.map(id =>

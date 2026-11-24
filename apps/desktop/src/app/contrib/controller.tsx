@@ -12,20 +12,22 @@ import { NextStepAsk } from '@/components/assistant-ui/next-step-ask'
 import { IdleMount } from '@/components/idle-mount'
 import { $layoutEditMode, toggleLayoutEditMode } from '@/components/pane-shell/edit-mode'
 import { allPaneIds } from '@/components/pane-shell/tree/model'
+import { applyLayoutPreset } from '@/components/pane-shell/tree/presets'
 import { LayoutTreeRoot } from '@/components/pane-shell/tree/renderer'
 import {
   $layoutTree,
   bindPaneVisibility,
-  bindToolPaneCollapse,
   declareDefaultTree,
   dismissTreePane,
   hydrateContributedPanes,
   isPaneVisible,
   markCollapsePane,
   paneRootSide,
+  registerEmptyZoneLauncher,
   registerLayoutResetHandler,
   registerPaneCloser,
   registerPaneOpener,
+  registerZoneTool,
   removeTreePane,
   resetLayoutTree,
   revealTreePane,
@@ -54,26 +56,26 @@ import {
   Zap
 } from '@/lib/icons'
 import { type KeybindContribution, KEYBINDS_AREA } from '@/lib/keybinds/actions'
+import { readKey, writeKey } from '@/lib/storage'
 import { TRANSCRIPT_DIRECTIVE_AREA, type TranscriptDirectiveContribution } from '@/lib/transcript-directives'
 import { setYoloEnabled } from '@/lib/yolo-session'
 import { $connectionsRegistry } from '@/store/connection-registry-state'
 import { watchDeadSessionPrune } from '@/store/dead-session-prune'
-import { $interfaceMode, $showsAdvancedChrome, setModeContext, toggleSimpleMode } from '@/store/interface-mode'
+import { $interfaceMode, setModeContext, toggleSimpleMode } from '@/store/interface-mode'
 import {
+  $backgroundTasksOpen,
   $fileBrowserOpen,
-  $sessionPanelOpen,
   $sidebarOpen,
-  FILE_BROWSER_DEFAULT_WIDTH,
-  FILE_BROWSER_MAX_WIDTH,
-  FILE_BROWSER_MIN_WIDTH,
+  BACKGROUND_TASKS_PANE_ID,
   fileBrowserSide,
-  SESSION_PANEL_PANE_ID,
+  setBackgroundTasksOpen,
   setFileBrowserOpen,
   setSidebarOpen,
   SIDEBAR_DEFAULT_WIDTH,
   SIDEBAR_MAX_WIDTH,
   sidebarSide
 } from '@/store/layout'
+import { browserPaneId, openBrowserTab } from '@/store/preview'
 import { $profiles } from '@/store/profile'
 import { $profileRailVisible } from '@/store/profile-rail-prefs'
 import { runExportProfileFlow, runImportProfileFlow } from '@/store/profile-share'
@@ -82,8 +84,7 @@ import {
   $reviewScopeCwd,
   $reviewScopeTarget,
   closeReview,
-  openReview,
-  REVIEW_PANE_ID
+  openReview
 } from '@/store/review'
 import {
   $cronSessions,
@@ -99,11 +100,11 @@ import { watchSessionPins } from '@/store/session-pin-sync'
 import { $botChatScopes } from '@/store/session-states'
 import { watchUnreadWriteGuard } from '@/store/session-unread-remote'
 import { $statusbarVisible } from '@/store/statusbar-prefs'
-import { isBrowserWindow, isHudWindow } from '@/store/windows'
+import { $subagentsBySession } from '@/store/subagents'
+import { isBrowserWindow, isHudWindow, isSecondaryWindow } from '@/store/windows'
 
 import { BrowserPopoutShell } from '../chat/browser-popout-shell'
 import type { SessionDragPayload } from '../chat/composer/inline-refs'
-import { watchPreviewTiles } from '../chat/preview-tile'
 import { watchRouteTiles } from '../chat/route-tile'
 import { startSessionDrag } from '../chat/session-drag'
 import {
@@ -123,10 +124,11 @@ import { terminalPaletteToggle } from '../right-sidebar/terminal/reveal-focus'
 import { $workspaceIsPage, WORKSPACE_PAGE_HEADER_AREA } from '../routes'
 import { Butterbar } from '../shell/butterbar'
 import { TermsButterbar } from '../shell/terms-butterbar'
+import { SidePanelShell } from '../side-panel/side-panel-host'
 
-import { BASIC_TREE, DEFAULT_TREE, registerLayoutPresets } from './layout-presets'
+import { registerLayoutPresets, SIDE_PANEL_TREE } from './layout-presets'
 import { bindLayoutSides } from './layout-sides'
-import { FilesPane, LogsPane, ReviewPaneContent } from './panes'
+import { LogsPane } from './panes'
 import { PluginPreviewConsentDialog } from './plugin-preview-consent-dialog'
 import { ContribWiring, WiredPane } from './wiring'
 import { WorkspacePageHeaderHostContext } from './workspace-page-header'
@@ -236,81 +238,6 @@ registry.registerMany([
       uncloseable: true
     },
     render: renderWorkspacePane
-  },
-  {
-    id: 'terminal',
-    area: 'panes',
-    // Register-time sample; the tab renders `tabTitle` (see sessions).
-    title: translateNow('sidebar.terminal'),
-    // height sizes the fixed track (a single-pane zone declaring a height is a
-    // fixed track — the preset weight is moot): a short deck, not a third of
-    // the window.
-    //
-    // NO minHeight: a tool panel drags all the way down to its collapsed
-    // header (the sash floors it at COLLAPSED_ZONE_PX and folds the zone to
-    // its rail there). A real floor left a sliver of unusable terminal.
-    data: {
-      placement: 'bottom',
-      height: '20vh',
-      maxHeight: '80vh',
-      lifecycleKeepAlive: true,
-      tabTitle: () => <LocalizedTabTitle select={t => t.sidebar.terminal} />,
-      tabTitleText: () => translateNow('sidebar.terminal')
-    },
-    render: () => <WiredPane part="terminal" />
-  },
-  {
-    id: 'files',
-    area: 'panes',
-    title: translateNow('sidebar.files'),
-    // dock: re-adoption target after a stale dismissal (see sessions).
-    data: {
-      placement: 'right',
-      collapsible: true,
-      dock: { pane: 'workspace', pos: 'right' },
-      revealAliases: ['file-browser'],
-      width: FILE_BROWSER_DEFAULT_WIDTH,
-      minWidth: FILE_BROWSER_MIN_WIDTH,
-      maxWidth: FILE_BROWSER_MAX_WIDTH,
-      tabTitle: () => <LocalizedTabTitle select={t => t.sidebar.files} />,
-      tabTitleText: () => translateNow('sidebar.files')
-    },
-    render: () => idle(<FilesPane />)
-  },
-  {
-    id: 'review',
-    area: 'panes',
-    title: translateNow('sidebar.review'),
-    // The second right sidebar: hidden until ⌘G ($reviewOpen) — bound below
-    // like the other chrome toggles; its zone collapses while hidden.
-    data: {
-      placement: 'right',
-      collapsible: true,
-      revealAliases: [REVIEW_PANE_ID],
-      width: FILE_BROWSER_DEFAULT_WIDTH,
-      minWidth: FILE_BROWSER_MIN_WIDTH,
-      maxWidth: FILE_BROWSER_MAX_WIDTH,
-      tabTitle: () => <LocalizedTabTitle select={t => t.sidebar.review} />,
-      tabTitleText: () => translateNow('sidebar.review')
-    },
-    render: () => idle(<ReviewPaneContent />)
-  },
-  {
-    id: 'session-info',
-    area: 'panes',
-    title: translateNow('sessionInfo.title'),
-    // The session at a glance for wide windows: its own column on the right edge, shown and hidden
-    // whole by the titlebar's right button and ⌘B (no rail), with the tools it opens stacked below.
-    data: {
-      placement: 'right',
-      collapsible: true,
-      width: '16rem',
-      minWidth: '13rem',
-      maxWidth: '24rem',
-      tabTitle: () => <LocalizedTabTitle select={t => t.sessionInfo.title} />,
-      tabTitleText: () => translateNow('sessionInfo.title')
-    },
-    render: () => <SessionInfoPane />
   }
 ])
 
@@ -477,7 +404,9 @@ registry.registerMany([
 
 registerLayoutPresets()
 
-declareDefaultTree(DEFAULT_TREE, BASIC_TREE)
+// The default is the Claude-Code side panel: chat + ONE tabbed tools panel.
+// The old every-tool-its-own-zone arrangement stays as the Classic preset.
+declareDefaultTree(SIDE_PANEL_TREE, SIDE_PANEL_TREE)
 
 // Bundled plugins load AFTER core, so a same-id contribution from a plugin
 // deliberately overrides the core default (last writer wins). Third-party
@@ -490,17 +419,28 @@ discoverBundledPlugins()
 // record split shares (#108679).
 hydrateContributedPanes()
 
+// One-time clean reset to the minimal [sessions | workspace] tree for all
+// users so no stale `session-info`, `files`, `terminal`, or `review` panes
+// remain trapped in old saved trees.
+const SIDE_PANEL_MIGRATED = 'hermes.desktop.sidePanelLayout.v3'
+
+if (
+  !isSecondaryWindow() &&
+  !isBrowserWindow() &&
+  !isHudWindow() &&
+  readKey(SIDE_PANEL_MIGRATED) === null
+) {
+  writeKey(SIDE_PANEL_MIGRATED, '1')
+  applyLayoutPreset('default', SIDE_PANEL_TREE)
+}
+
 // Session + route (page) tiles: persisted splits register panes docked beside
-// main. A popped-out Browser and the HUD have no layout tree — registering
-// tiles there would still run, and preview-tile watching would try to dock
-// into a tree this window never renders (and, in the HUD, paint a webview
-// into the transparent overlay).
+// main. Preview tiles (Browser / local files) are now owned by SidePanelShell.
 if (!isBrowserWindow() && !isHudWindow()) {
   watchSessionTiles()
   startUnrestoredTileTitleBackfill()
   startTileBackendIdentityGuard()
   watchRouteTiles()
-  watchPreviewTiles()
 }
 
 // Mirror sidebar pins into the backend keep-flag so the auto-archive sweep
@@ -632,22 +572,75 @@ bindPaneVisibility(
   () => openReview($reviewScopeCwd.get(), $reviewScopeTarget.get())
 )
 bindPaneVisibility(
-  SESSION_PANEL_PANE_ID,
-  $sessionPanelOpen,
-  () => $sessionPanelOpen.set(false),
-  () => $sessionPanelOpen.set(true)
+  BACKGROUND_TASKS_PANE_ID,
+  $backgroundTasksOpen,
+  () => setBackgroundTasksOpen(false),
+  () => setBackgroundTasksOpen(true)
 )
-// ⌃` / statusbar toggle — the terminal COLLAPSES to a rail (tab stays), not
-// hides; PTYs stay alive while collapsed (see PersistentTerminal). Simple has
-// no terminal: where chrome is off a closed one hides, rail and all, and ⌃`
-// is the door for the session.
-bindToolPaneCollapse(
+// Closing Terminal hides its tab (no leftover collapsed rail on the top or
+// side); `lifecycleKeepAlive: true` keeps PTYs alive while hidden.
+bindPaneVisibility(
   'terminal',
   $terminalTakeover,
   () => setTerminalTakeover(false),
-  () => setTerminalTakeover(true),
-  $showsAdvancedChrome
+  () => setTerminalTakeover(true)
 )
+// Empty side-panel launcher: rendered ONLY when no tool tabs are open in the
+// right sidebar — never as a tab itself.
+registerEmptyZoneLauncher(() => <SessionInfoPane />)
+// The side panel's "+" launcher: every tool, opened as a tab where you ask for
+// it. Each opens through its own store so its keybind toggle stays truthful.
+registerZoneTool({
+  id: 'review',
+  icon: 'git-compare',
+  keybind: 'view.toggleReview',
+  label: () => translateNow('sidebar.review'),
+  open: () => openReview($reviewScopeCwd.get(), $reviewScopeTarget.get()),
+  order: 0,
+  paneId: () => 'review'
+})
+registerZoneTool({
+  id: 'browser',
+  icon: 'globe',
+  keybind: 'view.showBrowser',
+  label: () => translateNow('zones.browserTool'),
+  open: openBrowserTab,
+  order: 10,
+  paneId: browserPaneId
+})
+registerZoneTool({
+  id: 'files',
+  icon: 'files',
+  keybind: 'view.showFiles',
+  label: () => translateNow('sidebar.files'),
+  open: () => setFileBrowserOpen(true),
+  order: 20,
+  paneId: () => 'files'
+})
+registerZoneTool({
+  id: 'terminal',
+  icon: 'terminal',
+  keybind: 'view.showTerminal',
+  label: () => translateNow('sidebar.terminal'),
+  open: () => setTerminalTakeover(true),
+  order: 30,
+  paneId: () => 'terminal'
+})
+registerZoneTool({
+  id: BACKGROUND_TASKS_PANE_ID,
+  icon: 'layers',
+  badge: () => {
+    const running = Object.values($subagentsBySession.get())
+      .flat()
+      .filter(item => item.status === 'running' || item.status === 'queued').length
+
+    return running > 0 ? String(running) : null
+  },
+  label: () => 'Background tasks',
+  open: () => setBackgroundTasksOpen(true),
+  order: 40,
+  paneId: () => BACKGROUND_TASKS_PANE_ID
+})
 // Without the statusbar, the rail is the only way to switch profiles or gateways.
 $profiles.subscribe(profiles => setModeContext({ profileCount: profiles.length }))
 $connectionsRegistry.subscribe(registry => setModeContext({ connectionCount: registry?.connections.length ?? 0 }))
@@ -870,7 +863,9 @@ export function ContribController() {
           data-contrib-shell=""
           style={{ '--titlebar-height': '0px' } as CSSProperties}
         >
-          <LayoutTreeRoot titlebar />
+          <SidePanelShell>
+            <LayoutTreeRoot titlebar />
+          </SidePanelShell>
 
           {/* "Close running tab?" — the busy/input-blocked tile close gate. */}
           <SessionTileCloseConfirm />

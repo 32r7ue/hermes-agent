@@ -7,7 +7,7 @@ import { settingsPageEntries, settingsSubviewEntries, SUBPAGE_KEYWORDS } from '.
 import type { SettingsSearchEntry } from '../settings/settings-search'
 import { settingsSubpageLabel } from '../settings/subpages'
 
-import { rankGroups, type RankableItem } from './rank'
+import { type RankableItem, rankGroups } from './rank'
 
 // Mirrors the palette's settings rows (command-palette/index.tsx): pages get
 // PAGE_BOOST, sub-pages SUBPAGE_BOOST, and every row's keywords carry its

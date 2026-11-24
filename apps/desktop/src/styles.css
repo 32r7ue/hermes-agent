@@ -131,6 +131,33 @@
   src: local('AnthropicSerifVariable-TextLightItalic');
 }
 
+/* Geist Sans (variable) + Geist Serif for the Geist chat text style. Bundled
+   from the `geist` npm package (OFL, fonts/Geist-OFL.txt). Geist Serif ships a
+   single Regular weight and no italic; bold/italic are synthesized. */
+@font-face {
+  font-family: 'Hermes Geist Sans';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('./fonts/Geist-Variable.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Hermes Geist Sans';
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('./fonts/Geist-Italic-Variable.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Hermes Geist Serif';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./fonts/GeistSerif-Regular.woff2') format('woff2');
+}
+
 /* JetBrains Mono — bundled terminal font (Apache-2.0) so bold/italic share the
    regular face's metrics instead of squeezing against a system fallback. */
 @font-face {
@@ -1907,6 +1934,29 @@ body.guest-pointer-lock :is(webview, iframe) {
   :is([data-slot='aui_thread-content'], [data-slot='composer-rich-input'])
   :is(strong, b) {
   font-weight: 530;
+}
+
+/* Geist: the Claude layout in Geist — replies in Geist Serif (one weight, 400),
+   the rest in Geist Sans at 400, bold at 600. Geist Serif's deeper descender
+   (-200 vs -150) gets a little more leading. */
+:root[data-chat-text-style='geist'] :is([data-slot='aui_thread-content'], [data-slot='composer-rich-input']) {
+  --font-sans: 'Hermes Geist Sans', var(--dt-font-sans);
+  --dt-line-height: 1.45;
+  font-family: var(--font-sans);
+  font-weight: 400;
+}
+
+:root[data-chat-text-style='geist']
+  [data-slot='aui_assistant-message-content']
+  .aui-md:not([data-slot='aui_reasoning-text'], :where([data-slot='aui_thinking-body'] *)) {
+  --font-sans: 'Hermes Geist Serif', 'Hermes Geist Sans', var(--dt-font-sans);
+  font-family: var(--font-sans);
+}
+
+:root[data-chat-text-style='geist']
+  :is([data-slot='aui_thread-content'], [data-slot='composer-rich-input'])
+  :is(strong, b) {
+  font-weight: 600;
 }
 
 [data-slot='aui_assistant-message-root'] {

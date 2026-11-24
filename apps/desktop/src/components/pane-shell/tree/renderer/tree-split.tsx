@@ -18,7 +18,7 @@ import { $paneStates, type PaneStateSnapshot, setPaneHeightOverride, setPaneWidt
 
 import { $layoutEditMode, $layoutEditRevealsHidden } from '../../edit-mode'
 import type { LayoutNode, SplitNode } from '../model'
-import { allPaneIds } from '../model'
+import { allPaneIds, containsSidePanelGroup, SIDE_PANEL_GROUP_ID } from '../model'
 import {
   $collapsedTreeSides,
   $hiddenTreePanes,
@@ -152,7 +152,9 @@ export function TreeSplit({
   // overlay owns the single live instance of the pane's content.
   // EMPTY zones only exist in editor-authored trees (normalize prunes them on
   // every structural op) — they take space in edit mode as drop targets.
-  const isEmptyZone = (child: LayoutNode) => child.type === 'group' && child.panes.length === 0
+  const isEmptyZone = (child: LayoutNode) =>
+    child.type === 'group' && child.panes.length === 0 && child.id !== SIDE_PANEL_GROUP_ID
+
   // A column in a row whose only shown zones are minimized (the terminal folded away beside the
   // preview) has no rail of its own to draw: its strips are horizontal headers squeezed into a 28px
   // track over empty chrome, a grey band down the window edge. It takes no space; the zone comes back
@@ -177,13 +179,17 @@ export function TreeSplit({
   // cap it. Stacks aggregate clamps (largest-tenant semantics, mirroring the
   // max() track basis) — the active tab's caps must never resize the zone.
   const sizingFor = (child: LayoutNode, track: string | null): PaneSizing | null => {
-    if (child.type !== 'group' || child.panes.length === 0) {
+    if (child.type !== 'group') {
       return null
     }
 
     const shownIds = shownPaneIds(child, trackCtx)
 
-    if (shownIds.length <= 1) {
+    if (shownIds.length === 0) {
+      return child.id === SIDE_PANEL_GROUP_ID ? { minWidth: '16rem' } : null
+    }
+
+    if (shownIds.length === 1) {
       return (paneFor(shownIds[0])?.data as PaneSizing | undefined) ?? null
     }
 
@@ -673,7 +679,10 @@ export function TreeSplit({
       return false
     }
 
-    const side = paneRootSide(allPaneIds(node.children[i])[0])
+    const child = node.children[i]
+
+    const side =
+      paneRootSide(allPaneIds(child)[0]) ?? (containsSidePanelGroup(child) ? (i === 0 ? 'left' : 'right') : null)
 
     return side !== null && collapsedSides.has(side)
   }

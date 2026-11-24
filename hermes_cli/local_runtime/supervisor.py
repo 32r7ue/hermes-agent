@@ -206,8 +206,9 @@ class LlamaServerSupervisor:
         self._log_handle.flush()
         # list-args, never a shell: spaced paths (user homes) must survive. owned: the router
         # tree dies with this process on every OS, however this process dies (#126631).
+        child_env = server_child_env(os.environ)
         self.proc, self._job = spawn_server(cmd, owned=True, stdout=self._log_handle, stderr=subprocess.STDOUT,
-                                             cwd=str(exe.parent), env=server_child_env(os.environ))
+                                             cwd=str(exe.parent), env=child_env)
         logger.info("llama-server router spawned pid=%s port=%s", self.proc.pid, self.port)
         # State goes down at SPAWN, not after health: endpoint resolution treats a
         # live-pid-but-not-yet-healthy server as "starting" rather than "unconfigured", so a

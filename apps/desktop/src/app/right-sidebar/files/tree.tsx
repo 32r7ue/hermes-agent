@@ -273,6 +273,74 @@ const CHANGE_TINT: Record<RepoChangeKind, string> = {
   modified: 'text-(--ui-yellow)'
 }
 
+export function FileTypeIcon({ name }: { name: string }) {
+  const lower = name.toLowerCase()
+  const ext = lower.includes('.') ? lower.slice(lower.lastIndexOf('.') + 1) : ''
+
+  switch (ext) {
+    case 'tsx':
+
+    case 'jsx':
+      return <Codicon className="text-sky-400" name="symbol-misc" size="0.875rem" />
+
+    case 'ts':
+      return <Codicon className="text-blue-400" name="file-code" size="0.875rem" />
+
+    case 'js':
+
+    case 'mjs':
+
+    case 'cjs':
+      return <Codicon className="text-amber-300" name="file-code" size="0.875rem" />
+
+    case 'json':
+
+    case 'jsonc':
+      return <Codicon className="text-amber-400" name="json" size="0.875rem" />
+
+    case 'css':
+
+    case 'scss':
+
+    case 'less':
+      return <Codicon className="text-purple-400" name="symbol-color" size="0.875rem" />
+
+    case 'md':
+
+    case 'mdx':
+      return <Codicon className="text-sky-300" name="markdown" size="0.875rem" />
+
+    case 'py':
+      return <Codicon className="text-emerald-400" name="file-code" size="0.875rem" />
+
+    case 'rs':
+      return <Codicon className="text-orange-400" name="file-code" size="0.875rem" />
+
+    case 'png':
+
+    case 'jpg':
+
+    case 'jpeg':
+
+    case 'gif':
+
+    case 'webp':
+
+    case 'svg':
+      return <Codicon className="text-pink-400" name="file-media" size="0.875rem" />
+
+    case 'sh':
+
+    case 'zsh':
+
+    case 'bash':
+      return <Codicon className="text-emerald-300" name="terminal" size="0.875rem" />
+
+    default:
+      return <Codicon name="file" size="0.875rem" />
+  }
+}
+
 function ProjectTreeRow({
   dragHandle,
   node,
@@ -333,6 +401,7 @@ function ProjectTreeRow({
           node.toggle()
         } else {
           node.select()
+          onPreviewFile?.(node.data.id)
         }
       }}
       onDoubleClick={event => {
@@ -362,17 +431,15 @@ function ProjectTreeRow({
       }}
       title={node.data.id}
     >
-      {/* No chevron column — the folder icon (open/closed) already carries the
-          expand state, so the extra glyph was pure noise. */}
-      <span aria-hidden className="flex w-3.5 items-center justify-center text-(--ui-text-tertiary)">
+      <span aria-hidden className="flex w-3.5 shrink-0 items-center justify-center text-(--ui-text-tertiary)">
         {isPlaceholder && !isErrorPlaceholder ? (
           <Codicon name="loading" size="0.75rem" spinning />
         ) : isErrorPlaceholder ? (
           <Codicon name="warning" size="0.75rem" />
         ) : isFolder ? (
-          <Codicon name={node.isOpen ? 'folder-opened' : 'folder'} size="0.875rem" />
+          <Codicon name={node.isOpen ? 'chevron-down' : 'chevron-right'} size="0.75rem" />
         ) : (
-          <Codicon name="file" size="0.875rem" />
+          <FileTypeIcon name={node.data.name} />
         )}
       </span>
       {editing ? (

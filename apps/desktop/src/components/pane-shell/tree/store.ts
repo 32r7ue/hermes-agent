@@ -35,6 +35,7 @@ import {
   mirrorTreeHorizontal,
   movePane as movePaneOp,
   movePanes as movePanesOp,
+  movePaneToEdge,
   normalize,
   removePane,
   reorderPanesInGroup as reorderPanesInGroupOp,
@@ -1741,6 +1742,154 @@ export function moveTreePane(paneId: string, target: { groupId: string; pos: Dro
     commit(next)
     markActivePreset('custom')
     markPaneUserPlaced(paneId)
+  }
+}
+
+/**
+ * The zone Move menu: send a tab to an edge of the layout as its own zone (a
+ * lone tab takes its zone along). The sessions sidebar stays put — see
+ * `movePaneToEdge`.
+ */
+export function moveTreePaneToEdge(paneId: string, edge: 'left' | 'right' | 'top' | 'bottom') {
+  const tree = $layoutTree.get()
+
+  if (!tree) {
+    return
+  }
+
+  const next = movePaneToEdge(tree, paneId, edge, g => g.panes.length > 0 && g.panes.every(isHideOnlyPane))
+
+  if (next !== tree) {
+    commit(next)
+    markActivePreset('custom')
+    markPaneUserPlaced(paneId)
+  }
+}
+
+/**
+ * A TOOL the side panel's "+" launcher (and an empty zone) offers: Changes,
+ * Files, Terminal, Browser… The app registers them; the shell only lists and
+ * opens them. `open` goes through the tool's own store so its keybind toggle
+ * stays truthful; `paneId` is read AFTER `open` (the Browser's pane id only
+ * exists once a tab does).
+ */
+export interface ZoneTool {
+  id: string
+  icon: string
+  /** Optional live badge (e.g. active background task count). */
+  badge?: () => null | string
+  /** Keybind action whose chord the row shows. */
+  keybind?: string
+  label: () => string
+  open: () => void
+  order: number
+  paneId: () => null | string
+}
+
+export const $zoneTools = atom<readonly ZoneTool[]>([])
+
+/** Optional app-supplied renderer for an empty tool zone (the session launcher). */
+export const $emptyZoneLauncher = atom<((groupId: string) => unknown) | null>(null)
+
+export function registerEmptyZoneLauncher(render: (groupId: string) => unknown): () => void {
+  $emptyZoneLauncher.set(render)
+
+  return () => {
+    if ($emptyZoneLauncher.get() === render) {
+      $emptyZoneLauncher.set(null)
+    }
+  }
+}
+
+export function registerZoneTool(tool: ZoneTool): () => void {
+  $zoneTools.set([...$zoneTools.get().filter(t => t.id !== tool.id), tool].sort((a, b) => a.order - b.order))
+
+  return () => $zoneTools.set($zoneTools.get().filter(t => t !== tool))
+}
+
+/** Open `tool` as a tab IN `groupId` (Claude-Code side panel semantics: a tool
+ *  opens beside what you're looking at, moving out of wherever it was). With
+ *  no group, or a group that's gone, it opens wherever it lives. */
+export function openZoneTool(tool: ZoneTool, groupId: null | string) {
+  const before = $layoutTree.get()
+  const known = new Set(before ? allPaneIds(before) : [])
+
+  tool.open()
+
+  const land = (attempt: number) => {
+    const paneId = tool.paneId()
+    const tree = $layoutTree.get()
+
+    if (!paneId || !tree) {
+      return
+    }
+
+    const home = findGroupOfPane(tree, paneId)
+
+    // Dynamic panes (a fresh Browser tab) are adopted a beat after `open`.
+    if (!home) {
+      if (attempt < 4) {
+        requestAnimationFrame(() => land(attempt + 1))
+      }
+
+      return
+    }
+
+    if (groupId && home.id !== groupId && findGroup(tree, groupId)) {
+      moveTreePane(paneId, { groupId, pos: 'center' })
+
+      // A pane adopted by `open` first docked as its own zone (the Browser
+      // beside the chat) and split that slot's weight; it has moved on, so
+      // hand the layout its sizes back.
+      if (before && !known.has(paneId)) {
+        restoreSplitWeights(before)
+      }
+    }
+
+    restoreTreePane(paneId)
+  }
+
+  land(0)
+}
+
+function restoreSplitWeights(from: LayoutNode) {
+  const tree = $layoutTree.get()
+
+  if (!tree) {
+    return
+  }
+
+  const saved = new Map<string, number[]>()
+
+  const collect = (n: LayoutNode) => {
+    if (n.type === 'split') {
+      saved.set(n.id, n.weights)
+      n.children.forEach(collect)
+    }
+  }
+
+  collect(from)
+
+  let next = tree
+
+  const walk = (n: LayoutNode) => {
+    if (n.type !== 'split') {
+      return
+    }
+
+    const w = saved.get(n.id)
+
+    if (w && w.length === n.weights.length && w.some((x, i) => x !== n.weights[i])) {
+      next = setSplitWeightsOp(next, n.id, w)
+    }
+
+    n.children.forEach(walk)
+  }
+
+  walk(tree)
+
+  if (next !== tree) {
+    commit(next)
   }
 }
 

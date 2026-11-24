@@ -55,6 +55,8 @@ export interface PaneMirror<T> {
   /** Mint another tile of this kind — the strip's "+" (see PaneChrome.newTab).
    *  Per tile so a mirror can offer it for some of its tabs and not others. */
   newTab?: (key: string) => (() => void) | undefined
+  /** Open this tile in its own OS window (see PaneChrome.popOut). */
+  popOut?: (key: string) => (() => void) | undefined
   render: (key: string) => ReactNode
   /** Stateful resources must survive the zone's inactive-tab cache eviction. */
   lifecycleKeepAlive?: (key: string) => boolean
@@ -150,6 +152,7 @@ export function paneMirror<T>(cfg: PaneMirror<T>): () => void {
           lifecycleKeepAlive: cfg.lifecycleKeepAlive?.(key),
           minWidth: cfg.minWidth,
           newTab: cfg.newTab?.(key),
+          popOut: cfg.popOut?.(key),
           // Every mirrored tile is a full workspace surface docked beside main —
           // and closeable, which is what keeps its tab when it lands in a zone of
           // its own (see strip-visibility.ts).

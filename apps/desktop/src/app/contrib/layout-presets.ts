@@ -87,6 +87,21 @@ export const DEMO_LAYOUT_ID = 'demo'
 
 export const DEMO_TREE = group(['workspace'], { tabStrip: 'never' })
 
+// Clean chat-first tree: sessions sidebar + main chat workspace.
+// All side-panel tools (Files, Changes, Browser, Terminal, Background tasks)
+// live in the standalone `SidePanelShell` outside `LayoutTreeRoot`.
+export const SIDE_PANEL_TREE = split(
+  'row',
+  [
+    group(['sessions'], { id: 'grp-sessions' }),
+    group(['workspace'], { id: 'grp-main' })
+  ],
+  [1, 3.6],
+  'spl-root'
+)
+
+const SIDE_PANEL_RESTING = [] as const
+
 const QUAD_TREE = split(
   'column',
   [
@@ -109,7 +124,8 @@ export function registerLayoutPresets() {
       resting: BASIC_RESTING,
       tier: 'simple'
     },
-    { id: 'default', title: 'Default', order: 0, tree: DEFAULT_TREE, tier: 'advanced' },
+    { id: 'default', title: 'Side panel', order: 0, tree: SIDE_PANEL_TREE, resting: SIDE_PANEL_RESTING },
+    { id: 'classic', title: 'Classic', order: 2, tree: DEFAULT_TREE, tier: 'advanced' },
     { id: 'basic', title: 'Basic', order: 5, tree: BASIC_TREE, resting: BASIC_RESTING, tier: 'advanced' },
     { id: 'focus', title: 'Focus', order: 10, tree: FOCUS_TREE, resting: ['terminal'], tier: 'advanced' },
     {

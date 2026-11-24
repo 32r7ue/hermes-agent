@@ -276,6 +276,7 @@ describe('a refreshed page that holds the live turn whole', () => {
       ...liveRows,
       answer(20, '')
     ])
+
     const merged = graftRefreshedTailOntoBackfill(page, stopped)
 
     expect(count(texts(merged), 'steered prompt')).toBe(1)

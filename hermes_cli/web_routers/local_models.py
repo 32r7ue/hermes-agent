@@ -348,7 +348,10 @@ def _engine_too_old(min_engine: str) -> bool:
     requested = _runtime_section().get("backend", "auto")
     engine = binaries.installed_engine(requested)
     tag = engine.tag if engine is not None else _runtime_target()[0]
-    return int(tag.removeprefix("b")) < int(min_engine.removeprefix("b"))
+    try:
+        return int(tag.removeprefix("b")) < int(min_engine.removeprefix("b"))
+    except ValueError:
+        return False
 
 
 def _eligible_entries():

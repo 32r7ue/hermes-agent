@@ -752,15 +752,49 @@ export function PreviewPane({
       // remote gateway `localhost:5173` is usually the dev server the user is
       // there to look at, not something on their own laptop.
       void reachablePreviewUrl(url)
-        .then(reached =>
-          // loadURL, not a `src` swap: `src` only reloads when the value CHANGES,
-          // so re-entering the address you're already on would do nothing. A
-          // rejected load is a real navigation failure the user has to see —
-          // `did-fail-load` doesn't fire for every rejection (a bad scheme
-          // rejects outright).
-          navigationRef.current?.loadURL?.(reached)
-        )
+        .then(reached => {
+          const wv = webviewRef.current
+          let attached = false
+
+          try {
+            attached = Boolean(wv && typeof wv.getWebContentsId === 'function' && wv.getWebContentsId() > 0)
+          } catch {
+            attached = false
+          }
+
+          // Navigating a fresh `about:blank` webview (or any cross-origin swap) via
+          // `loadURL` can reject with ERR_INVALID_HANDLE (-5) / ERR_FAILED (-2) in
+          // Electron even while the page loads normally. Setting `src` on a fresh
+          // webview attaches cleanly, and real network failures surface via `did-fail-load`.
+          if (wv && (!attached || !liveUrlRef.current || /^about:blank\/?$/i.test(liveUrlRef.current))) {
+            wv.setAttribute('src', reached)
+            setCurrentUrl(reached)
+
+            return
+          }
+
+          return navigationRef.current?.loadURL?.(reached)?.catch((err: unknown) => {
+            const msg = String(err)
+
+            if (/ERR_INVALID_HANDLE|ERR_ABORTED|ERR_FAILED|invalid handle/i.test(msg)) {
+              if (wv && /ERR_INVALID_HANDLE|invalid handle/i.test(msg)) {
+                wv.setAttribute('src', reached)
+                setCurrentUrl(reached)
+              }
+
+              return
+            }
+
+            throw err
+          })
+        })
         .catch((error: unknown) => {
+          const msg = String(error)
+
+          if (/ERR_INVALID_HANDLE|ERR_ABORTED|ERR_FAILED|invalid handle/i.test(msg)) {
+            return
+          }
+
           setLoadError({
             description: error instanceof Error ? error.message : copy.unreachableDescription,
             url
@@ -838,6 +872,7 @@ export function PreviewPane({
     }
 
     const lifetime = new AbortController()
+
     const unregister = registerPreviewPageReader(tabId, async () => {
       const webview = webviewRef.current
 
@@ -1378,7 +1413,7 @@ export function PreviewPane({
   // rebuild it. Per-page state (annotate pins, console log, history) resets
   // around the load so nothing bleeds across pages. Skipped when the guest
   // already shows the address (an in-page navigation got there first).
-  // eslint-disable-next-line no-restricted-syntax -- legitimate non-atom ref write (see eslint rule comment)
+   
   useEffect(() => {
     if (!isWebPreview || isRemoteHtml) {
       return
@@ -1405,6 +1440,10 @@ export function PreviewPane({
     setLoading(true)
     setCurrentUrl(nextUrl)
     void navigation.loadURL?.(nextUrl)?.catch((error: unknown) => {
+      if (/ERR_INVALID_HANDLE|ERR_ABORTED|ERR_FAILED|invalid handle/i.test(String(error))) {
+        return
+      }
+
       setLoadError({
         description: error instanceof Error ? error.message : copy.unreachableDescription,
         url: nextUrl
@@ -1484,11 +1523,11 @@ export function PreviewPane({
             onFlushComments={() => void flushComments()}
             onForward={goForward}
             onNavigate={navigateTo}
-            onOpenExternal={
-              !isBrowserWindow() && !canOpenBrowserWindow()
-                ? () => void window.hermesDesktop?.openExternal(currentUrl)
-                : undefined
-            }
+            onOpenExternal={() => {
+              if (currentUrl && currentUrl !== 'about:blank') {
+                void window.hermesDesktop?.openExternal(currentUrl)
+              }
+            }}
             onPopIn={isBrowserWindow() ? () => window.close() : undefined}
             onPopOut={
               target.kind !== 'url' || isBrowserWindow() || !tabId || !canOpenBrowserWindow()
@@ -1496,6 +1535,29 @@ export function PreviewPane({
                 : () => popOutBrowserTab(tabId)
             }
             onReload={reloadPreview}
+            onScreenshot={() => {
+              const wv = webviewRef.current
+              const wcId = wv?.getWebContentsId?.()
+
+              if (!wcId || !window.hermesDesktop?.capturePreview) {
+                notify({ kind: 'warning', message: 'Open a page first to take a screenshot.' })
+
+                return
+              }
+
+              void window.hermesDesktop
+                .capturePreview({ webContentsId: wcId })
+                .then(dataUrl => fetch(dataUrl))
+                .then(res => res.blob())
+                .then(blob => {
+                  requestComposerAttachImages([blob])
+                  requestComposerFocus()
+                  notify({ kind: 'info', message: 'Browser screenshot attached to prompt' })
+                })
+                .catch(() => {
+                  notify({ kind: 'warning', message: 'Could not capture browser screenshot.' })
+                })
+            }}
             onToggleAnnotate={toggleAnnotate}
             onToggleConsole={() => consoleState.setOpen(open => !open)}
             onToggleDevTools={toggleDevTools}

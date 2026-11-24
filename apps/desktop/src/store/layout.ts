@@ -107,19 +107,32 @@ export const $fileBrowserOpen = modeBound('fileBrowserOpen', $fileBrowserOpenPre
   setPaneOpen(FILE_BROWSER_PANE_ID, open)
 )
 
-// The session panel (machine, folder, context, changes, tool doors) is the right edge's own column.
-// The titlebar's right button and ⌘B show and hide it whole, never as a rail; tools opened from it
-// stack beneath it in the same column.
+// The right sidebar (side panel): shows open tool tabs (Files, Terminal, Browser,
+// Review, Background tasks), or the session launcher when no tabs are open.
+// The titlebar's right button and ⌘B show and hide it whole — never as a rail.
 export const SESSION_PANEL_PANE_ID = 'session-info'
+export const BACKGROUND_TASKS_PANE_ID = 'background-tasks'
 export const $sessionPanelOpen = persistentAtom('hermes.desktop.session-panel-open.v1', true, Codecs.bool)
+export const $backgroundTasksOpen = atom(false)
+
+export function setBackgroundTasksOpen(open: boolean) {
+  $backgroundTasksOpen.set(open)
+
+  if (open) {
+    openSessionPanel()
+    revealTreePane(BACKGROUND_TASKS_PANE_ID)
+  }
+}
 
 /** The panel shares this side with Files: closing Files must not fold the panel's column. */
 const sessionPanelHolds = (side: TreeSide | null) =>
-  $sessionPanelOpen.get() && side !== null && paneRootSide(SESSION_PANEL_PANE_ID) === side
+  $sessionPanelOpen.get() && side !== null && side === fileBrowserSide()
 
 export function openSessionPanel() {
+  const side = fileBrowserSide()
   $sessionPanelOpen.set(true)
-  revealTreePane(SESSION_PANEL_PANE_ID)
+  setTreeSideCollapsed(side, false)
+  restoreMinimizedTreeSide(side)
 }
 
 /** Stack `paneId` under the session panel, in its column, unless it already lives there. The caller
@@ -134,19 +147,17 @@ export function dockBelowSessionPanel(paneId: string) {
 }
 
 export function toggleSessionPanel() {
-  if (!isPaneVisible(SESSION_PANEL_PANE_ID)) {
-    openSessionPanel()
+  const side = fileBrowserSide()
+  const isOpen = !$collapsedTreeSides.get().has(side)
+
+  if (isOpen) {
+    $sessionPanelOpen.set(false)
+    setTreeSideCollapsed(side, true)
 
     return
   }
 
-  // The whole column goes with it, tools stacked below included; reopening brings back what it held.
-  const side = paneRootSide(SESSION_PANEL_PANE_ID)
-  $sessionPanelOpen.set(false)
-
-  if (side) {
-    setTreeSideCollapsed(side, true)
-  }
+  openSessionPanel()
 }
 
 // Persisted so a relaunch reopens the same rail tab. Null when the rail has no
@@ -503,6 +514,7 @@ if (typeof document !== 'undefined') {
     }
   })
 }
+
 export const $isSidebarResizing = atom(false)
 export const $sessionsLimit = atom(SIDEBAR_SESSIONS_PAGE_SIZE)
 

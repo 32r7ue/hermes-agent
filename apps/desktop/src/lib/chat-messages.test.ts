@@ -348,8 +348,10 @@ describe('toChatMessages', () => {
 
   it('drops a per-turn [System: …] note the agent appended after the image placeholders', () => {
     const path = '/cache/native-inputs/hash/shot.png'
+
     const note =
       '[System: The skills available in this conversation changed after its system prompt was built.\nNo longer available: a, b]'
+
     const content = `can you fix that\n\n[Image attached at: ${path}]\n[screenshot]\n${note}`
     const [message] = toChatMessages([{ role: 'user' as const, content, timestamp: 1, row_id: 24 }])
 

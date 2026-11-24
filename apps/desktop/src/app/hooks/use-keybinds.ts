@@ -1,15 +1,14 @@
 import { useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 
-import { closeActiveTab } from '@/app/chat/close-tab'
 import { hudTargetSessionId } from '@/app/hud/handoff'
 import { setTerminalTakeover } from '@/app/right-sidebar/store'
-import { toggleTerminalColumn, toggleTerminalPane } from '@/app/right-sidebar/terminal/reveal-focus'
 import { closeActiveTerminal, createTerminal, cycleTerminal } from '@/app/right-sidebar/terminal/terminals'
 import { appViewForPath, isOverlayView } from '@/app/routes'
 import { activateTreeTabSlot, isPaneVisible, toggleTargetZoneTabStrip } from '@/components/pane-shell/tree/store'
 import { setWorkspaceScope } from '@/components/pane-shell/workspace-scope'
 import { onReleaseTypingFocus } from '@/components/ui/keyboard-first'
+import { ejectLocalModel, getLocalModelsStatus } from '@/hermes'
 import { translateNow } from '@/i18n/runtime'
 import { findBarClaimsCombo } from '@/lib/find-in-page'
 import {
@@ -38,18 +37,13 @@ import { toggleHud } from '@/store/hud'
 import { toggleSimpleMode } from '@/store/interface-mode'
 import { $capture, $comboIndex, captureStep, endCapture, setBinding } from '@/store/keybinds'
 import {
-  $panesFlipped,
   cycleSidebarGrouping,
-  layoutHasRightSide,
   requestSessionSearchFocus,
   setFileBrowserOpen,
   togglePanesFlipped,
-  toggleRightSide,
-  toggleSessionPanel,
   toggleSidebarOpen
 } from '@/store/layout'
-import { notifyError } from '@/store/notifications'
-import { toggleBrowserTab } from '@/store/preview'
+import { notify, notifyError } from '@/store/notifications'
 import {
   $newChatProfile,
   cycleProfile,
@@ -60,7 +54,6 @@ import {
 } from '@/store/profile'
 import { toggleProfileRailVisible } from '@/store/profile-rail-prefs'
 import { openFolderAsProject } from '@/store/projects'
-import { toggleReview } from '@/store/review'
 import {
   $activeSessionId,
   $currentReasoningEffort,
@@ -81,9 +74,9 @@ import {
   switcherActive,
   switcherJustClosed
 } from '@/store/session-switcher'
+import { closeFocusedSidePanelTab, openNewRightSideTab, openSidePanelTool, toggleSidePanel, toggleSidePanelTool } from '@/store/side-panel'
 import { toggleStatusbarVisible } from '@/store/statusbar-prefs'
 import { requestThreadPageScroll } from '@/store/thread-scroll'
-import { openNewWindow } from '@/store/windows'
 import { useTheme } from '@/themes/context'
 
 import {
@@ -308,7 +301,7 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
       window.dispatchEvent(new CustomEvent('hermes:new-session-shortcut'))
     },
     'session.newTab': () => deps.openNewSessionTab(),
-    'session.newWindow': () => void openNewWindow(),
+    'session.newWindow': () => openNewRightSideTab(),
     'session.next': () => stepSession(1),
     'session.previous': () => stepSession(-1),
     ...sessionSlotHandlers,
@@ -330,25 +323,23 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
     // Narrow-viewport reveal is handled inside the store toggles now.
     'view.toggleSidebar': toggleSidebarOpen,
     'view.cycleSidebarGrouping': cycleSidebarGrouping,
-    // ⌘B toggles the right edge: the session panel column whole. Without the panel in the layout it
-    // folds whatever column lives on the physical right, or falls back to the terminal.
-    'view.toggleRightSidebar': () =>
-      !$panesFlipped.get() ? toggleSessionPanel() : layoutHasRightSide() ? toggleRightSide() : toggleTerminalPane(),
-    'view.toggleReview': toggleReview,
+    // ⌘B toggles the standalone right side panel (launcher when empty, tools when open).
+    'view.toggleRightSidebar': toggleSidePanel,
+    'view.toggleReview': () => toggleSidePanelTool('review'),
     'view.toggleStatusbar': toggleStatusbarVisible,
     'view.toggleProfileRail': toggleProfileRailVisible,
     'view.toggleSimpleMode': toggleSimpleMode,
     'view.toggleTabStrip': () => void toggleTargetZoneTabStrip(),
-    'view.showFiles': showFiles,
-    'view.showBrowser': toggleBrowserTab,
+    'view.showFiles': () => openSidePanelTool('files'),
+    'view.showBrowser': () => openSidePanelTool('browser'),
     'view.toggleHud': () => toggleHud(hudTargetSessionId()),
-    'view.showTerminal': () => toggleTerminalPane(),
-    'view.toggleTerminalPanel': () => toggleTerminalColumn(),
+    'view.showTerminal': () => toggleSidePanelTool('terminal'),
+    'view.toggleTerminalPanel': () => toggleSidePanelTool('terminal'),
     // Create first so the pane's open-effect ensure sees a non-empty set and
     // doesn't also spawn one — net effect is exactly one fresh terminal.
     'view.newTerminal': () => {
       createTerminal()
-      setTerminalTakeover(true)
+      openSidePanelTool('terminal')
     },
     // Switch / close only act while the terminal is actually ON SCREEN — ask
     // the tree, not the toggle store (which stays true behind a stacked
@@ -363,7 +354,8 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
     // macOS the menu accelerator owns ⌘W and routes through the same
     // closeActiveTab via IPC (see use-desktop-integrations); this binding is
     // the Win/Linux path where ⌘W reaches the renderer directly.
-    'view.closeTab': () => void closeActiveTab(id => navigate(sessionRoute(id))),
+    // ⌘W only closes tabs in the side panel / docked panels.
+    'view.closeTab': () => void closeFocusedSidePanelTab(),
     'view.reopenTab': reopenLastClosedTile,
     'view.findInPage': () => {
       // Suppress on overlay routes so it doesn't collide with overlay-specific
@@ -381,6 +373,29 @@ export function useKeybinds(deps: KeybindRuntimeDeps): void {
     'view.findPrevious': findPreviousMatch,
 
     'appearance.toggleMode': () => setMode(resolvedMode === 'dark' ? 'light' : 'dark'),
+    'local.unload': () => {
+      void getLocalModelsStatus()
+        .then(async status => {
+          const ids = [
+            ...new Set([
+              ...Object.entries(status.loaded_models ?? {})
+                .filter(([, state]) => state === 'loaded' || state === 'ready' || state === 'loading')
+                .map(([id]) => id),
+              ...Object.keys(status.loading ?? {})
+            ])
+          ]
+
+          if (ids.length === 0) {
+            notify({ kind: 'info', message: 'No local model loaded' })
+
+            return
+          }
+
+          await Promise.all(ids.map(id => ejectLocalModel(id)))
+          notify({ kind: 'info', message: `Unloaded ${ids.join(', ')}` })
+        })
+        .catch(error => notifyError(error, 'Failed to unload local model'))
+    },
 
     'profile.default': switchToDefaultProfile,
     ...profileSwitchHandlers,

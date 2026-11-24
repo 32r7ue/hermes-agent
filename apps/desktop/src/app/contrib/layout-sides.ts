@@ -1,14 +1,18 @@
 import { computed } from 'nanostores'
 
 import { allPaneIds } from '@/components/pane-shell/tree/model'
-import { $layoutTree, bindTreeSideVisibility, mirrorLayoutTree } from '@/components/pane-shell/tree/store'
+import {
+  $collapsedTreeSides,
+  $layoutTree,
+  bindTreeSideVisibility,
+  mirrorLayoutTree
+} from '@/components/pane-shell/tree/store'
 import { modeLayout } from '@/store/interface-mode'
 import {
-  $fileBrowserOpen,
   $panesFlipped,
   $sessionPanelOpen,
   $sidebarOpen,
-  setFileBrowserOpen,
+  fileBrowserSide,
   setSidebarOpen
 } from '@/store/layout'
 
@@ -46,21 +50,31 @@ export function bindLayoutSides() {
     }
   })
 
-  // The files side stays open while either Files or the session panel (its column-mate) is up.
-  const $filesSideOpen = computed([$fileBrowserOpen, $sessionPanelOpen], (files, panel) => files || panel)
-
-  const $leftEdgeOpen = computed([$panesFlipped, $sidebarOpen, $filesSideOpen], (flipped, sidebar, files) =>
-    flipped ? files : sidebar
+  // The right sidebar (side panel) open state is owned by `$sessionPanelOpen` (⌘B
+  // and the titlebar toggle). Closing individual tool tabs never collapses the
+  // side — it returns to the empty-state launcher instead.
+  const $leftEdgeOpen = computed([$panesFlipped, $sidebarOpen, $sessionPanelOpen], (flipped, sidebar, panel) =>
+    flipped ? panel : sidebar
   )
 
-  const $rightEdgeOpen = computed([$panesFlipped, $sidebarOpen, $filesSideOpen], (flipped, sidebar, files) =>
-    flipped ? sidebar : files
+  const $rightEdgeOpen = computed([$panesFlipped, $sidebarOpen, $sessionPanelOpen], (flipped, sidebar, panel) =>
+    flipped ? sidebar : panel
   )
 
   bindTreeSideVisibility('left', $leftEdgeOpen, open =>
-    ($panesFlipped.get() ? setFileBrowserOpen : setSidebarOpen)(open)
+    $panesFlipped.get() ? $sessionPanelOpen.set(open) : setSidebarOpen(open)
   )
   bindTreeSideVisibility('right', $rightEdgeOpen, open =>
-    ($panesFlipped.get() ? setSidebarOpen : setFileBrowserOpen)(open)
+    $panesFlipped.get() ? setSidebarOpen(open) : $sessionPanelOpen.set(open)
   )
+
+  // Keep `$sessionPanelOpen` truthful if a tool reveal (`⌘G`, `⌘J`, `⌃\``) opens
+  // the right side directly via `setTreeSideCollapsed`.
+  $collapsedTreeSides.listen(collapsed => {
+    const open = !collapsed.has(fileBrowserSide())
+
+    if ($sessionPanelOpen.get() !== open) {
+      $sessionPanelOpen.set(open)
+    }
+  })
 }

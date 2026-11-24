@@ -1022,13 +1022,11 @@ export function ContribWiring({ children }: { children: ReactNode }) {
     toggleSelectedPin
   })
 
-  // Register the tab-strip "+" action (the generic renderer stays
-  // session-agnostic; null until wired hides the glyph).
+  // Chat tabs do not expose a "+" button (sessions can still be dragged to an
+  // edge for splitscreen). Keep `$newSessionTabAction` cleared.
   useEffect(() => {
-    $newSessionTabAction.set(openNewSessionTab)
-
-    return () => $newSessionTabAction.set(null)
-  }, [openNewSessionTab])
+    $newSessionTabAction.set(null)
+  }, [])
 
   // The MAIN tab's Close. The workspace pane can't leave the tree, so its
   // closer empties it instead: the next stacked session shifts in, else main

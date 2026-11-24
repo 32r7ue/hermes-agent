@@ -15,6 +15,17 @@
 
 export type Orientation = 'row' | 'column'
 
+/** The single right-hand side-panel zone (Files, Terminal, Browser, Review, or
+ *  empty-state Launcher). Kept alive when empty so closing the last tool tab
+ *  returns to the launcher instead of collapsing the sidebar. */
+export const SIDE_PANEL_GROUP_ID = 'grp-tools'
+
+export function containsSidePanelGroup(node: LayoutNode): boolean {
+  return node.type === 'group'
+    ? node.id === SIDE_PANEL_GROUP_ID
+    : node.children.some(child => containsSidePanelGroup(child))
+}
+
 /**
  * A zone's STANDING CHOICE about its tab strip. Absent is the third value and
  * the default: AUTO, where the strip's presence is a pure function of what the
@@ -558,6 +569,118 @@ export function setGroupMinimized(root: LayoutNode, groupId: string, minimized: 
 /** Write a zone's standing strip choice; `undefined` returns it to auto. */
 export function setGroupTabStrip(root: LayoutNode, groupId: string, tabStrip: TabStripMode | undefined): LayoutNode {
   return mapGroups(root, g => (g.id === groupId ? { ...g, tabStrip } : g))
+}
+
+function withoutGroup(node: LayoutNode, groupId: string): LayoutNode {
+  if (node.type === 'group') {
+    return node.id === groupId ? { ...node, panes: [] } : node
+  }
+
+  return { ...node, children: node.children.map(c => withoutGroup(c, groupId)) }
+}
+
+/**
+ * Move a whole zone to an edge of the layout (the zone header's Move menu).
+ *
+ * `pinned` names zones at the ends of the root row that the move leaves alone
+ * (the sessions sidebar): top/bottom then span only the content beside them,
+ * and left/right land just inside them — the tools never wrap around the
+ * app's own chrome. Returns the same root when the zone is missing or alone.
+ */
+export function moveGroupToEdge(
+  root: LayoutNode,
+  groupId: string,
+  edge: RootEdge,
+  pinned: (g: GroupNode) => boolean = () => false
+): LayoutNode {
+  const target = findGroup(root, groupId)
+  const rest = target ? normalize(withoutGroup(root, groupId)) : null
+
+  return target && rest ? placeAtEdge(rest, target, edge, pinned) : root
+}
+
+/**
+ * Move ONE tab to an edge (the Move menu acts on the tab you're looking at):
+ * it leaves its zone and becomes its own zone there. A lone tab carries its
+ * zone along — same thing, minus an empty zone.
+ */
+export function movePaneToEdge(
+  root: LayoutNode,
+  paneId: string,
+  edge: RootEdge,
+  pinned: (g: GroupNode) => boolean = () => false
+): LayoutNode {
+  const home = findGroupOfPane(root, paneId)
+
+  if (!home) {
+    return root
+  }
+
+  if (home.panes.length === 1) {
+    return moveGroupToEdge(root, home.id, edge, pinned)
+  }
+
+  const rest = removePane(root, paneId)
+
+  return rest ? placeAtEdge(rest, group([paneId]), edge, pinned) : root
+}
+
+function placeAtEdge(
+  rest: LayoutNode,
+  target: GroupNode,
+  edge: RootEdge,
+  pinned: (g: GroupNode) => boolean
+): LayoutNode {
+  const lead: { node: LayoutNode; weight: number }[] = []
+  const tail: { node: LayoutNode; weight: number }[] = []
+  let content: LayoutNode = rest
+  let contentWeight = 1
+
+  if (rest.type === 'split' && rest.orientation === 'row') {
+    const kids = rest.children.map((node, i) => ({ node, weight: rest.weights[i] ?? 1 }))
+    const isPinned = (n?: LayoutNode) => n?.type === 'group' && pinned(n)
+
+    while (kids.length > 1 && isPinned(kids[0]?.node)) {
+      lead.push(kids.shift()!)
+    }
+
+    while (kids.length > 1 && isPinned(kids[kids.length - 1]?.node)) {
+      tail.unshift(kids.pop()!)
+    }
+
+    contentWeight = kids.reduce((sum, k) => sum + k.weight, 0) || 1
+    content =
+      kids.length === 1
+        ? kids[0]!.node
+        : split(
+            'row',
+            kids.map(k => k.node),
+            kids.map(k => k.weight)
+          )
+  }
+
+  const horizontal = edge === 'left' || edge === 'right'
+  const first = edge === 'left' || edge === 'top'
+  // Tools take roughly a quarter of what they sit beside.
+  const pair = horizontal ? [contentWeight, contentWeight / 3] : [3, 1]
+
+  const placed = split(
+    horizontal ? 'row' : 'column',
+    first ? [target, content] : [content, target],
+    first ? [pair[1]!, pair[0]!] : pair
+  )
+
+  const rebuilt =
+    lead.length || tail.length
+      ? split(
+          'row',
+          [...lead.map(k => k.node), placed, ...tail.map(k => k.node)],
+          [...lead.map(k => k.weight), contentWeight + (horizontal ? pair[1]! : 0), ...tail.map(k => k.weight)],
+          rest.id
+        )
+      : placed
+
+  return normalize(rebuilt) ?? rest
 }
 
 function replaceNode(node: LayoutNode, id: string, make: (g: GroupNode) => LayoutNode): LayoutNode {

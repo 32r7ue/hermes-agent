@@ -48,8 +48,10 @@ function recordToolPreview(ctx: GatewayEventContext, sessionId: string, cwd: str
 /** A terminal command handed to a background process shows in the status stack at once, not a poll later. */
 function seedHandedOffProcess(sessionId: string, payload: GatewayEventContext['payload']): void {
   const result = payload?.result
+
   const record =
     result && typeof result === 'object' && !Array.isArray(result) ? (result as Record<string, unknown>) : {}
+
   const handoff = backgroundHandoff(String(payload?.name ?? ''), record)
 
   if (handoff) {

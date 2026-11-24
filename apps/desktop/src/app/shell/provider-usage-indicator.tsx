@@ -9,6 +9,11 @@ import { requestForOwnedSession } from '@/store/session-states'
 
 // The 5-hour window: Codex labels it "Session", Anthropic "Current session" (agent/account_usage.py).
 const FIVE_HOUR_WINDOW = /\bsession\b/i
+const LOCAL_PROVIDERS = new Set(['llamacpp', 'llama.cpp', 'llama-cpp', 'local', 'ollama', 'lmstudio', 'lm-studio'])
+
+export function isLocalProvider(provider: string | undefined): boolean {
+  return !!provider && LOCAL_PROVIDERS.has(provider.trim().toLowerCase())
+}
 
 /** The ring is the 5h limit when the provider reports one, else the fullest window.
  *  Never combine different credential accounts into an invented quota. */
@@ -33,8 +38,10 @@ interface ProviderUsageIndicatorProps {
 export function ProviderUsageIndicator({ sessionId, provider, request }: ProviderUsageIndicatorProps) {
   const { t } = useI18n()
   const copy = t.conversationUi
+  const local = isLocalProvider(provider)
 
   const query = useQuery({
+    enabled: !local,
     queryKey: ['provider-usage', sessionId, provider],
     // No session yet (a fresh draft): ask the gateway directly. The provider
     // picked in the composer selects the row below.
@@ -48,8 +55,12 @@ export function ProviderUsageIndicator({ sessionId, provider, request }: Provide
     retry: false
   })
 
+  if (local) {return null}
+
   const current = findCatalogProvider(query.data?.providers ?? [], provider)
     ?? query.data?.providers?.find(row => row.is_current)
+
+  if (isLocalProvider(typeof current?.id === 'string' ? current.id : undefined)) {return null}
 
   const percent = providerRingPercent(current)
   const color = percent === null ? 'var(--ui-text-tertiary)' : percent >= 95 ? 'var(--ui-red)' : 'var(--ui-blue)'

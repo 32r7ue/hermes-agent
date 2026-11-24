@@ -12,7 +12,7 @@
 
 import { useStore } from '@nanostores/react'
 
-import { findGroup } from '@/components/pane-shell/tree/model'
+import { findGroup, findGroupOfPane, SIDE_PANEL_GROUP_ID } from '@/components/pane-shell/tree/model'
 import {
   $activeTreeGroup,
   $layoutTree,
@@ -230,6 +230,35 @@ function existingPreviewAnchor(tabId: string): string | undefined {
   return head && head.id !== tabId ? previewPaneId(head.id) : undefined
 }
 
+// The tools that make up a side panel when stacked together (the default
+// layout): a preview opens as a TAB there — instead of splitting a new zone
+// off the chat.
+const SIDE_PANEL_TOOLS = ['files', 'terminal', 'review', 'background-tasks']
+
+/** A pane of the side panel to stack the first preview into, when the layout
+ *  has one (the `grp-tools` side panel or ≥ 2 tools sharing a zone). */
+function sidePanelAnchor(): string | undefined {
+  const tree = $layoutTree.get()
+
+  if (!tree) {
+    return undefined
+  }
+
+  const sidePanel = findGroup(tree, SIDE_PANEL_GROUP_ID)
+
+  if (sidePanel && sidePanel.panes.length > 0) {
+    return sidePanel.panes[0]
+  }
+
+  return SIDE_PANEL_TOOLS.find(id => {
+    const home = findGroupOfPane(tree, id)
+
+    return home ? home.panes.filter(p => SIDE_PANEL_TOOLS.includes(p)).length >= 2 : false
+  })
+}
+
+const previewAnchor = (tabId: string) => existingPreviewAnchor(tabId) ?? sidePanelAnchor()
+
 /** Keep pane contributions mirroring `$previewTabs`, keep the store's selection
  *  and the tree's active pane agreeing, and front a tile when its tab is
  *  selected. Call once from the root. */
@@ -352,8 +381,10 @@ const watchPreviewTileMirror = paneMirror<{ id: string }>({
   // along). Every SUBSEQUENT preview stacks into that zone as a center tab:
   // without the anchor each opened file split a new zone off the right edge
   // (#93610), turning three file opens into three ever-narrower columns.
-  dir: tab => (existingPreviewAnchor(tab.id) ? 'center' : 'right'),
-  anchor: tab => existingPreviewAnchor(tab.id),
+  //
+  // With a side panel (the default layout) the first preview is a tab there.
+  dir: tab => (previewAnchor(tab.id) ? 'center' : 'right'),
+  anchor: tab => previewAnchor(tab.id),
   minWidth: '22rem',
   title: previewTitle,
   tabLead: tabId => <PreviewTabLead tabId={tabId} />,
@@ -361,6 +392,8 @@ const watchPreviewTileMirror = paneMirror<{ id: string }>({
   // A Browser is a vessel, so there can be more of it — a file peek is one of
   // a kind and leaves the strip's "+" to whatever else the zone holds.
   newTab: tabId => (targetFor(tabId)?.kind === 'url' ? newBrowserTab : undefined),
+  popOut: tabId =>
+    targetFor(tabId)?.kind === 'url' && canOpenBrowserWindow() ? () => popOutBrowserTab(tabId) : undefined,
   // Pin/unpin rides the zone tab menu for every preview tab: pinned tabs are
   // the explicit cross-session workspace, everything else belongs to the
   // session that opened it (#73890).
